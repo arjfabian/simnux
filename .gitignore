@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+.venv/
+*.py[cod]
+
+# Node
+node_modules/
+npm-debug.log*
+
+# SIMNUX Local State
+.simnux_sessions/
+*.log
+
+# OS
+.DS_Store
