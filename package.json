@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "backend": "cd backend && ./.venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload",
+    "backend": "cd backend && ./.venv/bin/python -m uvicorn simnux:app --host 0.0.0.0 --port 8000 --reload",
     "frontend": "python3 -m http.server 8001 -d frontend",
     "start": "concurrently \"npm run backend\" \"npm run frontend\"",
     "dev": "npm start"
