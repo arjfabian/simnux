@@ -74,7 +74,7 @@ async def root():
     # Return the complete list
     return {
         "status": "online",
-        "kernel": "SIMNUX v0.0.1",
+        "kernel": "SIMNUX v0.1.0",
         "active_sessions": sessions_detail
     }
 
@@ -94,16 +94,16 @@ async def initialize(session_id: Optional[str]=None, scenario: str=DEFAULT_SCENA
             logger=logger)
         active_sessions[new_id] = shell
         session_id = new_id
-        logger.add(f"Scenario initialized successfully for ID {current_id}.")
+        logger.add(f"Scenario initialized successfully for ID {session_id}.")
     else:
         shell = active_sessions[session_id]
 
     # 2. Get the MOTD (this returns the prompt and the session_id)
     response = shell.get_motd()
     response["scenario_name"] = shell.scenario.name
-    response["session_id"] = current_id
+    response["session_id"] = session_id
     
-    logger.add(f"Session {current_id} initialized.")
+    logger.add(f"Session {session_id} initialized.")
     return response
 
 @app.post("/execute_command", response_model=CommandResponse)
