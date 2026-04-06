@@ -1,121 +1,145 @@
-// =============================================================================
-// SIMNUX Frontend - main.js
-// Now supports session_id for multi-user environments
-// =============================================================================
+const BACKEND_URL = "http://127.0.0.1:8000";
 
 document.addEventListener("DOMContentLoaded", () => {
   const terminalOutput = document.getElementById("terminal-output");
-  const backendUrl = "http://127.0.0.1:8000";
-  
-  let currentInput = null;
-  window.SimnuxCurrentPath = "/";
-  window.SimnuxSessionId = localStorage.getItem("simnux_session");
+  let currentInput = null; 
+  let isSelecting = false;
 
-  // Helper to add text (support optional colors)
-  const addLine = (text, color = "inherit") => {
-    const line = document.createElement("pre");
-    line.textContent = text;
-    line.style.color = color;
+  // --  HELPERS (Must be accesible to anyone)  --------------------------------
+  const getSessionId = () => localStorage.getItem("session_id");
+  const setSessionId = (id) => id && localStorage.setItem("session_id", id);
+
+  const addLine = (text, defaultColor = "inherit") => {
+    const line = document.createElement("div");
+    line.className = "terminal-line";
+    line.style.color = defaultColor;
+
+    const tagMap = {
+      "[[dir]]": '<span class="dir">',
+      "[[/]]": '</span>',
+      "[[file]]": '<span class="file">',
+      "[[exec]]": '<span class="exec">',
+      "[[error]]": '<span class="error-text">',
+      "[[success]]": '<span class="success-text">',
+    };
+
+    let processedText = text;
+    Object.keys(tagMap).forEach(tag => {
+      processedText = processedText.split(tag).join(tagMap[tag]);
+    });
+
+    line.innerHTML = processedText.replace(/\n/g, '<br>');
     terminalOutput.appendChild(line);
     terminalOutput.scrollTop = terminalOutput.scrollHeight;
   };
 
-  const addNewPrompt = (path = window.SimnuxCurrentPath) => {
+  // --  GLOBAL FOCUS LOGIC  ---------------------------------------------------
+  document.addEventListener("mousedown", () => isSelecting = false);
+  document.addEventListener("mousemove", () => isSelecting = true);
+  document.addEventListener("mouseup", () => {
+    const selection = window.getSelection().toString();
+    if (!selection && !isSelecting && currentInput) currentInput.focus();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (currentInput && document.activeElement !== currentInput) {
+      if (!e.ctrlKey && !e.metaKey && e.key.length === 1) {
+        currentInput.focus();
+      }
+    }
+  });
+
+  // --  CORE FUNCTIONS  -------------------------------------------------------
+  const renderPrompt = (data) => {
     if (currentInput) currentInput.remove();
+    if (!data?.prompt) return;
 
     const container = document.createElement("div");
     container.className = "input-line";
     container.innerHTML = `
-      <span class="prompt">user@simnux:${path}$</span>
+      <span class="prompt">${data.prompt}</span>
       <input type="text" class="terminal-input" spellcheck="false" autocomplete="off">
     `;
 
     terminalOutput.appendChild(container);
     currentInput = container.querySelector("input");
     currentInput.focus();
-    currentInput.addEventListener("keydown", handleCommand);
+
+    currentInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") handleCommand(e, data);
+    });
   };
 
-  async function handleCommand(e) {
-    if (e.key !== "Enter") return;
-
+  async function handleCommand(e, lastData) {
     const cmd = currentInput.value.trim();
     const parent = currentInput.parentNode;
     
-    // 1. "Freeze" the command on screen
     currentInput.remove();
     const cmdDisplay = document.createElement("span");
     cmdDisplay.textContent = cmd;
     parent.appendChild(cmdDisplay);
 
-    if (!cmd) return addNewPrompt();
-    if (cmd === "clear") {
-      terminalOutput.innerHTML = "";
-      return addNewPrompt();
-    }
+    if (!cmd) { renderPrompt(lastData); return; }
+    if (cmd === "clear") { terminalOutput.innerHTML = ""; renderPrompt(lastData); return; }
 
     try {
-      // 2. Dialog with the Backend
-      const res = await fetch(`${backendUrl}/execute_command`, {
+      const res = await fetch(`${BACKEND_URL}/execute_command`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            command: cmd, 
-            session_id: window.SimnuxSessionId 
-        })
+        body: JSON.stringify({ command: cmd, session_id: getSessionId() })
       });
       
-      const data = await res.json();
-      
-      // 3. Process Output and Pointer
-      if (data.output) addLine(data.output);
-      window.SimnuxCurrentPath = data.current_path;
+      const newData = await res.json();
+      setSessionId(newData.session_id);
 
-      // 4. Process Scenario Flags (Backend decides if the user won a scenario)
-      if (data.status) {
-        const { tasks_completed, tasks_total, scenario_solved } = data.status;
-        
-        if (scenario_solved) {
-          addLine("\n[ OK ] SCENARIO COMPLETE.");
-          addLine("Great job! Thanks for using SIMNUX.\n");
-        } else if (tasks_total > 0) {
-          // Optional: show current progress
-          console.log(`Progreso: ${tasks_completed}/${tasks_total}`);
-        }
-      }
+      if (newData.output) addLine(newData.output);
+      if (newData.error) addLine(newData.error, "#ff5555");
+      if (newData.status?.scenario_solved) addLine("\n[ OK ] SCENARIO COMPLETE.\n", "#50fa7b");
 
+      addLine("\n");
+      renderPrompt(newData);
     } catch (err) {
-      addLine("Error: Lost connection to the SIMNUX backend.");
+      addLine("Error: Connection lost with SIMNUX Kernel.", "#ff5555");
+      addLine("Details: " + err)
     }
-    
-    addLine("\n");
-    addNewPrompt();
   }
 
-  // Initialization (scenario load)
-  (async function init() {
-    addLine("Launching SIMNUX...");
-    try {
-      const url = window.SimnuxSessionId 
-        ? `${backendUrl}/initialize?session_id=${window.SimnuxSessionId}` 
-        : `${backendUrl}/initialize`;
-      
-      const res = await fetch(url);
-      const data = await res.json();
+async function init() {
+  try {
+    // Try to recover the ID of the last session
+    const storedId = localStorage.getItem("session_id");
 
-      window.SimnuxSessionId = data.session_id;
-      localStorage.setItem("simnux_session", data.session_id);
-      window.SimnuxCurrentPath = data.scenario_default_path;
+    const setSessionId = (id) => {
+      if (id) {
+          console.log("Creating new Session with ID:", id);
+          localStorage.setItem("session_id", id);
+      } else {
+          console.warn("Attempted to create a session with a null Session ID.");
+      }
+    };
 
-      terminalOutput.innerHTML = "";
-      addLine(`SIMNUX v1.0.0 - Scenario: ${data.scenario_name}\n`);
-      addNewPrompt();
-    } catch (e) {
-      addLine("❌ FATAL: Kernel Panic. Backend is not responding.");
-    }
-  })();
+    // 2. Use storedId (which can be null) for the URL
+    const url = storedId 
+      ? `${BACKEND_URL}/initialize?session_id=${storedId}` 
+      : `${BACKEND_URL}/initialize`;
+    
+    const res = await fetch(url);
+    const data = await res.json();
 
-  document.addEventListener("click", () => currentInput?.focus());
-  // --- PROCESS START ---
-  initializeTerminal();
+    // 3. Backend confirms the ID, or gives us a new one if it's expired
+    setSessionId(data.session_id);
+    
+    terminalOutput.innerHTML = "";
+    addLine(`SIMNUX v1.0.0 - Scenario: ${data.scenario_name}\n`);
+    
+    if (data.output) addLine(data.output);
+
+    renderPrompt(data);
+  } catch (e) {
+    console.error("Detailed error:", e);
+    addLine("❌ FATAL: Kernel Panic. Backend is not responding.", "#ff5555");
+  }
+}
+
+  init();
 });

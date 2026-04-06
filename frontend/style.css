@@ -105,3 +105,10 @@ body {
   border-radius: 4px;
   border: 1px solid #555555;
 }
+
+/* For text colors */ 
+.dir { color: #569cd6; font-weight: bold; }
+.file { color: #d1d1d1; }
+.exec { color: #b5cea8; font-style: italic; }
+.error-text { color: #ff5555; }
+.success-text { color: #50fa7b; }
