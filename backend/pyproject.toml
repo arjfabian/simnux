@@ -1,0 +1,24 @@
+[project]
+name = "simnux"
+version = "0.2.0"
+description = "Browser-based Linux shell simulator for cybersecurity training and systems simulation."
+authors = [
+    { name = "José Fabián", email = "jfabian@datorum.net" }
+]
+
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+]
+
+requires-python = ">=3.10"
+
+[project.scripts]
+simnux = "simnux.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
