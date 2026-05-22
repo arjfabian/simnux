@@ -1,0 +1,17 @@
+name: "Test Scenario"
+motd: "Welcome to the test scenario!"
+difficulty: "Easy"
+username: "testuser"
+hostname: "testhost"
+starting_dir: "/home/testuser"
+
+filesystem:
+  "/etc/hostname": "testhost-01"
+  "/etc/motd": "UNAUTHORIZED ACCESS FORBIDDEN"
+  "/home/testuser/readme.txt": "Hello, World!"
+  "/home/testuser/.secret": "s3cr3t"
+  "/var/log/syslog": "May 20 10:00:00 testhost systemd[1]: Started"
+  "/usr/local/bin/script": "#!/bin/sh\necho hello"
+  "/home/testuser/docs/": ""
+  "/home/testuser/docs/note.txt": "A note about something"
+  "/home/testuser/docs/subdir/": ""
