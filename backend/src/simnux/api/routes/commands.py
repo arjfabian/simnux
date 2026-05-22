@@ -38,6 +38,7 @@ async def execute(
 
     return ShellResponse(
         session_id=request.session_id,
+        scenario_name=shell.session.scenario.name,
         stdout=result.stdout,
         stderr=result.stderr,
         prompt=shell.render_prompt(),

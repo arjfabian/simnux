@@ -20,6 +20,7 @@ class ShellResponse(BaseModel):
     """Standard shell execution response envelope."""
 
     session_id: str
+    scenario_name: str | None = None
 
     stdout: list[str] = []
     stderr: list[str] = []

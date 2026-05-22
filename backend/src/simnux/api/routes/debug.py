@@ -6,11 +6,13 @@ These endpoints are not part of the stable public API.
 
 from fastapi import APIRouter, Request
 
+from simnux.observability.snapshots import RuntimeSnapshot
+
 router = APIRouter(prefix="/debug", tags=["debug"])
 
 
 @router.get("/runtime")
-async def runtime_snapshot(request: Request) -> dict:
+async def runtime_snapshot(request: Request) -> RuntimeSnapshot:
     """Exposes the full runtime object graph for development inspection.
 
     Intentionally unfiltered; not suitable for production consumption.

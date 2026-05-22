@@ -8,6 +8,8 @@ import uuid
 
 from fastapi import APIRouter, Request
 
+from simnux.api.models.contracts import ShellResponse
+
 router = APIRouter()
 
 DEFAULT_SCENARIO = "hello"
@@ -18,7 +20,7 @@ async def start(
     request: Request,
     session_id: str | None = None,
     scenario_name: str = DEFAULT_SCENARIO,
-) -> dict:
+) -> ShellResponse:
     """Entry point for new and resumed sessions.
 
     Resume path: returns existing session unchanged if a valid session_id is
@@ -37,12 +39,14 @@ async def start(
         if shell:
             session = shell.session
 
-            return {
-                "session_id": session_id,
-                "scenario_name": session.scenario.name,
-                "stdout": [],
-                "prompt": shell.render_prompt(),
-            }
+            return ShellResponse(
+                session_id=session_id,
+                scenario_name=session.scenario.name,
+                stdout=[],
+                stderr=[],
+                prompt=shell.render_prompt(),
+                status="ok",
+            )
 
         # TODO: return 404 for invalid resume session_id instead of silently
         # falling through to create.
@@ -59,9 +63,11 @@ async def start(
 
     session = shell.session
 
-    return {
-        "session_id": session_id,
-        "scenario_name": session.scenario.name,
-        "stdout": [session.motd],
-        "prompt": shell.render_prompt(),
-    }
+    return ShellResponse(
+        session_id=session_id,
+        scenario_name=session.scenario.name,
+        stdout=[session.motd],
+        stderr=[],
+        prompt=shell.render_prompt(),
+        status="ok",
+    )

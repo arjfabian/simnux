@@ -13,6 +13,7 @@ import logging
 import posixpath
 
 from simnux.runtime.models import ExitCode
+from simnux.commands.errors import CommandError
 from .models import FSResult, SNXNode, ContentMode, PermissionPresets
 
 
@@ -82,13 +83,13 @@ class SNXFileSystem:
         if not node:
             return FSResult(
                 exit_code=ExitCode.ERROR,
-                message="No such file or directory",
+                message=CommandError.NO_SUCH_FILE_OR_DIR,
             )
 
         if not node.is_directory:
             return FSResult(
                 exit_code=ExitCode.ERROR,
-                message="Not a directory",
+                message=CommandError.NOT_A_DIRECTORY,
             )
 
         return FSResult(exit_code=ExitCode.SUCCESS)
@@ -143,13 +144,13 @@ class SNXFileSystem:
         if not node:
             return FSResult(
                 exit_code=ExitCode.ERROR,
-                message="not found",
+                message=CommandError.NOT_FOUND,
             )
 
         if node.is_directory:
             return FSResult(
                 exit_code=ExitCode.ERROR,
-                message="is directory",
+                message=CommandError.IS_A_DIRECTORY,
             )
 
         return FSResult(
@@ -181,13 +182,13 @@ class SNXFileSystem:
         if not existing and not create_if_missing:
             return FSResult(
                 exit_code=ExitCode.ERROR,
-                message="not found",
+                message=CommandError.NOT_FOUND,
             )
 
         if existing and existing.is_directory:
             return FSResult(
                 exit_code=ExitCode.ERROR,
-                message="is directory",
+                message=CommandError.IS_A_DIRECTORY,
             )
 
         if existing:
@@ -246,7 +247,7 @@ class SNXFileSystem:
         if not self.exists(path):
             return FSResult(
                 exit_code=ExitCode.ERROR,
-                message="not found",
+                message=CommandError.NOT_FOUND,
             )
 
         self.delta_layer[path] = SNXNode(path=path, deleted=True)

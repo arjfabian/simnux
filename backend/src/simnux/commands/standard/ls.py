@@ -1,3 +1,4 @@
+from simnux.commands.errors  import CommandError
 from simnux.commands.runtime import SNXCommand
 from simnux.runtime.models   import CommandResult, ExitCode
 
@@ -24,13 +25,13 @@ class Command(SNXCommand):
 
         if not self.context.filesystem.exists(target):
             return CommandResult(
-                stderr=f"ls: cannot access '{raw_target}': No such file or directory",
+                stderr=f"ls: cannot access '{raw_target}': {CommandError.NO_SUCH_FILE_OR_DIR}",
                 exit_code=ExitCode.ERROR,
             )
 
         if not self.context.filesystem.is_directory(target):
             return CommandResult(
-                stderr=f"ls: cannot access '{raw_target}': Not a directory",
+                stderr=f"ls: cannot access '{raw_target}': {CommandError.NOT_A_DIRECTORY}",
                 exit_code=ExitCode.ERROR,
             )
 
@@ -54,6 +55,6 @@ class Command(SNXCommand):
                 names.append(name)
 
         return CommandResult(
-            stdout="  ".join(names),
+            stdout=names,
             exit_code=ExitCode.SUCCESS,
         )
