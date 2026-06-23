@@ -5,19 +5,18 @@ targets (rejected), home directory fallback (no args / tilde), and
 argument validation.
 """
 
-from simnux.runtime.models import ExitCode
+from tests.helpers import assert_error
+from tests.helpers import assert_invalid_args
+from tests.helpers import assert_success
+from tests.helpers import stderr_text
+
 from simnux.commands.errors import CommandError
 
-from tests.helpers import (
-    assert_error,
-    assert_invalid_args,
-    assert_success,
-    stderr_text,
-)
 
 # TODO: This is a hardcoded Home Directory path. When SNXUser is implemented,
 # the Home Directory will be read from the default Scenario values.
 TEST_HOME = "/home/user"
+
 
 class TestCdCommand:
     """Directory navigation via the ``cd`` command.

@@ -28,6 +28,7 @@ class TestRegressionDispatcherAssumptions:
 
         class TestCmd(SNXCommand):
             name = "testcmd"
+
             def execute(self, args):
                 return CommandResult(stdout="ok")
 

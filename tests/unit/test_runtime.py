@@ -5,7 +5,7 @@ generation, command loading, filesystem population, and session
 isolation.
 """
 
-import pytest
+from tests.helpers import assert_success
 
 
 class TestSNXRuntime:
@@ -91,10 +91,30 @@ class TestSNXRuntime:
         assert shell.filesystem.exists("/etc/motd")
 
     def test_multiple_sessions_isolated(self, runtime):
-        """Writes in one session do not affect other sessions (filesystem isolation)."""
-        s1 = runtime.create_session(scenario_name="hello", session_id="isolation-1")
-        s2 = runtime.create_session(scenario_name="hello", session_id="isolation-2")
-        s1.filesystem.write("/unique.txt", content="s1-only")
+        """Filesystem mutations in one session do not affect another."""
+
+        s1 = runtime.create_session(
+            scenario_name="hello",
+            session_id="isolation-1",
+        )
+
+        s2 = runtime.create_session(
+            scenario_name="hello",
+            session_id="isolation-2",
+        )
+
+        result = s1.filesystem.create_file("/unique.txt")
+
+        assert_success(result)
+
+        result = s1.filesystem.write(
+            "/unique.txt",
+            content="s1-only",
+        )
+
+        assert_success(result)
+
+        assert s1.filesystem.exists("/unique.txt") is True
         assert s2.filesystem.exists("/unique.txt") is False
 
     def test_session_current_directory_set(self, runtime):

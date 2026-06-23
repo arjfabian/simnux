@@ -5,22 +5,28 @@ from simnux.runtime.models import ExitCode
 
 
 class Command(SNXCommand):
-    name = "pwd"
+    name = "rm"
 
     def execute(self, args: list[str]) -> CommandResult:
-        """Print the session's current working directory.
 
-        Reads from ``session.current_directory``, not from any real OS
-        state. Rejects arguments (matching POSIX behavior).
-        """
-
-        if args:
+        if not args:
             return CommandResult(
-                stderr=f"pwd: {CommandError.TOO_MANY_ARGUMENTS}",
+                stderr=f"rm: {CommandError.MISSING_OPERAND}",
                 exit_code=ExitCode.INVALID_ARGUMENT,
             )
 
+        raw_target = args[0]
+
+        abs_path = self.resolve_path(raw_target)
+
+        result = self.context.filesystem.delete(abs_path)
+
+        if result.exit_code != ExitCode.SUCCESS:
+            return CommandResult(
+                stderr=f"rm: {raw_target}: {result.message}",
+                exit_code=result.exit_code,
+            )
+
         return CommandResult(
-            stdout=self.context.session.current_directory,
             exit_code=ExitCode.SUCCESS,
         )

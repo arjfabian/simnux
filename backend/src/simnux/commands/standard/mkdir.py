@@ -5,35 +5,28 @@ from simnux.runtime.models import ExitCode
 
 
 class Command(SNXCommand):
-    name = "cat"
+    name = "mkdir"
 
     def execute(self, args: list[str]) -> CommandResult:
-        """Read file content from VFS.
-
-        Only handles the first positional argument; multi-file concatenation
-        is not implemented. Returns 'missing operand' when no argument is
-        given (matching GNU coreutils behavior).
-        """
 
         if not args:
             return CommandResult(
-                stderr=f"cat: {CommandError.MISSING_OPERAND}",
+                stderr=f"mkdir: {CommandError.MISSING_FILE_OPERAND}",
                 exit_code=ExitCode.INVALID_ARGUMENT,
             )
 
         raw_target = args[0]
 
-        abs_path = self.resolve_path(raw_target)
+        target = self.resolve_path(raw_target)
 
-        result = self.context.filesystem.read(abs_path)
+        result = self.context.filesystem.create_directory(target)
 
         if result.exit_code != ExitCode.SUCCESS:
             return CommandResult(
-                stderr=f"cat: {raw_target}: {result.message}",
+                stderr=f"mkdir: {raw_target}: {result.message}",
                 exit_code=result.exit_code,
             )
 
         return CommandResult(
-            stdout=result.node.content,
             exit_code=ExitCode.SUCCESS,
         )

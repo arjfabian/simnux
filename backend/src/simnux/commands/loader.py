@@ -32,12 +32,8 @@ class CommandLoader:
 
         self.logger.info("Discovering commands")
 
-        for _, module_name, _ in pkgutil.iter_modules(
-            standard_commands.__path__
-        ):
-            module = importlib.import_module(
-                f"simnux.commands.standard.{module_name}"
-            )
+        for _, module_name, _ in pkgutil.iter_modules(standard_commands.__path__):
+            module = importlib.import_module(f"simnux.commands.standard.{module_name}")
 
             self._load_module_commands(module)
 
@@ -48,7 +44,6 @@ class CommandLoader:
         """
 
         for _, obj in inspect.getmembers(module, inspect.isclass):
-
             if not issubclass(obj, SNXCommand) or obj is SNXCommand:
                 continue
 

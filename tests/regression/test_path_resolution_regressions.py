@@ -4,6 +4,7 @@ Covers deeply nested path resolution, tilde+dotdot combinations, and
 chroot-safety clamping that prevents traversal above root.
 """
 
+
 class TestRegressionFileSystemPathResolution:
     """Path resolution: deeply nested paths and tilde+dotdot composition."""
 

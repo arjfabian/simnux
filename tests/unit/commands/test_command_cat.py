@@ -4,15 +4,13 @@ Covers reading existing files, handling nonexistent paths, missing
 operands, directory rejection, and relative path resolution.
 """
 
-from simnux.commands.errors import CommandError
+from tests.helpers import assert_error
+from tests.helpers import assert_invalid_args
+from tests.helpers import assert_success
+from tests.helpers import stderr_text
+from tests.helpers import stdout_text
 
-from tests.helpers import (
-    assert_error,
-    assert_invalid_args,
-    assert_success,
-    stdout_text,
-    stderr_text,
-)
+from simnux.commands.errors import CommandError
 
 
 class TestCatCommand:

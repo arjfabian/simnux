@@ -18,9 +18,7 @@ class TestRegressionSnapshotUUIDConsistency:
     def test_snapshot_matches_session_id(self, create_filesystem, create_session, test_logger):
         """Snapshot's ``session_id`` matches the source session's ID."""
         fs = create_filesystem()
-        session = create_session(
-            session_id="fixed-snap-id"
-        )
+        session = create_session(session_id="fixed-snap-id")
         shell = make_shell(
             session=session,
             filesystem=fs,
@@ -40,6 +38,7 @@ class TestRegressionSnapshotUUIDConsistency:
             filesystem=fs,
             logger=test_logger,
         )
+        fs.create_file("/home/user/new.txt")
         fs.write("/home/user/new.txt", content="test")
         snap = shell.get_snapshot()
         assert "/home/user/new.txt" in snap.filesystem

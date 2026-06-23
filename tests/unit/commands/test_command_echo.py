@@ -4,13 +4,8 @@ Covers text output, empty input, quote handling (single, double, mixed),
 tilde literal preservation, and multiple-argument spacing.
 """
 
-from simnux.runtime.models import ExitCode
-
-from tests.helpers import (
-    assert_success,
-    stderr_text,
-    stdout_text,
-)
+from tests.helpers import assert_success
+from tests.helpers import stdout_text
 
 
 class TestEchoCommand:
@@ -33,14 +28,14 @@ class TestEchoCommand:
         assert_success(result)
         assert stdout_text(result) == ""
 
-    def test_echo_single_quotes_stripped(self, shell_with_commands):
+    def test_echo_preserves_parser_quote_semantics(self, shell_with_commands):
         """Single quotes are removed from the output (shell-parser strips them)."""
         result = shell_with_commands.execute("echo 'hello'")
         assert "hello" in stdout_text(result)
 
     def test_echo_double_quotes_stripped(self, shell_with_commands):
         """Double quotes are removed from the output."""
-        result = shell_with_commands.execute("echo \"hello\"")
+        result = shell_with_commands.execute('echo "hello"')
         assert "hello" in stdout_text(result)
 
     def test_echo_mixed_quotes_preserved(self, shell_with_commands):

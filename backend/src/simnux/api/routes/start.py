@@ -6,9 +6,11 @@ Session identity is always controlled by the backend unless explicitly resumed.
 
 import uuid
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
+from fastapi import Request
 
 from simnux.api.models.contracts import ShellResponse
+
 
 router = APIRouter()
 

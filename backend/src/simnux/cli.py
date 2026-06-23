@@ -4,6 +4,7 @@ Exposes CLI startup via `simnux` console script or `python -m simnux`.
 """
 
 import os
+
 import uvicorn
 
 

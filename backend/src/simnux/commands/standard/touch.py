@@ -1,6 +1,7 @@
-from simnux.commands.errors  import CommandError
+from simnux.commands.errors import CommandError
 from simnux.commands.runtime import SNXCommand
-from simnux.runtime.models   import CommandResult, ExitCode
+from simnux.runtime.models import CommandResult
+from simnux.runtime.models import ExitCode
 
 
 class Command(SNXCommand):
@@ -16,17 +17,17 @@ class Command(SNXCommand):
 
         if not args:
             return CommandResult(
-                stderr    = f"touch: {CommandError.MISSING_FILE_OPERAND}",
-                exit_code = ExitCode.INVALID_ARGUMENT,
+                stderr=f"touch: {CommandError.MISSING_FILE_OPERAND}",
+                exit_code=ExitCode.INVALID_ARGUMENT,
             )
 
         target = self.resolve_path(args[0])
 
         result = self.context.filesystem.touch(
-            path = target,
+            path=target,
         )
 
         return CommandResult(
-            stderr    = result.message if result.exit_code != ExitCode.SUCCESS else "",
-            exit_code = result.exit_code,
+            stderr=result.message if result.exit_code != ExitCode.SUCCESS else "",
+            exit_code=result.exit_code,
         )

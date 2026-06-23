@@ -4,9 +4,11 @@ Exposes internal runtime state for development and inspection purposes.
 These endpoints are not part of the stable public API.
 """
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
+from fastapi import Request
 
 from simnux.observability.snapshots import RuntimeSnapshot
+
 
 router = APIRouter(prefix="/debug", tags=["debug"])
 

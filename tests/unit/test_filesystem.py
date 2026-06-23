@@ -8,13 +8,11 @@ and overlay integrity guarantees (base-layer immutability).
 import pytest
 
 from simnux.commands.errors import CommandError
-
-from simnux.filesystem.models import (
-    SNXNode,
-    ContentMode,
-    PermissionPresets,
-)
+from simnux.filesystem.models import PermissionPresets
+from simnux.filesystem.models import SNXNode
 from simnux.runtime.models import ExitCode
+from tests.helpers import assert_not_success
+from tests.helpers import assert_success
 
 
 class TestNormalizePath:
@@ -123,24 +121,24 @@ class TestValidateDirectory:
     def test_valid_directory(self, filesystem):
         """Valid existing directory returns success."""
         result = filesystem.validate_directory("/home/user")
-        assert result.success
+        assert_success(result)
 
     def test_root_is_directory(self, filesystem):
         """Root (``/``) is always a valid directory."""
         result = filesystem.validate_directory("/")
-        assert result.success
+        assert_success(result)
 
     def test_nonexistent_path(self, filesystem):
         """Nonexistent path returns ERROR with "No such file or directory"."""
         result = filesystem.validate_directory("/nonexistent")
-        assert not result.success
+        assert_not_success(result)
         assert result.exit_code == ExitCode.ERROR
         assert CommandError.NO_SUCH_FILE_OR_DIR in result.message
 
     def test_file_is_not_directory(self, filesystem):
         """A file path returns ERROR with "Not a directory"."""
         result = filesystem.validate_directory("/home/user/notes.txt")
-        assert not result.success
+        assert_not_success(result)
         assert result.exit_code == ExitCode.ERROR
         assert CommandError.NOT_A_DIRECTORY in result.message
 
@@ -170,11 +168,27 @@ class TestGetNode:
         assert node is not None
         assert node.content == "overridden"
 
+    def test_get_node_returns_delta_node_when_present(self, filesystem):
+        """Delta layer nodes shadow base-layer nodes even when effectively empty."""
+        filesystem.base_layer["/test.txt"] = SNXNode(
+            path="/test.txt",
+            content="base",
+        )
+
+        filesystem.delta_layer["/test.txt"] = SNXNode(
+            path="/test.txt",
+            content="",
+            is_directory=False,
+        )
+
+        node = filesystem.get_node("/test.txt")
+
+        assert node is not None
+        assert node.content == ""
+
     def test_deleted_node_not_visible(self, filesystem):
         """Nodes marked ``deleted=True`` in delta are hidden from get_node()."""
-        filesystem.delta_layer["/etc/hostname"] = SNXNode(
-            path="/etc/hostname", deleted=True
-        )
+        filesystem.delta_layer["/etc/hostname"] = SNXNode(path="/etc/hostname", deleted=True)
         assert filesystem.get_node("/etc/hostname") is None
 
 
@@ -228,102 +242,128 @@ class TestRead:
     def test_read_file(self, filesystem):
         """Reading an existing file returns its content successfully."""
         result = filesystem.read("/home/user/notes.txt")
-        assert result.success
+        assert_success(result)
         assert result.node is not None
         assert result.node.content == "hello world"
 
     def test_read_nonexistent(self, filesystem):
         """Reading a nonexistent file returns an error with "not found"."""
         result = filesystem.read("/missing")
-        assert not result.success
+        assert_not_success(result)
         assert CommandError.NOT_FOUND in result.message
 
     def test_read_directory_returns_error(self, filesystem):
         """Reading a directory path returns an error with "is a directory"."""
         result = filesystem.read("/home/user")
-        assert not result.success
+        assert_not_success(result)
         assert CommandError.IS_A_DIRECTORY in result.message
 
     def test_read_root_returns_error(self, filesystem):
         """Reading root (``/``) returns an error — root is a directory."""
         result = filesystem.read("/")
-        assert not result.success
+        assert_not_success(result)
         assert CommandError.IS_A_DIRECTORY in result.message
 
 
 class TestWrite:
-    """``write()`` and ``append()`` — create or mutate files in the delta layer.
+    """``write()`` and ``append()`` — mutate files in the delta layer.
 
     Writes always go to ``delta_layer``; ``base_layer`` remains immutable.
-    Supports optional ``create_if_missing`` and ``content_mode`` controls.
+    Writes require the file to already exist (use ``create_file()`` first).
     """
 
     def test_overwrite_existing_file(self, filesystem):
         """Overwriting an existing file replaces its content in the delta layer."""
-        result = filesystem.write("/home/user/notes.txt", content="new content")
-        assert result.success
+        result = filesystem.write(
+            "/home/user/notes.txt",
+            content="new content",
+        )
+        assert_success(result)
         node = filesystem.get_node("/home/user/notes.txt")
         assert node is not None
         assert node.content == "new content"
 
     def test_append_to_file(self, filesystem):
         """Appending to an existing file concatenates to its content."""
-        result = filesystem.append("/home/user/notes.txt", "\nappended")
-        assert result.success
+        result = filesystem.append(
+            "/home/user/notes.txt",
+            "\nappended",
+        )
+        assert_success(result)
         node = filesystem.get_node("/home/user/notes.txt")
         assert node is not None
         assert node.content == "hello world\nappended"
 
     def test_append_nonexistent_creates_file(self, filesystem):
-        """Appending to a nonexistent path creates the file automatically."""
-        result = filesystem.append("/home/user/newfile.txt", "content")
-        assert result.success
-        node = filesystem.get_node("/home/user/newfile.txt")
-        assert node is not None
-        assert node.content == "content"
+        """Appending to a nonexistent path fails."""
 
-    def test_none_mode_preserves_content(self, filesystem):
-        """``ContentMode.NONE`` prevents the content parameter from taking effect."""
-        result = filesystem.write(
-            "/home/user/notes.txt",
-            content="should be ignored",
-            content_mode=ContentMode.NONE,
+        result = filesystem.append(
+            "/home/user/newfile.txt",
+            "content",
         )
-        assert result.success
-        node = filesystem.get_node("/home/user/notes.txt")
-        assert node.content == "hello world"
+
+        assert_not_success(result)
+        assert CommandError.NOT_FOUND in result.message
 
     def test_write_new_file(self, filesystem):
         """Writing to a new path creates the file and writes content."""
-        result = filesystem.write("/home/user/new.txt", content="new file")
-        assert result.success
+
+        create_result = filesystem.create_file("/home/user/new.txt")
+        assert_success(create_result)
+
+        result = filesystem.write(
+            "/home/user/new.txt",
+            content="new file",
+        )
+
+        assert_success(result)
+
         node = filesystem.get_node("/home/user/new.txt")
         assert node is not None
         assert node.content == "new file"
 
-    def test_write_creates_intermediate_dirs_implicitly(self, filesystem):
-        """Writing to a deep path auto-creates any missing intermediate directories."""
-        result = filesystem.write("/new/dir/file.txt", content="deep")
-        assert result.success
-        node = filesystem.get_node("/new/dir/file.txt")
-        assert node is not None
-        assert node.content == "deep"
+    def test_write_does_not_create_parent_directories(self, filesystem):
+        """Writing to a deep path fails if parents do not exist."""
+
+        result = filesystem.create_file("/new/dir/file.txt")
+
+        assert_not_success(result)
+        assert CommandError.NOT_FOUND in result.message
+
+        assert not filesystem.exists("/new")
+        assert not filesystem.exists("/new/dir")
+        assert not filesystem.exists("/new/dir/file.txt")
 
     def test_write_to_directory_rejected(self, filesystem):
         """Writing to an existing directory path is rejected with "is a directory"."""
-        result = filesystem.write("/home/user", content="data")
-        assert not result.success
+
+        result = filesystem.write(
+            "/home/user",
+            content="data",
+        )
+
+        assert_not_success(result)
         assert CommandError.IS_A_DIRECTORY in result.message
 
-    def test_write_no_create_if_missing(self, filesystem):
-        """With ``create_if_missing=False``, writing to a nonexistent path fails."""
-        result = filesystem.write("/missing.txt", content="data", create_if_missing=False)
-        assert not result.success
+    def test_write_nonexistent_file_fails(self, filesystem):
+        """Writing to a nonexistent file fails."""
+
+        result = filesystem.write(
+            "/missing.txt",
+            content="data",
+        )
+
+        assert_not_success(result)
         assert CommandError.NOT_FOUND in result.message
 
     def test_write_updates_delta_not_base(self, filesystem):
         """Writes only touch ``delta_layer`` — ``base_layer`` is never mutated."""
-        filesystem.write("/etc/hostname", content="overwritten")
+
+        filesystem.write(
+            "/etc/hostname",
+            content="overwritten",
+        )
+
         assert filesystem.base_layer["/etc/hostname"].content == "simnux-edge"
         assert filesystem.delta_layer["/etc/hostname"].content == "overwritten"
 
@@ -333,16 +373,20 @@ class TestTouch:
 
     def test_touch_new_file(self, filesystem):
         """Touch on a nonexistent path creates an empty file."""
-        result = filesystem.touch("/home/user/newfile.txt")
-        assert result.success
+
+        result = filesystem.create_file("/home/user/newfile.txt")
+
+        assert_success(result)
         node = filesystem.get_node("/home/user/newfile.txt")
         assert node is not None
         assert node.content == ""
 
     def test_touch_existing_file_is_noop(self, filesystem):
         """Touch on an existing file does not alter its content."""
+
         result = filesystem.touch("/etc/hostname")
-        assert result.success
+
+        assert_success(result)
         node = filesystem.get_node("/etc/hostname")
         assert node.content == "simnux-edge"
 
@@ -357,7 +401,7 @@ class TestDelete:
     def test_delete_creates_tombstone(self, filesystem):
         """Delete creates a tombstone entry (``deleted=True``) in delta_layer."""
         result = filesystem.delete("/etc/hostname")
-        assert result.success
+        assert_success(result)
         assert filesystem.get_node("/etc/hostname") is None
         assert "/etc/hostname" in filesystem.delta_layer
         assert filesystem.delta_layer["/etc/hostname"].deleted is True
@@ -365,7 +409,7 @@ class TestDelete:
     def test_delete_nonexistent_returns_error(self, filesystem):
         """Deleting a nonexistent path returns an error with "not found"."""
         result = filesystem.delete("/nonexistent")
-        assert not result.success
+        assert_not_success(result)
         assert CommandError.NOT_FOUND in result.message
 
     def test_deleted_node_shadows_base(self, filesystem):
@@ -409,10 +453,19 @@ class TestListDirectory:
     def test_only_immediate_children(self, filesystem):
         """Only direct children are included; grandchildren are not listed."""
         filesystem.delta_layer["/home/user/sub"] = SNXNode(
-            path="/home/user/sub", content="", is_directory=True,
+            path="/home/user/sub",
+            content="",
+            is_directory=True,
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
         )
-        filesystem.write("/home/user/sub/deep/file.txt", content="deep")
+        filesystem.create_directory("/home/user/sub/deep")
+
+        filesystem.create_file("/home/user/sub/deep/file.txt")
+
+        filesystem.write(
+            "/home/user/sub/deep/file.txt",
+            content="deep",
+        )
         nodes = filesystem.list_directory("/home/user")
         paths = [n.path for n in nodes]
         assert "/home/user/notes.txt" in paths
@@ -428,7 +481,12 @@ class TestListDirectory:
 
     def test_list_directory_delta_visible(self, filesystem):
         """Delta-added files are visible in directory listings."""
-        filesystem.write("/home/user/newfile.txt", content="new")
+        filesystem.create_file("/home/user/newfile.txt")
+
+        filesystem.write(
+            "/home/user/newfile.txt",
+            content="new",
+        )
         nodes = filesystem.list_directory("/home/user")
         paths = [n.path for n in nodes]
         assert "/home/user/newfile.txt" in paths
@@ -446,7 +504,12 @@ class TestListPaths:
 
     def test_delta_additions_appear(self, filesystem):
         """Delta-added paths are included in the full listing."""
-        filesystem.write("/newfile.txt", content="new")
+        filesystem.create_file("/newfile.txt")
+
+        filesystem.write(
+            "/newfile.txt",
+            content="new",
+        )
         paths = filesystem.list_paths()
         assert "/newfile.txt" in paths
 
@@ -461,12 +524,22 @@ class TestOverlayIntegrity:
     def test_base_layer_immutable(self, filesystem):
         """Writing to a base-layer path does not modify the original base_layer node."""
         original = filesystem.base_layer["/etc/hostname"].content
-        filesystem.write("/etc/hostname", content="changed")
+
+        filesystem.write(
+            "/etc/hostname",
+            content="changed",
+        )
+
         assert filesystem.base_layer["/etc/hostname"].content == original
 
     def test_delta_fully_overrides_base(self, filesystem):
         """Delta layer values take full precedence over base_layer on read."""
-        filesystem.write("/etc/hostname", content="delta-value")
+
+        filesystem.write(
+            "/etc/hostname",
+            content="delta-value",
+        )
+
         assert filesystem.get_node("/etc/hostname").content == "delta-value"
 
     def test_deleted_node_shadows_base_correctly(self, filesystem):
@@ -478,7 +551,12 @@ class TestOverlayIntegrity:
 
     def test_write_preserves_permissions(self, filesystem):
         """Writing to a file preserves its original permission preset."""
-        filesystem.write("/etc/hostname", content="new")
+
+        filesystem.write(
+            "/etc/hostname",
+            content="new",
+        )
+
         node = filesystem.get_node("/etc/hostname")
         assert node.permissions == PermissionPresets.FILE_DEFAULT
 
@@ -488,19 +566,21 @@ class TestWriteToDirectoryRejection:
 
     def test_cannot_overwrite_directory_with_file(self, filesystem):
         """Writing content to a directory path is rejected."""
-        result = filesystem.write("/home", content="data")
-        assert not result.success
+
+        result = filesystem.write(
+            "/home",
+            content="data",
+        )
+
+        assert_not_success(result)
 
     def test_cannot_touch_existing_directory(self, filesystem):
-        """Touch on an existing directory succeeds (no-op permitted)."""
-        result = filesystem.touch("/home")
-        assert result.success
+        """Touch on an existing directory fails."""
 
-    def test_cannot_delete_and_recreate_as_file(self, filesystem):
-        """Deleting a directory then writing content to its path succeeds (recreate)."""
-        filesystem.delete("/etc")
-        result = filesystem.write("/etc", content="data")
-        assert result.success
+        result = filesystem.create_file("/home")
+
+        assert_not_success(result)
+        assert CommandError.IS_A_DIRECTORY in result.message
 
 
 class TestRegressionPromptHomeMismatch:
@@ -521,14 +601,88 @@ class TestRegressionWriteEmptyContent:
 
     def test_write_empty_string_preserves_empty(self, filesystem):
         """Writing an empty string creates a file with empty content (not a no-op)."""
-        result = filesystem.write("/new_empty.txt", content="")
-        assert result.success
+
+        filesystem.create_file("/new_empty.txt")
+
+        result = filesystem.write(
+            "/new_empty.txt",
+            content="",
+        )
+
+        assert_success(result)
         node = filesystem.get_node("/new_empty.txt")
         assert node.content == ""
 
     def test_append_to_empty_file(self, filesystem):
         """Appending to an empty file works correctly."""
+
+        filesystem.create_file("/empty.txt")
+
         filesystem.write("/empty.txt", content="")
+
         filesystem.append("/empty.txt", "data")
+
         node = filesystem.get_node("/empty.txt")
         assert node.content == "data"
+
+
+class TestCreateDirectory:
+    def test_create_directory(self, filesystem):
+
+        result = filesystem.create_directory("/home/user/testdir")
+
+        assert_success(result)
+
+        node = filesystem.get_node("/home/user/testdir")
+
+        assert node is not None
+        assert node.is_directory is True
+
+    def test_create_directory_existing_file_fails(self, filesystem):
+
+        result = filesystem.create_directory("/home/user/notes.txt")
+
+        assert_not_success(result)
+        assert CommandError.FILE_EXISTS in result.message
+
+    def test_create_directory_missing_parent_fails(self, filesystem):
+
+        result = filesystem.create_directory("/missing/test")
+
+        assert_not_success(result)
+        assert CommandError.NOT_FOUND in result.message
+
+    def test_create_directory_existing_directory_fails(self, filesystem):
+
+        result = filesystem.create_directory("/home")
+
+        assert_not_success(result)
+        assert CommandError.FILE_EXISTS in result.message
+
+
+class TestCreateFile:
+    def test_create_file(self, filesystem):
+
+        result = filesystem.create_file("/home/user/test.txt")
+
+        assert_success(result)
+
+        node = filesystem.get_node("/home/user/test.txt")
+
+        assert node is not None
+        assert node.is_directory is False
+        assert node.content == ""
+
+    def test_create_file_existing_directory_fails(self, filesystem):
+
+        result = filesystem.create_file("/home")
+
+        assert_not_success(result)
+        assert CommandError.IS_A_DIRECTORY in result.message
+
+    def test_create_file_missing_parent_fails(self, filesystem):
+
+        result = filesystem.create_file("/missing/file.txt")
+
+        assert_not_success(result)
+        assert CommandError.NOT_FOUND in result.message

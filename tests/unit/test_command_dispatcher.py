@@ -10,7 +10,8 @@ import pytest
 from simnux.commands.dispatcher import CommandDispatcher
 from simnux.commands.registry import CommandRegistry
 from simnux.commands.runtime import SNXCommand
-from simnux.runtime.models import CommandResult, ExitCode
+from simnux.runtime.models import CommandResult
+from simnux.runtime.models import ExitCode
 
 
 class _SimpleCommand(SNXCommand):
@@ -103,17 +104,13 @@ class TestCommandDispatcherIsolation:
 
     def test_dispatcher_different_registries_isolated(self):
         """Dispatchers with separate registries do not share command availability."""
-        dispatcher1 = CommandDispatcher(
-            registry=make_registry(_SimpleCommand)
-        )
+        dispatcher1 = CommandDispatcher(registry=make_registry(_SimpleCommand))
 
         result = dispatcher1.dispatch("simple", [])
 
         assert result.exit_code == ExitCode.SUCCESS
 
-        dispatcher2 = CommandDispatcher(
-            registry=make_registry()
-        )
+        dispatcher2 = CommandDispatcher(registry=make_registry())
 
         with pytest.raises(ValueError):
             dispatcher2.dispatch("simple", [])

@@ -51,6 +51,7 @@ def create_scenario():
             scenario = create_scenario(starting_dir="/custom/path")
             ...
     """
+
     def factory(starting_dir="/home/user"):
         return SNXScenario(
             name="Regression",
@@ -116,6 +117,7 @@ def create_session(create_scenario):
             session_b = create_session(session_id="b")
             ...
     """
+
     def factory(**kw):
         scenario = create_scenario(
             starting_dir=kw.get(
@@ -167,10 +169,10 @@ def create_filesystem(minimal_fs):
             fs.write("/home/user/test.txt", content="test")
             ...
     """
+
     def factory(base_layer=None):
-        return SNXFileSystem(
-            base_layer=dict(base_layer or minimal_fs)
-        )
+        return SNXFileSystem(base_layer=dict(base_layer or minimal_fs))
+
     return factory
 
 
@@ -270,14 +272,51 @@ def base_layer():
         dict[str, SNXNode]: A 7-node filesystem definition.
     """
     return {
-        "/": SNXNode(path="/", content="", is_directory=True, permissions=PermissionPresets.DIRECTORY_DEFAULT),
-        "/home": SNXNode(path="/home", content="", is_directory=True, permissions=PermissionPresets.DIRECTORY_DEFAULT),
-        "/home/user": SNXNode(path="/home/user", content="", is_directory=True, permissions=PermissionPresets.DIRECTORY_DEFAULT),
-        "/home/user/notes.txt": SNXNode(path="/home/user/notes.txt", content="hello world", is_directory=False, permissions=PermissionPresets.FILE_DEFAULT),
-        "/etc": SNXNode(path="/etc", content="", is_directory=True, permissions=PermissionPresets.DIRECTORY_DEFAULT),
-        "/etc/hostname": SNXNode(path="/etc/hostname", content="simnux-edge", is_directory=False, permissions=PermissionPresets.FILE_DEFAULT),
-        "/var": SNXNode(path="/var", content="", is_directory=True, permissions=PermissionPresets.DIRECTORY_DEFAULT),
-        "/var/log": SNXNode(path="/var/log", content="", is_directory=True, permissions=PermissionPresets.DIRECTORY_DEFAULT),
+        "/": SNXNode(
+            path="/", content="", is_directory=True, permissions=PermissionPresets.DIRECTORY_DEFAULT
+        ),
+        "/home": SNXNode(
+            path="/home",
+            content="",
+            is_directory=True,
+            permissions=PermissionPresets.DIRECTORY_DEFAULT,
+        ),
+        "/home/user": SNXNode(
+            path="/home/user",
+            content="",
+            is_directory=True,
+            permissions=PermissionPresets.DIRECTORY_DEFAULT,
+        ),
+        "/home/user/notes.txt": SNXNode(
+            path="/home/user/notes.txt",
+            content="hello world",
+            is_directory=False,
+            permissions=PermissionPresets.FILE_DEFAULT,
+        ),
+        "/etc": SNXNode(
+            path="/etc",
+            content="",
+            is_directory=True,
+            permissions=PermissionPresets.DIRECTORY_DEFAULT,
+        ),
+        "/etc/hostname": SNXNode(
+            path="/etc/hostname",
+            content="simnux-edge",
+            is_directory=False,
+            permissions=PermissionPresets.FILE_DEFAULT,
+        ),
+        "/var": SNXNode(
+            path="/var",
+            content="",
+            is_directory=True,
+            permissions=PermissionPresets.DIRECTORY_DEFAULT,
+        ),
+        "/var/log": SNXNode(
+            path="/var/log",
+            content="",
+            is_directory=True,
+            permissions=PermissionPresets.DIRECTORY_DEFAULT,
+        ),
     }
 
 
@@ -345,9 +384,7 @@ def runtime_config(tmp_path):
     Returns:
         RuntimeConfig: Configuration with temporary log path.
     """
-    return RuntimeConfig(
-        log_path=str(tmp_path / "simnux_test.log")
-    )
+    return RuntimeConfig(log_path=str(tmp_path / "simnux_test.log"))
 
 
 @pytest.fixture
@@ -368,9 +405,24 @@ def base_layer_rich(base_layer):
     """
     return {
         **base_layer,
-        "/etc/passwd": SNXNode(path="/etc/passwd", content="root:x:0:0:root:/root:/bin/bash", is_directory=False, permissions=PermissionPresets.FILE_DEFAULT),
-        "/etc/shadow": SNXNode(path="/etc/shadow", content="root:!:20000:0:99999:7:::", is_directory=False, permissions=PermissionPresets.FILE_DEFAULT),
-        "/home/user/secret.txt": SNXNode(path="/home/user/secret.txt", content="FLAG{hidden}", is_directory=False, permissions=PermissionPresets.FILE_DEFAULT),
+        "/etc/passwd": SNXNode(
+            path="/etc/passwd",
+            content="root:x:0:0:root:/root:/bin/bash",
+            is_directory=False,
+            permissions=PermissionPresets.FILE_DEFAULT,
+        ),
+        "/etc/shadow": SNXNode(
+            path="/etc/shadow",
+            content="root:!:20000:0:99999:7:::",
+            is_directory=False,
+            permissions=PermissionPresets.FILE_DEFAULT,
+        ),
+        "/home/user/secret.txt": SNXNode(
+            path="/home/user/secret.txt",
+            content="FLAG{hidden}",
+            is_directory=False,
+            permissions=PermissionPresets.FILE_DEFAULT,
+        ),
     }
 
 
@@ -592,6 +644,7 @@ def shell_with_commands(
         SNXShell: A shell with all standard commands loaded.
     """
     from tests.helpers import create_shell_with_commands
+
     return create_shell_with_commands(session, filesystem, test_logger)
 
 

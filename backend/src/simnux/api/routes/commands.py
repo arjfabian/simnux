@@ -5,9 +5,13 @@ This layer is intentionally thin to keep protocol logic separate from execution
 logic.
 """
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter
+from fastapi import HTTPException
+from fastapi import Request
 
-from simnux.api.models.contracts import CommandRequest, ShellResponse
+from simnux.api.models.contracts import CommandRequest
+from simnux.api.models.contracts import ShellResponse
+
 
 router = APIRouter()
 

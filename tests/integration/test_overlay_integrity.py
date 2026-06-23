@@ -5,7 +5,9 @@ never mutate ``base_layer``. Also validates delta-layer shadowing,
 tombstone semantics (idempotency, recreation), and cross-session isolation.
 """
 
+from simnux.commands.errors import CommandError
 from simnux.filesystem.vfs import SNXFileSystem
+from tests.helpers import assert_not_success
 
 
 def listed_paths(fs, path: str) -> list[str]:
@@ -62,6 +64,7 @@ class TestDeltaLayerOverrides:
 
     def test_delta_additions_visible(self, fs):
         """New files created in delta are immediately visible via ``exists()``."""
+        fs.create_file("/home/user/new.txt")
         fs.write("/home/user/new.txt", content="new")
         assert fs.exists("/home/user/new.txt")
 
@@ -103,6 +106,7 @@ class TestDeleteTombstone:
 
     def test_delete_of_delta_added_node(self, fs):
         """Deleting a delta-layer-added node works correctly."""
+        fs.create_file("/home/user/new.txt")
         fs.write("/home/user/new.txt", content="temp")
         fs.delete("/home/user/new.txt")
         assert fs.get_node("/home/user/new.txt") is None
@@ -115,10 +119,14 @@ class TestDeleteTombstone:
         assert node is not None
         assert node.content == "recreated"
 
-    def test_delete_directory_adds_tombstone(self, fs):
-        """Deleting a directory creates a tombstone (hides it from reads)."""
-        fs.delete("/home")
-        assert fs.get_node("/home") is None
+    def test_delete_directory_without_flag_returns_error(self, fs):
+        """Trying to delete a directory fails because delete."""
+        result = fs.delete("/home")
+
+        assert_not_success(result)
+        assert CommandError.IS_A_DIRECTORY in result.message
+
+        assert fs.get_node("/home") is not None
 
     def test_delete_isolation_between_sessions(self, base):
         """Deleting a node in one filesystem does not affect another (session isolation)."""

@@ -45,9 +45,7 @@ class SNXRuntime:
         existing session.
         """
 
-        self.logger.info(
-            f"Creating session {session_id} for scenario '{scenario_name}'"
-        )
+        self.logger.info(f"Creating session {session_id} for scenario '{scenario_name}'")
 
         scenario = ScenarioLoader.load(scenario_name)
 
@@ -100,10 +98,7 @@ class SNXRuntime:
 
     def get_snapshot(self) -> RuntimeSnapshot:
         """Return runtime snapshot for observability."""
-        active_sessions = [
-            shell.get_snapshot()
-            for shell in self.shells.values()
-        ]
+        active_sessions = [shell.get_snapshot() for shell in self.shells.values()]
 
         return RuntimeSnapshot(
             active_sessions=active_sessions,

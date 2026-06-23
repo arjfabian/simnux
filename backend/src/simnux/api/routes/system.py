@@ -5,7 +5,9 @@ Provides a lightweight runtime status view for monitoring and frontend bootstrap
 
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
+from fastapi import Request
+
 
 router = APIRouter()
 
@@ -25,7 +27,6 @@ async def root(request: Request) -> dict[str, Any]:
     return {
         "status": "online",
         "runtime": "SIMNUX v0.2.0",
-
         "active_sessions": snapshot.active_sessions,
         "total_sessions": snapshot.total_sessions,
     }

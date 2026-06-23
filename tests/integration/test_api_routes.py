@@ -10,12 +10,10 @@ marked with ``pytest.mark.asyncio``.
 """
 
 import pytest
-import pytest_asyncio
 
-from tests.helpers import (
-    api_stderr_text,
-    api_stdout_text,
-)
+from tests.helpers import api_stderr_text
+from tests.helpers import api_stdout_text
+
 
 pytestmark = pytest.mark.asyncio
 
@@ -129,9 +127,7 @@ class TestStartEndpoint:
         """Resuming a valid session via ``?session_id=`` returns the existing session."""
         session_id = await create_session(api_client)
 
-        resume = await api_client.get(
-            f"/start?session_id={session_id}"
-        )
+        resume = await api_client.get(f"/start?session_id={session_id}")
 
         assert resume.status_code == 200
 
@@ -141,10 +137,13 @@ class TestStartEndpoint:
         assert data["stdout"] == []
 
     async def test_start_invalid_session_creates_new_session(self, api_client):
-        """Requesting a nonexistent session ID creates a fresh session instead."""
-        resp = await api_client.get(
-            "/start?session_id=nonexistent"
-        )
+        """
+        Current behavior: invalid session IDs fall back to new-session creation.
+
+        TODO(simnux): replace with HTTP 404 once invalid-session handling
+        becomes strict in the public API contract.
+        """
+        resp = await api_client.get("/start?session_id=nonexistent")
 
         assert_ok_response(resp)
 
@@ -273,9 +272,7 @@ class TestSessionEndpoint:
 
     async def test_get_session_not_found(self, api_client):
         """Requesting a nonexistent session returns HTTP 404."""
-        resp = await api_client.get(
-            "/sessions/nonexistent"
-        )
+        resp = await api_client.get("/sessions/nonexistent")
 
         assert resp.status_code == 404
 
@@ -283,9 +280,7 @@ class TestSessionEndpoint:
         """An existing session returns its snapshot with filesystem and commands."""
         sid = await create_session(api_client)
 
-        resp = await api_client.get(
-            f"/sessions/{sid}"
-        )
+        resp = await api_client.get(f"/sessions/{sid}")
 
         assert_ok_response(resp)
 

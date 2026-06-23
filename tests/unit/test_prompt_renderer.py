@@ -5,10 +5,11 @@ tilde abbreviation for the home directory, ``$`` vs ``#`` for root,
 and correct hostname/username display.
 """
 
-from simnux.shell.prompt import PromptRenderer
-from simnux.sessions.runtime import SNXSession
+from simnux.filesystem.models import PermissionPresets
+from simnux.filesystem.models import SNXNode
 from simnux.scenarios.models import SNXScenario
-from simnux.filesystem.models import SNXNode, PermissionPresets
+from simnux.sessions.runtime import SNXSession
+from simnux.shell.prompt import PromptRenderer
 
 
 def _make_session(
@@ -32,7 +33,14 @@ def _make_session(
         username=username,
         hostname=hostname,
         starting_dir=starting_dir,
-        filesystem={"/": SNXNode(path="/", content="", is_directory=True, permissions=PermissionPresets.DIRECTORY_DEFAULT)},
+        filesystem={
+            "/": SNXNode(
+                path="/",
+                content="",
+                is_directory=True,
+                permissions=PermissionPresets.DIRECTORY_DEFAULT,
+            )
+        },
     )
     return SNXSession(
         session_id="test",
@@ -58,7 +66,9 @@ class TestPromptRenderer:
 
     def test_normal_user_prompt(self):
         """Full format: ``user@hostname:~$ `` for normal users at home."""
-        session = _make_session(username="alice", starting_dir="/home/alice", current_directory="/home/alice")
+        session = _make_session(
+            username="alice", starting_dir="/home/alice", current_directory="/home/alice"
+        )
         prompt = PromptRenderer.render(session)
         assert prompt.startswith("alice@simnux:~$ ")
 
@@ -70,7 +80,9 @@ class TestPromptRenderer:
 
     def test_normal_user_shows_dollar(self):
         """Non-root users get ``$ `` as the prompt suffix."""
-        session = _make_session(username="bob", starting_dir="/home/bob", current_directory="/home/bob")
+        session = _make_session(
+            username="bob", starting_dir="/home/bob", current_directory="/home/bob"
+        )
         prompt = PromptRenderer.render(session)
         assert prompt.endswith("$ ")
 

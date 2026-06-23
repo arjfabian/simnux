@@ -1,6 +1,7 @@
 """Core runtime models shared across command execution pipeline."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from enum import IntEnum
 
 
@@ -28,8 +29,8 @@ class CommandResult:
     contract between commands and the shell runtime.
     """
 
-    stdout: list[str] = field(default_factory=list)
-    stderr: list[str] = field(default_factory=list)
+    stdout: str | list[str] = field(default_factory=list)
+    stderr: str | list[str] = field(default_factory=list)
     exit_code: ExitCode = ExitCode.SUCCESS
 
     def __post_init__(self) -> None:

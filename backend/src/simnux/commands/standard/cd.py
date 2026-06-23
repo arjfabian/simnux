@@ -1,10 +1,10 @@
-from simnux.commands.errors  import CommandError
+from simnux.commands.errors import CommandError
 from simnux.commands.runtime import SNXCommand
-from simnux.runtime.models   import CommandResult, ExitCode
+from simnux.runtime.models import CommandResult
+from simnux.runtime.models import ExitCode
 
 
 class Command(SNXCommand):
-
     name = "cd"
 
     def execute(self, args: list[str]) -> CommandResult:
@@ -18,8 +18,8 @@ class Command(SNXCommand):
 
         if len(args) > 1:
             return CommandResult(
-                stderr    = f"cd: {CommandError.TOO_MANY_ARGUMENTS}",
-                exit_code = ExitCode.INVALID_ARGUMENT,
+                stderr=f"cd: {CommandError.TOO_MANY_ARGUMENTS}",
+                exit_code=ExitCode.INVALID_ARGUMENT,
             )
 
         target = args[0] if args else "~"

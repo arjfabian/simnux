@@ -34,8 +34,6 @@ class TestRegressionShellParserStability:
 
     def test_parser_preserves_multiple_spaces_inside_quotes(self):
         """Multiple spaces inside double quotes are preserved as a single argument."""
-        result = ShellParser.parse(
-            'echo "a   b   c"'
-        )
+        result = ShellParser.parse('echo "a   b   c"')
 
         assert result.args == ["a   b   c"]

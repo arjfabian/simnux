@@ -15,16 +15,17 @@ class PromptRenderer:
         """Build CLI prompt from current session context."""
 
         path = session.current_directory
+        home_prefix = session.home_directory.rstrip("/") + "/"
 
         if path == session.home_directory:
             path = "~"
-        elif path.startswith(session.home_directory + "/"):
+
+        elif home_prefix == "/" and path != "/":
+            path = "~" + path
+
+        elif path.startswith(home_prefix):
             path = path.replace(session.home_directory, "~", 1)
 
         tail = "#" if session.username == "root" else "$"
 
-        return (
-            f"{session.username}"
-            f"@{session.hostname}"
-            f":{path}{tail} "
-        )
+        return f"{session.username}@{session.hostname}:{path}{tail} "

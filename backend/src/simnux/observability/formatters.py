@@ -3,8 +3,8 @@
 Applies color-coded output per log level for improved CLI readability.
 """
 
-import logging
 from datetime import datetime
+import logging
 
 from .constants import LOG_LEVEL_OK
 
@@ -39,9 +39,7 @@ class ConsoleLogFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         """Return a colorized, timestamped log line."""
 
-        timestamp = datetime.fromtimestamp(record.created).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        timestamp = datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S")
 
         level_color = self._LEVEL_COLORS.get(record.levelno, self._WHITE)
 

@@ -10,11 +10,14 @@ Copies-on-write: delta layer shadows (never mutates) base_layer on read.
 from __future__ import annotations
 
 import logging
+from pathlib import PurePosixPath
 import posixpath
 
-from simnux.runtime.models import ExitCode
 from simnux.commands.errors import CommandError
-from .models import FSResult, SNXNode, ContentMode, PermissionPresets
+from simnux.filesystem.models import FSResult
+from simnux.filesystem.models import PermissionPresets
+from simnux.filesystem.models import SNXNode
+from simnux.runtime.models import ExitCode
 
 
 class SNXFileSystem:
@@ -103,11 +106,7 @@ class SNXFileSystem:
         merged = dict(self.base_layer)
         merged.update(self.delta_layer)
 
-        return {
-            path: node
-            for path, node in merged.items()
-            if not node.deleted
-        }
+        return {path: node for path, node in merged.items() if not node.deleted}
 
     def get_node(self, path: str) -> SNXNode | None:
         """Look up a node in delta_layer first, then base_layer.
@@ -119,7 +118,7 @@ class SNXFileSystem:
         path = self.normalize_path(path)
 
         node = self.delta_layer.get(path)
-        if node:
+        if node is not None:
             return None if node.deleted else node
 
         return self.base_layer.get(path)
@@ -131,17 +130,106 @@ class SNXFileSystem:
         node = self.get_node(path)
         return bool(node and node.is_directory)
 
-    def read(self, path: str) -> FSResult:
-        """Return file content for a given absolute path.
+    def create_file(self, path: str) -> FSResult:
 
-        Returns FSResult with is-directory error if path points to a
-        directory. Returns not-found error if path does not exist in either
-        layer.
-        """
         path = self.normalize_path(path)
+
+        if self.exists(path):
+            if self.is_directory(path):
+                return FSResult(
+                    exit_code=ExitCode.ERROR,
+                    message=CommandError.IS_A_DIRECTORY,
+                )
+            return FSResult(
+                exit_code=ExitCode.ERROR,
+                message=CommandError.FILE_EXISTS,
+            )
+
+        parent_path = str(PurePosixPath(path).parent)
+
+        parent = self.get_node(parent_path)
+
+        if parent is None:
+            return FSResult(
+                exit_code=ExitCode.ERROR,
+                message=CommandError.NOT_FOUND,
+            )
+
+        if not parent.is_directory:
+            return FSResult(
+                exit_code=ExitCode.ERROR,
+                message=CommandError.NOT_A_DIRECTORY,
+            )
+
+        node = SNXNode(
+            path=path,
+            content="",
+            is_directory=False,
+            owner="root",
+            group="root",
+            permissions=PermissionPresets.FILE_DEFAULT,
+        )
+
+        self.delta_layer[path] = node
+
+        self._log(f"create_file: {path}")
+
+        return FSResult(
+            exit_code=ExitCode.SUCCESS,
+            node=node,
+        )
+
+    def create_directory(self, path: str) -> FSResult:
+
+        path = self.normalize_path(path)
+
+        if self.exists(path):
+            return FSResult(
+                exit_code=ExitCode.ERROR,
+                message=CommandError.FILE_EXISTS,
+            )
+
+        parent_path = str(PurePosixPath(path).parent)
+
+        parent = self.get_node(parent_path)
+
+        if parent is None:
+            return FSResult(
+                exit_code=ExitCode.ERROR,
+                message=CommandError.NOT_FOUND,
+            )
+
+        if not parent.is_directory:
+            return FSResult(
+                exit_code=ExitCode.ERROR,
+                message=CommandError.NOT_A_DIRECTORY,
+            )
+
+        node = SNXNode(
+            path=path,
+            content="",
+            is_directory=True,
+            owner="root",
+            group="root",
+            permissions=PermissionPresets.DIRECTORY_DEFAULT,
+        )
+
+        self.delta_layer[path] = node
+
+        self._log(f"create_directory: {path}")
+
+        return FSResult(
+            exit_code=ExitCode.SUCCESS,
+            node=node,
+        )
+
+    def read(self, path: str) -> FSResult:
+
+        path = self.normalize_path(path)
+
         node = self.get_node(path)
 
-        if not node:
+        if node is None:
             return FSResult(
                 exit_code=ExitCode.ERROR,
                 message=CommandError.NOT_FOUND,
@@ -158,59 +246,40 @@ class SNXFileSystem:
             node=node,
         )
 
-    def write(
-        self,
-        path: str,
-        *,
-        content: str = "",
-        content_mode: ContentMode = ContentMode.OVERWRITE,
-        create_if_missing: bool = True,
-        is_directory: bool = False,
-    ) -> FSResult:
-        """Write content to a file at the given absolute path.
+    def write(self, path: str, content: str) -> FSResult:
 
-        Always writes to delta_layer (never base_layer).
-        Supports OVERWRITE, APPEND, and NONE content modes.
-        Creates intermediate parent directories implicitly.
-        On update: preserves existing owner/group/permissions.
-        On create: defaults to root:root with FILE_DEFAULT permissions.
-        Precondition: path must be absolute.
-        """
         path = self.normalize_path(path)
+
         existing = self.get_node(path)
 
-        if not existing and not create_if_missing:
-            return FSResult(
-                exit_code=ExitCode.ERROR,
-                message=CommandError.NOT_FOUND,
-            )
+        if existing is None:
+            existing = self.delta_layer.get(path)
+            if existing is None:
+                existing = self.base_layer.get(path)
+            if existing is None:
+                return FSResult(
+                    exit_code=ExitCode.ERROR,
+                    message=CommandError.NOT_FOUND,
+                )
 
-        if existing and existing.is_directory:
+        if existing.is_directory:
             return FSResult(
                 exit_code=ExitCode.ERROR,
                 message=CommandError.IS_A_DIRECTORY,
             )
 
-        if existing:
-            if content_mode == ContentMode.APPEND:
-                content = (existing.content or "") + content
-            elif content_mode == ContentMode.NONE:
-                content = existing.content or ""
-
         node = SNXNode(
             path=path,
             content=content,
-            is_directory=is_directory,
-            owner=getattr(existing, "owner", "root"),
-            group=getattr(existing, "group", "root"),
-            permissions=getattr(
-                existing,
-                "permissions",
-                PermissionPresets.FILE_DEFAULT,
-            ),
+            is_directory=False,
+            owner=existing.owner,
+            group=existing.group,
+            permissions=existing.permissions,
         )
 
         self.delta_layer[path] = node
+
+        self._log(f"write: {path}")
 
         return FSResult(
             exit_code=ExitCode.SUCCESS,
@@ -218,7 +287,110 @@ class SNXFileSystem:
         )
 
     def append(self, path: str, content: str) -> FSResult:
-        return self.write(path, content=content, content_mode=ContentMode.APPEND)
+
+        path = self.normalize_path(path)
+
+        existing = self.get_node(path)
+
+        if existing is None:
+            existing = self.delta_layer.get(path)
+            if existing is None:
+                existing = self.base_layer.get(path)
+            if existing is None:
+                return FSResult(
+                    exit_code=ExitCode.ERROR,
+                    message=CommandError.NOT_FOUND,
+                )
+
+        if existing.is_directory:
+            return FSResult(
+                exit_code=ExitCode.ERROR,
+                message=CommandError.IS_A_DIRECTORY,
+            )
+
+        node = SNXNode(
+            path=path,
+            content=(existing.content or "") + content,
+            is_directory=False,
+            owner=existing.owner,
+            group=existing.group,
+            permissions=existing.permissions,
+        )
+
+        self.delta_layer[path] = node
+
+        self._log(f"append: {path}")
+
+        return FSResult(
+            exit_code=ExitCode.SUCCESS,
+            node=node,
+        )
+
+    def delete_file(self, path: str) -> FSResult:
+
+        path = self.normalize_path(path)
+
+        node = self.get_node(path)
+
+        if node is None:
+            return FSResult(
+                exit_code=ExitCode.ERROR,
+                message=CommandError.NOT_FOUND,
+            )
+
+        if node.is_directory:
+            return FSResult(
+                exit_code=ExitCode.ERROR,
+                message=CommandError.IS_A_DIRECTORY,
+            )
+
+        self.delta_layer[path] = SNXNode(
+            path=path,
+            deleted=True,
+        )
+
+        self._log(f"delete_file: {path}")
+
+        return FSResult(
+            exit_code=ExitCode.SUCCESS,
+        )
+
+    def delete_directory(self, path: str) -> FSResult:
+
+        path = self.normalize_path(path)
+
+        node = self.get_node(path)
+
+        if node is None:
+            return FSResult(
+                exit_code=ExitCode.ERROR,
+                message=CommandError.NOT_FOUND,
+            )
+
+        if not node.is_directory:
+            return FSResult(
+                exit_code=ExitCode.ERROR,
+                message=CommandError.NOT_A_DIRECTORY,
+            )
+
+        children = self.list_directory(path)
+
+        if children:
+            return FSResult(
+                exit_code=ExitCode.ERROR,
+                message=CommandError.DIRECTORY_NOT_EMPTY,
+            )
+
+        self.delta_layer[path] = SNXNode(
+            path=path,
+            deleted=True,
+        )
+
+        self._log(f"delete_directory: {path}")
+
+        return FSResult(
+            exit_code=ExitCode.SUCCESS,
+        )
 
     def touch(self, path: str) -> FSResult:
         """Idempotent file creation.
@@ -236,19 +408,39 @@ class SNXFileSystem:
 
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
-    def delete(self, path: str) -> FSResult:
+    def delete(self, path: str, delete_dir: bool = False) -> FSResult:
         """Marks a node as deleted in delta_layer.
 
         Does NOT remove the underlying base_layer node — deletion is a
-        tombstone in the overlay. Returns error for non-existent paths.
+        tombstone in the overlay.
+
+        By default, directories cannot be deleted. When ``delete_dir=True``,
+        only empty directories may be deleted.
         """
         path = self.normalize_path(path)
 
-        if not self.exists(path):
+        node = self.get_node(path)
+
+        if node is None:
             return FSResult(
                 exit_code=ExitCode.ERROR,
                 message=CommandError.NOT_FOUND,
             )
+
+        if node.is_directory:
+            if not delete_dir:
+                return FSResult(
+                    exit_code=ExitCode.ERROR,
+                    message=CommandError.IS_A_DIRECTORY,
+                )
+
+            children = self.list_directory(path)
+
+            if children:
+                return FSResult(
+                    exit_code=ExitCode.ERROR,
+                    message=CommandError.DIRECTORY_NOT_EMPTY,
+                )
 
         self.delta_layer[path] = SNXNode(path=path, deleted=True)
         self._log(f"delete: {path}")
@@ -275,7 +467,7 @@ class SNXFileSystem:
             if not node_path.startswith(prefix):
                 continue
 
-            relative = node_path[len(prefix):]
+            relative = node_path[len(prefix) :]
             if not relative:
                 continue
 

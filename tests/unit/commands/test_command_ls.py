@@ -4,15 +4,12 @@ Covers listing root and nested directories, nonexistent/file targets,
 CWD default, and entry-format markers (``.`` and ``..``).
 """
 
-from simnux.runtime.models import ExitCode
-from simnux.commands.errors import CommandError
+from tests.helpers import assert_error
+from tests.helpers import assert_success
+from tests.helpers import stderr_text
+from tests.helpers import stdout_text
 
-from tests.helpers import (
-    assert_error,
-    assert_success,
-    stderr_text,
-    stdout_text
-)
+from simnux.commands.errors import CommandError
 
 
 class TestLsCommand:
@@ -52,10 +49,10 @@ class TestLsCommand:
     def test_ls_root_has_dot(self, shell_with_commands):
         """Root listing includes ``.`` as an entry."""
         result = shell_with_commands.execute("ls /")
-        assert "." in result.stdout
+        assert "." in stdout_text(result)
 
     def test_ls_non_root_has_dotdot(self, shell_with_commands):
         """Non-root directory listing includes both ``.`` and ``..``."""
         result = shell_with_commands.execute("ls /home")
-        assert "." in result.stdout
-        assert ".." in result.stdout
+        assert "." in stdout_text(result)
+        assert ".." in stdout_text(result)

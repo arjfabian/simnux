@@ -1,6 +1,7 @@
 """Session state model for SIMNUX runtime."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
 
 from simnux.scenarios.models import SNXScenario
@@ -51,10 +52,7 @@ class SNXSession:
 
     def get_status(self) -> dict:
         """Return aggregated session progress state."""
-        scenario_solved = (
-            self.tasks_total > 0
-            and self.tasks_completed >= self.tasks_total
-        )
+        scenario_solved = self.tasks_total > 0 and self.tasks_completed >= self.tasks_total
 
         return {
             "tasks_total": self.tasks_total,

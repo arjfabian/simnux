@@ -5,7 +5,8 @@ Defines the execution contract and shared utilities for path resolution.
 Commands are stateless beyond their injected execution context.
 """
 
-from abc import ABC, abstractmethod
+from abc import ABC
+from abc import abstractmethod
 
 from simnux.runtime.models import CommandResult
 
@@ -18,9 +19,7 @@ class SNXCommand(ABC):
     def __init__(self, context) -> None:
 
         if not self.name:
-            raise ValueError(
-                f"{self.__class__.__name__} must define a command name"
-            )
+            raise ValueError(f"{self.__class__.__name__} must define a command name")
 
         self.context = context
 

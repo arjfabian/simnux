@@ -21,6 +21,28 @@ class TestRegressionPromptHomeMismatch:
         prompt = PromptRenderer.render(session)
         assert "~" in prompt
 
+    def test_root_home_directory_shows_tilde_prefix(self, create_session):
+        """Root home directory abbreviates paths correctly."""
+        session = create_session(
+            starting_dir="/",
+            cwd="/etc",
+        )
+
+        prompt = PromptRenderer.render(session)
+
+        assert "~/etc" in prompt
+
+    def test_root_home_directory_root_path_shows_bare_tilde(self, create_session):
+        """Root path renders as bare ``~`` when home is root."""
+        session = create_session(
+            starting_dir="/",
+            cwd="/",
+        )
+
+        prompt = PromptRenderer.render(session)
+
+        assert ":~" in prompt
+
     def test_nested_home_path_shows_tilde_prefix(self, create_session):
         """Subdirectory under home shows ``~/docs``."""
         session = create_session(

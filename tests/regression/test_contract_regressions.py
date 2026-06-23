@@ -18,6 +18,7 @@ class TestRegressionResponseContracts:
     def test_execute_response_has_all_fields(self):
         """ShellResponse initializes with all expected fields and default values."""
         from simnux.api.models.contracts import ShellResponse
+
         resp = ShellResponse(session_id="test")
         assert resp.session_id == "test"
         assert resp.stdout == []
@@ -49,5 +50,3 @@ class TestRegressionResponseContracts:
         """CommandResult preserves ``None`` stdout (defensive: no false normalization)."""
         r = CommandResult(stdout=None)
         assert r.stdout is None
-
-

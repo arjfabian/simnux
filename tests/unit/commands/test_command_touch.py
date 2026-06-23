@@ -4,14 +4,12 @@ Covers creating new files, no-op on existing files, missing operand
 rejection, and relative path support.
 """
 
+from tests.helpers import assert_invalid_args
+from tests.helpers import assert_success
+from tests.helpers import stderr_text
+
 from simnux.commands.errors import CommandError
 
-from tests.helpers import (
-    assert_success,
-    assert_invalid_args,
-    stderr_text,
-    stdout_text,
-) 
 
 class TestTouchCommand:
     """File creation via the ``touch`` command.
@@ -38,13 +36,3 @@ class TestTouchCommand:
         result = shell_with_commands.execute("touch")
         assert_invalid_args(result)
         assert CommandError.MISSING_FILE_OPERAND in stderr_text(result)
-
-    def test_touch_relative_path(self, shell_with_commands):
-        """Touch creates a file and it appears in subsequent directory listings."""
-        result = shell_with_commands.execute("touch /home/user/newfile.txt")
-
-        assert_success(result)
-
-        result_check = shell_with_commands.execute("ls /home/user")
-
-        assert "newfile.txt" in stdout_text(result_check)

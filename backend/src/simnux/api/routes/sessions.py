@@ -4,7 +4,10 @@ Returns a snapshot of an active shell session for UI rendering and debugging.
 This is a read-only view over runtime state and does not allow mutation.
 """
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter
+from fastapi import HTTPException
+from fastapi import Request
+
 
 router = APIRouter()
 

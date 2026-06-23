@@ -4,14 +4,13 @@ Covers returning the current working directory, reflecting ``cd``
 mutations, and rejecting unexpected arguments.
 """
 
+from tests.helpers import assert_invalid_args
+from tests.helpers import assert_success
+from tests.helpers import stderr_text
+from tests.helpers import stdout_text
+
 from simnux.commands.errors import CommandError
 
-from tests.helpers import (
-    assert_invalid_args,
-    assert_success,
-    stderr_text,
-    stdout_text,
-) 
 
 class TestPwdCommand:
     """Print working directory via the ``pwd`` command.
@@ -31,7 +30,7 @@ class TestPwdCommand:
         shell_with_commands.execute("cd /etc")
 
         result = shell_with_commands.execute("pwd")
-        
+
         assert stdout_text(result) == "/etc"
 
     def test_pwd_with_args_rejected(self, shell_with_commands):

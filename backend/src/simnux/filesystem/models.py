@@ -6,7 +6,8 @@ Defines nodes, permissions, and filesystem operation results.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from enum import Enum
 
 from simnux.runtime.models import ExitCode
@@ -115,16 +116,13 @@ class FSResult:
 
     node: SNXNode | None = None
 
-    @property
-    def success(self) -> bool:
-        return self.exit_code == ExitCode.SUCCESS
-
 
 class ContentMode(str, Enum):
     """Write mode selector for VFS write operations.
 
     NONE: preserve existing content, OVERWRITE: replace, APPEND: concatenate.
     """
+
     NONE = "none"
     OVERWRITE = "overwrite"
     APPEND = "append"

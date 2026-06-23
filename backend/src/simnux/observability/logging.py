@@ -28,9 +28,7 @@ def setup_simnux_logger(log_path: str) -> logging.Logger:
 
     file_handler = logging.FileHandler(log_path, encoding="utf-8")
     file_handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s [%(levelname)s] [%(name)s] %(message)s"
-        )
+        logging.Formatter("%(asctime)s [%(levelname)s] [%(name)s] %(message)s")
     )
 
     logger.addHandler(console)

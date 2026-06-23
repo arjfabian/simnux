@@ -1,6 +1,8 @@
-from simnux.commands.errors  import CommandError
+from simnux.commands.errors import CommandError
 from simnux.commands.runtime import SNXCommand
-from simnux.runtime.models   import CommandResult, ExitCode
+from simnux.runtime.models import CommandResult
+from simnux.runtime.models import ExitCode
+
 
 class Command(SNXCommand):
     """List directory contents.
@@ -37,6 +39,11 @@ class Command(SNXCommand):
 
         nodes = self.context.filesystem.list_directory(target)
 
+        if not nodes:
+            return CommandResult(
+                exit_code=ExitCode.SUCCESS,
+            )
+
         # MVP: single-line space-separated output. No columns, colors, or
         # flags support. Real ls uses terminal-width-aware column layout.
         names = []
@@ -54,7 +61,10 @@ class Command(SNXCommand):
             else:
                 names.append(name)
 
+        # TODO:
+        # This command assumes no flags are set. When implementing flags like
+        # -l, -a, etc., stdout will send an array to the frontend.
         return CommandResult(
-            stdout=names,
+            stdout="  ".join(names),
             exit_code=ExitCode.SUCCESS,
         )

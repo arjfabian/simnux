@@ -6,8 +6,8 @@ and filesystem bootstrap (root node auto-creation).
 
 import pytest
 
-from simnux.scenarios.loader import ScenarioLoader
 from simnux.filesystem.models import PermissionPresets
+from simnux.scenarios.loader import ScenarioLoader
 
 
 SCENARIO_YAML = """\
@@ -53,11 +53,13 @@ def malformed_dir(tmp_path):
 @pytest.fixture
 def patch_path(monkeypatch, scenario_dir):
     """Factory fixture: monkeypatches ``Path`` so ScenarioLoader reads from a given dir."""
+
     def _patcher(target_dir):
         monkeypatch.setattr(
             "simnux.scenarios.loader.Path",
             lambda *args, **kw: target_dir,
         )
+
     return _patcher
 
 

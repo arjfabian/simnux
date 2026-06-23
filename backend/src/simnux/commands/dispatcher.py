@@ -18,8 +18,6 @@ class CommandDispatcher:
         command = self.registry.get(cmd_name)
 
         if command is None:
-            raise ValueError(
-                f"Command not registered: {cmd_name}"
-            )
+            raise ValueError(f"Command not registered: {cmd_name}")
 
         return command.execute(args)

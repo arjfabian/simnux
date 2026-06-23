@@ -7,9 +7,10 @@ per-session mutable state (current directory, task progress).
 
 import pytest
 
-from simnux.sessions.runtime import SNXSession
+from simnux.filesystem.models import PermissionPresets
+from simnux.filesystem.models import SNXNode
 from simnux.scenarios.models import SNXScenario
-from simnux.filesystem.models import SNXNode, PermissionPresets
+from simnux.sessions.runtime import SNXSession
 
 
 @pytest.fixture
@@ -22,7 +23,14 @@ def scenario():
         username="hacker",
         hostname="pwnbox",
         starting_dir="/home/hacker",
-        filesystem={"/": SNXNode(path="/", content="", is_directory=True, permissions=PermissionPresets.DIRECTORY_DEFAULT)},
+        filesystem={
+            "/": SNXNode(
+                path="/",
+                content="",
+                is_directory=True,
+                permissions=PermissionPresets.DIRECTORY_DEFAULT,
+            )
+        },
     )
 
 

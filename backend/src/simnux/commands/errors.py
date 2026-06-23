@@ -8,7 +8,10 @@ from enum import Enum
 
 class CommandError(str, Enum):
     """Stable command error strings."""
+
     COMMAND_NOT_FOUND = "command not found"
+    DIRECTORY_NOT_EMPTY = "directory not empty"
+    FILE_EXISTS = "file exists"
     IS_A_DIRECTORY = "is a directory"
     MISSING_FILE_OPERAND = "missing file operand"
     MISSING_OPERAND = "missing operand"

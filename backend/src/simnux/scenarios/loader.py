@@ -5,11 +5,12 @@ Transforms declarative YAML scenarios into in-memory filesystem and
 runtime-ready structures.
 """
 
-import yaml
-
 from pathlib import Path
 
-from simnux.filesystem.models import PermissionPresets, SNXNode
+import yaml
+
+from simnux.filesystem.models import PermissionPresets
+from simnux.filesystem.models import SNXNode
 
 from .models import SNXScenario
 
@@ -24,12 +25,9 @@ class ScenarioLoader:
 
     @staticmethod
     def load(scenario_name: str) -> SNXScenario:
-        scenario_path = (
-            Path(__file__).parent / scenario_name / "scenario.yml"
-        )
+        scenario_path = Path(__file__).parent / scenario_name / "scenario.yml"
 
-        with open(scenario_path, "r", encoding="utf-8") as f:
-            raw = yaml.safe_load(f)
+        raw = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
 
         filesystem: dict[str, SNXNode] = {}
         raw_filesystem = raw.get("filesystem", {})

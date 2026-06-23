@@ -4,12 +4,11 @@ Verifies that executing a command not present in the registry returns
 a ``COMMAND_NOT_FOUND`` error.
 """
 
+from tests.helpers import assert_error
+from tests.helpers import stderr_text
+
 from simnux.commands.errors import CommandError
 
-from tests.helpers import (
-    assert_error,
-    stderr_text,
-)
 
 class TestUnknownCommand:
     """Handler for commands not present in the registry.
