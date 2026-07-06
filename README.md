@@ -1,108 +1,138 @@
-# 🐧 SIMNUX
+# SIMNUX
 
-A lightweight Linux-like environment simulator built around a controlled virtual runtime instead of real system processes.
-
----
-
-## Overview
-
-SIMNUX is a backend-driven shell simulation designed to reproduce the *feel* and behavioral logic of a UNIX-like environment without relying on containers, virtual machines, or direct operating system access.
-
-The project does **not** aim to replace Linux, emulate a full kernel, or provide binary compatibility. Instead, it focuses on recreating a coherent command-line experience through a controlled virtual filesystem, stateful sessions, and modular command execution.
-
-At its core, SIMNUX is a simulation engine — not a terminal skin over a real machine.
+Deterministic Linux-shell simulator for cybersecurity training and systems
+simulation. Runs entirely in userspace — no containers, no VMs, no kernel
+interaction.
 
 ---
 
-## Design Goals
+## What It Is
 
-* Provide a realistic shell-like experience.
-* Keep the runtime deterministic and fully controlled.
-* Avoid infrastructure overhead such as Docker or VMs.
-* Separate frontend rendering from backend logic.
-* Make commands modular and easy to extend.
-* Enable scenario-based environments for training and experimentation.
+SIMNUX is a **Python-based simulation engine** that reproduces shell semantics
+inside a controlled virtual runtime. It replaces real OS processes with a
+session-bound, HTTP-accessible shell runtime backed by an in-memory layered
+filesystem. The frontend is a dumb terminal renderer: all state lives server-
+side.
+
+The project is designed for **scenario-based training environments** where
+determinism, isolation, and reproducibility matter more than POSIX fidelity.
 
 ---
 
 ## Architecture
 
-SIMNUX is built around a few core concepts:
+### Layered Virtual Filesystem (VFS)
 
-### Virtual Filesystem (VFS)
+```
+base_layer  ← immutable, scenario-defined (YAML)
+delta_layer ← per-session mutations (copy-on-write)
+```
 
-The filesystem is fully virtual and exists entirely in memory.
+Reads merge both layers (delta wins). Writes always target `delta_layer` —
+the base is never mutated. Deletion is a tombstone in the overlay, not a
+destructive operation. This gives session isolation without cloning the
+filesystem tree.
 
-It uses a layered model:
+### Session Model
 
-* **Base Layer** → immutable scenario state.
-* **Delta Layer** → session-specific modifications.
+Each client gets an isolated `SNXShell` bound to:
+- An `SNXSession` (CWD, task progress, scenario metadata)
+- An `SNXFileSystem` instance (two-layer overlay)
+- A `CommandRegistry` (auto-discovered command classes)
 
-This allows users to interact with files and directories naturally while preserving isolation between sessions.
+Session identity is backend-generated (UUIDv4). The frontend retains the
+opaque token for subsequent requests. No client-supplied session IDs.
+
+### Command Pipeline
+
+Commands are `SNXCommand` subclasses in `commands/standard/`, auto-discovered
+via `pkgutil` at session init. Each command receives a `CommandContext`
+(session + filesystem), reads/writes async streams, and returns an `ExitCode`:
+
+```
+raw input → pre-process operators → split on | → ParseResult
+                                              ├─ single command → dispatch ─┐
+                                              └─ multiple       → dispatch  │
+                                                   segments        pipeline │
+                                                                           ↓
+                                                            CommandResult
+```
+
+Pipes (`|`) and output redirection (`>` / `>>`) are fully supported.
+The shell parser handles operator tokenization, pipeline segmentation,
+and redirect-path extraction before dispatch.
+
+### API Surface
+
+| Route | Method | Purpose |
+|---|---|---|
+| `/start` | GET | Create or resume a session |
+| `/execute_command` | POST | Execute shell input |
+| `/sessions/{id}` | GET | Session snapshot (read-only) |
+| `/` | GET | Health check / runtime snapshot |
+| `/debug/runtime` | GET | Unredacted runtime introspection |
+
+### Infrastructure Contracts
+
+- **Exit codes**: 0 (SUCCESS), 1 (ERROR), 2 (INVALID_ARGUMENT) — simplified
+  from real POSIX. No SIGINT/SIGPIPE codes.
+- **Error strings**: Maps to GNU coreutils conventions (`no such file or
+  directory`, `is a directory`, etc.).
+- **Permissions**: Stored per-node (rwxr-xr-x / rw-r--r-- defaults) but not
+  enforced. Present for scenario display and future authorization.
+- **Path resolution**: `~` expansion, `.`/`..` normalization, absolute path
+  resolution — no symlinks.
+
+### Observability
+
+- Structured dual-output logging (ANSI console + plain-text file)
+- Custom `OK` log level (25) for positive operational signals
+- `RuntimeSnapshot` / `ShellSnapshot` dataclasses for debug endpoints
 
 ---
 
-### Stateful Shell Sessions
+## Scenarios
 
-Each connected client receives an isolated shell session identified by a UUID.
+Behavior is defined by declarative YAML files under `scenarios/<name>/`:
 
-The backend maintains:
+```yaml
+name: "Hello SIMNUX"
+motd: "Welcome to SIMNUX!"
+difficulty: "Easy"
+username: "user"
+hostname: "simnux"
+starting_dir: "/home/user"
 
-* current working directory,
-* filesystem state,
-* loaded commands,
-* session context.
+filesystem:
+  "/etc/hostname": "simnux-edge-01"
+  "/home/user/notes.txt":
+    - "TO DO:"
+    - "1. Change admin password."
+  "/var/log/auth.log": "Apr  2 11:30:01 simnux sshd[123]: ..."
+  "/bin/sh": "__BINARY_PLACEHOLDER__"
+  "/home/user/.config/": ""
+```
 
-The frontend acts only as a renderer for terminal output.
-
----
-
-### Modular Commands
-
-Commands are implemented as independent Python classes.
-
-Each command interacts with the environment exclusively through controlled filesystem and session primitives, which keeps the runtime predictable and easier to secure.
-
-Current MVP commands include:
-
-* `ls`
-* `cd`
-* `pwd`
-* `cat`
-* `touch`
-* `echo`
+Content can be a string or a YAML list (joined with newlines). The
+`ScenarioLoader` auto-creates parent directories and maps flat path
+declarations into the VFS node tree. No database, no migration —
+filesystem state is the scenario.
 
 ---
 
-## What SIMNUX Is *Not*
+## What It Is Not
 
-SIMNUX intentionally avoids becoming:
+- **Not a Linux distribution** — no kernel, no syscalls, no binary execution
+- **Not a container runtime** — no cgroups, no namespaces, no OCI images
+- **Not a process emulator** — commands run as Python coroutines, not real
+  processes
+- **Not an SSH client** — the frontend is an HTTP consumer, not a terminal
+  emulator
+- **Not POSIX-compliant** — intentionally simplified exit codes, no signals,
+  no fork/exec, no real processes
 
-* a Linux distribution,
-* a container platform,
-* a process emulator,
-* a browser-based SSH client,
-* or a full POSIX implementation.
-
-Many Linux behaviors are simplified by design.
-
-The goal is consistency and controllability, not complete system fidelity.
-
----
-
-## Current Status
-
-SIMNUX is currently in MVP stage.
-
-Implemented features include:
-
-* Stateful shell runtime
-* Virtual layered filesystem
-* Session persistence
-* Path resolution (`~`, `.`, `..`)
-* Command registry and dynamic loading
-* Browser-based terminal frontend
-* In-memory isolated sessions
+The goal is **behavioral fidelity at the UX layer**, not system-level
+compatibility.
 
 ---
 
@@ -110,48 +140,61 @@ Implemented features include:
 
 ### Backend
 
-* Python
-* FastAPI
+- **Python ≥3.10** — single dependency: `fastapi`, `uvicorn`, `pydantic`
+- **FastAPI** — async HTTP transport for shell execution
+- **No ORM, no database** — all state is in-memory
+- **pytest + httpx** — unit, integration, regression, and e2e test suite
 
 ### Frontend
 
-* Vanilla JavaScript
-* HTML/CSS
+- **Vanilla JS** — ~150 LOC, no framework
+- **HTML/CSS** — single-file terminal UI
 
 ---
 
 ## Local Development
 
-### Requirements
-
-* Python 3.10+
-* Node.js
-
-### Run
-
 ```bash
 python dev.py
 ```
 
-By default:
+| Service | URL |
+|---|---|
+| Backend (FastAPI) | `http://localhost:8000` |
+| Frontend (static) | `http://localhost:8001` |
 
-* Backend → `http://localhost:8000`
-* Frontend → `http://localhost:8001`
+Environment variable `SIMNUX_RELOAD=true` enables uvicorn hot-reload.
+
+### Running Tests
+
+```bash
+cd backend
+. .venv/bin/activate
+pytest                           # all tests
+pytest tests/unit                # unit tests only
+pytest tests/e2e                 # end-to-end shell flows
+pytest tests/integration         # API route + overlay integrity
+pytest tests/regression          # regression suite
+```
 
 ---
 
-## Philosophy
+## Design Constraints
 
-SIMNUX is built around a simple idea:
-
-> emulate behavior, not infrastructure.
-
-Instead of executing real system commands inside isolated environments, the runtime reproduces shell semantics through controlled internal logic.
-
-This keeps the environment lightweight, deterministic, and easier to reason about while still preserving a familiar command-line experience.
+1. **No real processes** — commands are Python coroutines mutating in-memory
+   state. There is no `fork()`, `exec()`, or PID tree.
+2. **Deterministic by construction** — no I/O scheduling, no race conditions
+   in the VFS, no external dependencies at runtime.
+3. **Session isolation via composition** — each session gets its own
+   filesystem, registry, and shell instance. No shared mutable state.
+4. **Frontend is a view layer** — the prompt string is rendered server-side;
+   the browser just appends it to the DOM.
+5. **Scenarios are the deployment unit** — a SIMNUX deployment defines a set
+   of scenarios; no DB migrations or schema changes are required to add new
+   training content.
 
 ---
 
 ## License
 
-MIT License.
+MIT
