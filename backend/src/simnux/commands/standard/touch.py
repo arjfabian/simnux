@@ -1,6 +1,8 @@
 from simnux.commands.errors import CommandError
+from simnux.commands.models import CommandContext
 from simnux.commands.runtime import SNXCommand
-from simnux.runtime.models import CommandResult
+from simnux.commands.streams import AsyncStreamReader
+from simnux.commands.streams import AsyncStreamWriter
 from simnux.runtime.models import ExitCode
 
 
@@ -13,21 +15,27 @@ class Command(SNXCommand):
 
     name = "touch"
 
-    def execute(self, args: list[str]) -> CommandResult:
+    async def execute(
+        self,
+        ctx: CommandContext,
+        stdin: AsyncStreamReader,
+        stdout: AsyncStreamWriter,
+        stderr: AsyncStreamWriter,
+    ) -> ExitCode:
 
+        args = self.args or []
         if not args:
-            return CommandResult(
-                stderr=f"touch: {CommandError.MISSING_FILE_OPERAND}",
-                exit_code=ExitCode.INVALID_ARGUMENT,
-            )
+            await stderr.write(f"touch: {CommandError.MISSING_FILE_OPERAND}")
+            return ExitCode.INVALID_ARGUMENT
 
-        target = self.resolve_path(args[0])
+        target = self.resolve_path(args[0], ctx)
 
-        result = self.context.filesystem.touch(
+        result = ctx.filesystem.touch(
             path=target,
         )
 
-        return CommandResult(
-            stderr=result.message if result.exit_code != ExitCode.SUCCESS else "",
-            exit_code=result.exit_code,
-        )
+        if result.exit_code != ExitCode.SUCCESS:
+            await stderr.write(f"touch: {args[0]}: {result.message}")
+            return result.exit_code
+
+        return ExitCode.SUCCESS

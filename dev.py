@@ -7,10 +7,10 @@ shutdown lifecycle for local development.
 from __future__ import annotations
 
 import atexit
+from pathlib import Path
 import signal
 import subprocess
 import sys
-from pathlib import Path
 
 
 ROOT = Path(__file__).parent
@@ -61,20 +61,24 @@ class DevEnvironment:
 
         atexit.register(self.shutdown)
 
-        self.start([
-            str(PYTHON),
-            "-m",
-            "simnux",
-        ])
+        self.start(
+            [
+                str(PYTHON),
+                "-m",
+                "simnux",
+            ]
+        )
 
-        self.start([
-            "python3",
-            "-m",
-            "http.server",
-            "8001",
-            "-d",
-            str(ROOT / "frontend"),
-        ])
+        self.start(
+            [
+                "python3",
+                "-m",
+                "http.server",
+                "8001",
+                "-d",
+                str(ROOT / "frontend"),
+            ]
+        )
 
         for proc in self.processes:
             proc.wait()

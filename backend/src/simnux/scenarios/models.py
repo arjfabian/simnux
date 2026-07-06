@@ -1,12 +1,11 @@
 """Scenario domain models for SIMNUX."""
 
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 from simnux.filesystem.models import SNXNode
 
 
-@dataclass
-class SNXScenario:
+class SNXScenario(BaseModel):
     """Normalized in-memory representation of a loaded scenario.
 
     Populated by ``ScenarioLoader`` from YAML. All filesystem paths in

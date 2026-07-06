@@ -74,6 +74,9 @@ class ScenarioLoader:
 
             normalized = raw_path.rstrip("/")
 
+            if isinstance(content, list):
+                content = "\n".join(content) + "\n"
+
             filesystem[normalized] = SNXNode(
                 path=normalized,
                 content=content,

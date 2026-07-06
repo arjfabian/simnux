@@ -4,13 +4,16 @@ This module provides reusable helpers for:
 - Shell creation (with and without commands loaded)
 - Result assertion helpers (exit code checking)
 - Output extraction helpers (stdout/stderr from CommandResult and API responses)
+- Queue draining for stream-level tests
 
 Two categories of helpers exist:
 1. Shell helpers: make_shell(), create_shell_with_commands()
 2. Assertion helpers: assert_success(), assert_error(), etc.
 3. Text extraction: stdout_text(), stderr_text(), api_stdout_text(), etc.
+4. Queue utilities: _drain_queue()
 """
 
+import asyncio
 import logging
 
 from simnux.commands.loader import CommandLoader
@@ -267,6 +270,24 @@ def api_stdout_text(data: dict) -> str:
         stdout_text: For CommandResult objects
     """
     return "\n".join(data["stdout"])
+
+
+def drain_queue(queue: asyncio.Queue) -> list[str]:
+    """Drain all non-None items from a queue, splitting each on newlines.
+
+    Mirrors ``dispatcher._drain_queue`` for use in stream-level tests
+    that bypass the dispatcher and pass ``QueueStreamWriter`` instances
+    directly to commands.
+    """
+    lines: list[str] = []
+    while True:
+        try:
+            item = queue.get_nowait()
+        except asyncio.QueueEmpty:
+            break
+        if item is not None:
+            lines.extend(item.splitlines())
+    return lines
 
 
 def api_stderr_text(data: dict) -> str:

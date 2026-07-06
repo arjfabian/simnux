@@ -11,10 +11,10 @@ starting_dir: "/home/user"
 filesystem:
   "/etc/hostname": "simnux-edge-01"
   "/etc/motd": "PRIVATE PROPERTY - UNAUTHORIZED ACCESS WILL BE MONITORED"
-  "/home/user/notes.txt": |
-    TO DO: 
-    1. Change admin password.
-    2. Close port 8080.
+  "/home/user/notes.txt":
+    - "TO DO:"
+    - "1. Change admin password."
+    - "2. Close port 8080."
   "/var/log/auth.log": "Apr  2 11:30:01 simnux sshd[123]: Accepted password for user..."
   "/bin/sh": "__BINARY_PLACEHOLDER__"
   "/home/user/.config/": ""

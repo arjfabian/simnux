@@ -158,3 +158,135 @@ class TestShellParser:
         """Trailing backslash (incomplete escape) raises ``ValueError``."""
         with pytest.raises(ValueError):
             ShellParser.parse("echo hello\\")
+
+    # ── stdout redirection (>, >>) ──────────────────────────────────────
+
+    def test_redirect_stdout_to_file(self):
+        """``>`` operator redirects stdout to a file."""
+        result = ShellParser.parse("echo hello > out.txt")
+        assert result.command == "echo"
+        assert result.args == ["hello"]
+        assert result.stdout_redirect == "out.txt"
+        assert result.stdout_append is False
+
+    def test_redirect_append_to_file(self):
+        """``>>`` operator appends stdout to a file."""
+        result = ShellParser.parse("echo hello >> out.txt")
+        assert result.command == "echo"
+        assert result.args == ["hello"]
+        assert result.stdout_redirect == "out.txt"
+        assert result.stdout_append is True
+
+    def test_redirect_no_args(self):
+        """Redirect works even when the command has no arguments."""
+        result = ShellParser.parse("ls > listing.txt")
+        assert result.command == "ls"
+        assert result.args == []
+        assert result.stdout_redirect == "listing.txt"
+
+    def test_redirect_before_command(self):
+        """Redirect operator can appear before the command name."""
+        result = ShellParser.parse("> out.txt echo hello")
+        assert result.command == "echo"
+        assert result.args == ["hello"]
+        assert result.stdout_redirect == "out.txt"
+
+    def test_redirect_middle_of_args(self):
+        """Redirect operator can appear between arguments."""
+        result = ShellParser.parse("echo hello > out.txt world")
+        assert result.command == "echo"
+        assert result.args == ["hello", "world"]
+        assert result.stdout_redirect == "out.txt"
+
+    def test_redirect_multiple_last_wins(self):
+        """When multiple redirects are present, the last one wins."""
+        result = ShellParser.parse("echo hello > first.txt > last.txt")
+        assert result.command == "echo"
+        assert result.args == ["hello"]
+        assert result.stdout_redirect == "last.txt"
+
+    def test_redirect_missing_target_raises(self):
+        """``>`` without a target file raises ValueError."""
+        with pytest.raises(ValueError, match="Missing redirect target"):
+            ShellParser.parse("echo hello >")
+
+    def test_redirect_append_missing_target_raises(self):
+        """``>>`` without a target file raises ValueError."""
+        with pytest.raises(ValueError, match="Missing redirect target"):
+            ShellParser.parse("echo hello >>")
+
+    def test_redirect_only_operator_and_target(self):
+        """A command consisting only of a redirect (no real command) returns empty command."""
+        result = ShellParser.parse("> out.txt")
+        assert result.command == ""
+        assert result.args == []
+        assert result.stdout_redirect == "out.txt"
+
+    # ── pipeline (|) ────────────────────────────────────────────────────
+
+    def test_pipe_two_commands(self):
+        """Basic pipe between two commands."""
+        result = ShellParser.parse("ls | grep notes")
+        assert len(result.segments) == 2
+
+        assert result.segments[0].command == "ls"
+        assert result.segments[0].args == []
+
+        assert result.segments[1].command == "grep"
+        assert result.segments[1].args == ["notes"]
+
+    def test_pipe_three_commands(self):
+        """Three-stage pipeline."""
+        result = ShellParser.parse("cat file | grep pattern | wc -l")
+        assert len(result.segments) == 3
+
+        assert result.segments[0].command == "cat"
+        assert result.segments[0].args == ["file"]
+
+        assert result.segments[1].command == "grep"
+        assert result.segments[1].args == ["pattern"]
+
+        assert result.segments[2].command == "wc"
+        assert result.segments[2].args == ["-l"]
+
+    def test_pipe_with_args(self):
+        """Pipe with arguments on both sides."""
+        result = ShellParser.parse("ls -la /home | grep user")
+        assert result.segments[0].args == ["-la", "/home"]
+        assert result.segments[1].args == ["user"]
+
+    def test_pipe_backward_compat_first_segment(self):
+        """Backward-compat properties (command, args) reflect first segment."""
+        result = ShellParser.parse("ls -la | grep foo")
+        assert result.command == "ls"
+        assert result.args == ["-la"]
+
+    def test_pipe_stdout_redirect_on_last(self):
+        """Redirect on the final pipeline segment is extracted correctly."""
+        result = ShellParser.parse("ls | grep notes > output.txt")
+        assert len(result.segments) == 2
+        assert result.segments[1].stdout_redirect == "output.txt"
+        assert result.segments[1].stdout_append is False
+
+    def test_pipe_no_spaces_around_operator(self):
+        """Pipe works without spaces around ``|`` (pre-processing adds them)."""
+        result = ShellParser.parse("ls|grep notes")
+        assert len(result.segments) == 2
+        assert result.segments[0].command == "ls"
+        assert result.segments[1].command == "grep"
+        assert result.segments[1].args == ["notes"]
+
+    def test_pipe_trailing_pipe_raises(self):
+        """Trailing ``|`` raises ValueError (empty segment)."""
+        with pytest.raises(ValueError, match="Empty pipeline segment"):
+            ShellParser.parse("ls | grep |")
+
+    def test_pipe_leading_pipe_raises(self):
+        """Leading ``|`` raises ValueError (empty segment)."""
+        with pytest.raises(ValueError, match="Empty pipeline segment"):
+            ShellParser.parse("| ls")
+
+    def test_pipe_empty_segment_raises(self):
+        """Double ``|`` with nothing in between raises ValueError."""
+        with pytest.raises(ValueError, match="Empty pipeline segment"):
+            ShellParser.parse("ls || grep")

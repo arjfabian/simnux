@@ -1,8 +1,7 @@
 """Regression tests for API and model contracts.
 
 Ensures that ShellResponse and CommandResult maintain their expected
-field types and structural invariants (e.g., stdout is always a list,
-None values are preserved).
+field types and structural invariants (e.g., stdout is always a list).
 """
 
 from simnux.runtime.models import CommandResult
@@ -26,27 +25,25 @@ class TestRegressionResponseContracts:
         assert resp.prompt == ""
         assert resp.status == "ok"
 
-    def test_shell_response_stdout_list_normalization(self):
-        """ShellResponse normalizes string stdout into a list (single-element)."""
-        from simnux.api.models.contracts import ShellResponse
+    def test_command_result_defaults(self):
+        """CommandResult defaults to empty lists for stdout/stderr."""
+        from simnux.runtime.models import ExitCode
 
-        cmd_result = CommandResult(stdout="single line")
-        resp = ShellResponse(
-            session_id="s1",
-            stdout=cmd_result.stdout,
-            stderr=cmd_result.stderr,
-            status="ok",
-        )
-        assert isinstance(resp.stdout, list)
-        assert resp.stdout == ["single line"]
-
-    def test_command_result_string_normalization(self):
-        """CommandResult normalizes a string stdout into a list."""
-        r = CommandResult(stdout="line1")
+        r = CommandResult()
         assert isinstance(r.stdout, list)
-        assert r.stdout == ["line1"]
+        assert r.stdout == []
+        assert isinstance(r.stderr, list)
+        assert r.stderr == []
+        assert r.exit_code == ExitCode.SUCCESS
 
-    def test_command_result_none_stays_none(self):
-        """CommandResult preserves ``None`` stdout (defensive: no false normalization)."""
-        r = CommandResult(stdout=None)
-        assert r.stdout is None
+    def test_command_result_list_stdout(self):
+        """CommandResult accepts list[str] for stdout."""
+        r = CommandResult(stdout=["line1", "line2"])
+        assert isinstance(r.stdout, list)
+        assert r.stdout == ["line1", "line2"]
+
+    def test_command_result_empty_list_default(self):
+        """CommandResult omitting fields uses empty list defaults."""
+        r = CommandResult()
+        assert r.stdout == []
+        assert r.stderr == []

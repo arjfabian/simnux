@@ -21,21 +21,13 @@ class ExitCode(IntEnum):
 
 @dataclass
 class CommandResult:
-    """Normalized result returned by all commands in the runtime.
+    """Transport contract between command execution and the API layer.
 
-    ``stdout`` and ``stderr`` are normalized to ``list[str]`` in
-    ``__post_init__`` for consistent JSON serialization. Strings are wrapped
-    in a single-element list; None becomes []. This is the sole output
-    contract between commands and the shell runtime.
+    Built by the dispatcher after command execution by draining stream
+    queues. Commands do not construct ``CommandResult`` directly — they
+    write to ``stdout``/``stderr`` streams and return ``ExitCode``.
     """
 
-    stdout: str | list[str] = field(default_factory=list)
-    stderr: str | list[str] = field(default_factory=list)
+    stdout: list[str] = field(default_factory=list)
+    stderr: list[str] = field(default_factory=list)
     exit_code: ExitCode = ExitCode.SUCCESS
-
-    def __post_init__(self) -> None:
-        """Normalize string outputs into list form for consistent transport."""
-        if isinstance(self.stdout, str):
-            self.stdout = [self.stdout] if self.stdout else []
-        if isinstance(self.stderr, str):
-            self.stderr = [self.stderr] if self.stderr else []

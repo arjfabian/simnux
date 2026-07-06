@@ -1,5 +1,7 @@
+from simnux.commands.models import CommandContext
 from simnux.commands.runtime import SNXCommand
-from simnux.runtime.models import CommandResult
+from simnux.commands.streams import AsyncStreamReader
+from simnux.commands.streams import AsyncStreamWriter
 from simnux.runtime.models import ExitCode
 
 
@@ -13,17 +15,14 @@ class Command(SNXCommand):
 
     name = "echo"
 
-    def execute(self, args: list[str]) -> CommandResult:
-        if not args:
-            return CommandResult(
-                exit_code=ExitCode.SUCCESS,
-            )
-        message = " ".join(args)
-        # In Linux, if a string begins with a single or double quote, but ends
-        # without one, "echo" waits for STDIN.
-        # For now, the command will detect whether the input is enclosed in
-        # single or double quotes, remove them, and return the result.
-        return CommandResult(
-            stdout=message,
-            exit_code=ExitCode.SUCCESS,
-        )
+    async def execute(
+        self,
+        ctx: CommandContext,
+        stdin: AsyncStreamReader,
+        stdout: AsyncStreamWriter,
+        stderr: AsyncStreamWriter,
+    ) -> ExitCode:
+        args = self.args or []
+        if args:
+            await stdout.write(" ".join(args))
+        return ExitCode.SUCCESS

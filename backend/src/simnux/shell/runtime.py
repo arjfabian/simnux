@@ -5,9 +5,11 @@ Orchestrates command execution, parsing, and session state
 for a single interactive environment.
 """
 
+import asyncio
 import logging
 
 from simnux.commands.dispatcher import CommandDispatcher
+from simnux.commands.models import CommandContext
 from simnux.commands.registry import CommandRegistry
 from simnux.filesystem.vfs import SNXFileSystem
 from simnux.observability.snapshots import ShellSnapshot
@@ -48,7 +50,9 @@ class SNXShell:
 
         self.dispatcher = CommandDispatcher(registry=self.registry)
 
-    def execute(self, raw_input: str) -> CommandResult:
+        self._lock = asyncio.Lock()
+
+    async def execute(self, raw_input: str) -> CommandResult:
         """Full command lifecycle: (1) parse raw input via shlex,
         (2) validate command exists in registry, (3) dispatch to command's
         ``execute()``, (4) catch and wrap runtime exceptions.
@@ -56,36 +60,62 @@ class SNXShell:
         Returns ``CommandResult`` with structured output, never raises.
         """
 
+        async with self._lock:
+            return await self._execute_impl(raw_input)
+
+    async def _execute_impl(self, raw_input: str) -> CommandResult:
+
         self.logger.info(f"[{self.session.session_id}] Executing: {raw_input}")
 
         parsed = self.parser.parse(raw_input)
 
-        if not parsed.command:
+        if not parsed.segments:
             return CommandResult()
 
-        if not self.registry.exists(parsed.command):
-            self.logger.warning(f"[{self.session.session_id}] Unknown command: {parsed.command}")
-
-            return CommandResult(
-                stderr=f"{parsed.command}: command not found",
-                exit_code=ExitCode.ERROR,
-            )
+        # Validate all commands exist before any execution
+        for seg in parsed.segments:
+            if not seg.command:
+                continue
+            if not self.registry.exists(seg.command):
+                self.logger.warning(f"[{self.session.session_id}] Unknown command: {seg.command}")
+                return CommandResult(
+                    stderr=[f"{seg.command}: command not found"],
+                    exit_code=ExitCode.ERROR,
+                )
 
         try:
-            result = self.dispatcher.dispatch(
-                parsed.command,
-                parsed.args,
+            ctx = CommandContext(
+                session=self.session,
+                filesystem=self.filesystem,
             )
+
+            if len(parsed.segments) == 1:
+                result = await self.dispatcher.dispatch(
+                    parsed.command,
+                    parsed.args,
+                    ctx,
+                    stdout_redirect=parsed.stdout_redirect,
+                    stdout_append=parsed.stdout_append,
+                )
+            else:
+                pipeline_segments = [
+                    (seg.command, seg.args, seg.stdout_redirect, seg.stdout_append)
+                    for seg in parsed.segments
+                ]
+                result = await self.dispatcher.dispatch_pipeline(
+                    pipeline_segments,
+                    ctx,
+                )
 
             self.logger.info(f"[{self.session.session_id}] Exit code: {result.exit_code}")
 
             return result
 
         except Exception:
-            self.logger.exception(f"[{self.session.session_id}] Execution error: {parsed.command}")
+            self.logger.exception(f"[{self.session.session_id}] Execution error: {raw_input}")
 
             return CommandResult(
-                stderr="Internal runtime error",
+                stderr=["Internal runtime error"],
                 exit_code=ExitCode.ERROR,
             )
 

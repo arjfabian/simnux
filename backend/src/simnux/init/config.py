@@ -1,10 +1,9 @@
 """Central configuration for SIMNUX runtime."""
 
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 
-@dataclass
-class RuntimeConfig:
+class RuntimeConfig(BaseModel):
     """Runtime configuration for logging path and debug mode.
 
     Intentionally small — most behavioral variation comes from scenario

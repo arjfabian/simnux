@@ -38,7 +38,7 @@ async def execute(
         )
 
     shell = runtime.get_session(request.session_id)
-    result = shell.execute(request.command)
+    result = await shell.execute(request.command)
 
     return ShellResponse(
         session_id=request.session_id,
