@@ -1,32 +1,35 @@
 from simnux.commands.errors import CommandError
+from simnux.commands.models import CommandContext
 from simnux.commands.runtime import SNXCommand
-from simnux.runtime.models import CommandResult
+from simnux.commands.streams import AsyncStreamReader
+from simnux.commands.streams import AsyncStreamWriter
 from simnux.runtime.models import ExitCode
 
 
 class Command(SNXCommand):
     name = "rmdir"
 
-    def execute(self, args: list[str]) -> CommandResult:
+    async def execute(
+        self,
+        ctx: CommandContext,
+        stdin: AsyncStreamReader,
+        stdout: AsyncStreamWriter,
+        stderr: AsyncStreamWriter,
+    ) -> ExitCode:
 
+        args = self.args or []
         if not args:
-            return CommandResult(
-                stderr=f"rmdir: {CommandError.MISSING_OPERAND}",
-                exit_code=ExitCode.INVALID_ARGUMENT,
-            )
+            await stderr.write(f"rmdir: {CommandError.MISSING_OPERAND}")
+            return ExitCode.INVALID_ARGUMENT
 
         raw_target = args[0]
 
-        abs_path = self.resolve_path(raw_target)
+        abs_path = self.resolve_path(raw_target, ctx)
 
-        result = self.context.filesystem.delete(abs_path, delete_dir=True)
+        result = ctx.filesystem.delete(abs_path, delete_dir=True)
 
         if result.exit_code != ExitCode.SUCCESS:
-            return CommandResult(
-                stderr=f"rmdir: {raw_target}: {result.message}",
-                exit_code=result.exit_code,
-            )
+            await stderr.write(f"rmdir: {raw_target}: {result.message}")
+            return result.exit_code
 
-        return CommandResult(
-            exit_code=ExitCode.SUCCESS,
-        )
+        return ExitCode.SUCCESS

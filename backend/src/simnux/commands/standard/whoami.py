@@ -7,7 +7,9 @@ from simnux.runtime.models import ExitCode
 
 
 class Command(SNXCommand):
-    name = "rm"
+    """Print effective user name."""
+
+    name = "whoami"
 
     async def execute(
         self,
@@ -17,19 +19,9 @@ class Command(SNXCommand):
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
 
-        args = self.args or []
-        if not args:
-            await stderr.write(f"rm: {CommandError.MISSING_OPERAND}")
+        if self.args:
+            await stderr.write(f"whoami: {CommandError.TOO_MANY_ARGUMENTS}")
             return ExitCode.INVALID_ARGUMENT
 
-        raw_target = args[0]
-
-        abs_path = self.resolve_path(raw_target, ctx)
-
-        result = ctx.filesystem.delete(abs_path)
-
-        if result.exit_code != ExitCode.SUCCESS:
-            await stderr.write(f"rm: {raw_target}: {result.message}")
-            return result.exit_code
-
+        await stdout.write(f"{ctx.session.username}\n")
         return ExitCode.SUCCESS
