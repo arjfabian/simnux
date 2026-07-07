@@ -1,14 +1,10 @@
-"""
-Base class for all SIMNUX commands.
-
-Defines the execution contract and shared utilities for path resolution.
-Commands are stateless beyond their injected execution context.
-"""
+"""Command base class defining the execution contract and shared utilities."""
 
 from abc import ABC
 from abc import abstractmethod
 import logging
 
+from simnux.commands.argument_parser import ParseResult
 from simnux.commands.models import CommandContext
 from simnux.commands.streams import AsyncStreamReader
 from simnux.commands.streams import AsyncStreamWriter
@@ -19,10 +15,13 @@ logger = logging.getLogger("simnux.commands")
 
 
 class SNXCommand(ABC):
-    """Abstract base class for all shell commands."""
+    """Abstract base for all shell commands."""
 
     name: str = ""
     args: list[str] | None = None
+    clear_screen: bool = False
+    parameters: dict[str, dict] = {}
+    parsed_args: ParseResult | None = None
 
     def __init__(self, context) -> None:
 
@@ -39,30 +38,28 @@ class SNXCommand(ABC):
         stdout: AsyncStreamWriter,
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
-        """Execute the command with a ``CommandContext`` and I/O streams.
+        """Execute with a CommandContext and I/O streams.
 
-        The dispatcher always provides live streams — commands write
-        output to ``stdout``, errors to ``stderr``, and return an
-        ``ExitCode``. ``CommandResult`` is built by the dispatcher from
-        the drained stream queues after execution.
-        Side effects are limited to ``ctx.session`` and
-        ``ctx.filesystem.delta_layer`` — base_layer is never mutated.
+        The dispatcher provides live streams — write output to stdout,
+        errors to stderr, return an ExitCode. Side effects limited to
+        ctx.session and ctx.filesystem.delta_layer.
         """
         raise NotImplementedError
 
     @property
     def help_text(self) -> str:
-        """Optional help string for future CLI introspection system."""
         return "No help available for this command."
 
-    def resolve_path(self, target: str, ctx: CommandContext | None = None) -> str:
-        """Resolve a user-provided path using session-aware filesystem rules.
+    def normalize_args(self, args: list[str]) -> list[str]:
+        """Pre-process raw args before execution.
 
-        Precondition: ``ctx.session.current_directory`` is an absolute,
-        normalized path. Returns an absolute path suitable for VFS operations.
-        When ``ctx`` is omitted, falls back to ``self.context`` (legacy path).
+        Override for command-specific quirks (e.g. head -3 shorthand).
+        Must not mutate self.args.
         """
+        return args
 
+    def resolve_path(self, target: str, ctx: CommandContext | None = None) -> str:
+        """Resolve a user path to an absolute VFS path using session CWD."""
         ctx = ctx or self.context
         session = ctx.session
 

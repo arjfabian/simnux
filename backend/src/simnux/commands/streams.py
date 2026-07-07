@@ -1,9 +1,4 @@
-"""Async stream abstractions for command I/O.
-
-Provides protocol classes (AsyncStreamReader, AsyncStreamWriter) and
-Queue-backed implementations used by the command execution pipeline
-to support piping (cmd1 | cmd2) and redirection (>, >>).
-"""
+"""Async stream abstractions for command I/O (pipes, redirection)."""
 
 from abc import ABC
 from abc import abstractmethod

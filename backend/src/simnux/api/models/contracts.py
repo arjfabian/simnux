@@ -27,5 +27,8 @@ class ShellResponse(BaseModel):
 
     prompt: str = ""
 
+    # Frontend signals.
+    clear_screen: bool = False
+
     # Transport-level execution state.
     status: Literal["ok", "error"] = "ok"

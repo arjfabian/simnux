@@ -4,7 +4,6 @@ Validates that the dispatcher correctly raises on unregistered commands
 and succeeds after registration (foundational invariants).
 """
 
-import asyncio
 
 import pytest
 
@@ -38,7 +37,6 @@ class TestRegressionDispatcherAssumptions:
     async def test_dispatch_after_registration_succeeds(self, ctx):
         """Dispatching a registered command returns its result."""
         registry = CommandRegistry()
-        from simnux.commands.runtime import SNXCommand
 
         class TestCmd(SNXCommand):
             name = "testcmd"

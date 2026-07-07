@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+from simnux.commands.argument_parser import parse_arguments
 from simnux.commands.models import CommandContext
 from simnux.commands.streams import AsyncStreamReader
 from simnux.commands.streams import AsyncStreamWriter
@@ -15,12 +16,7 @@ logger = logging.getLogger("simnux.commands")
 
 
 def _drain_queue(queue: asyncio.Queue) -> list[str]:
-    """Drain all non-None items from a queue, splitting each on newlines.
-
-    Each queued item is split via ``str.splitlines()`` to normalize
-    multi-line writes into individual lines. None (EOF sentinel) items
-    are discarded.
-    """
+    """Drain all non-None items, splitting each on newlines."""
     lines: list[str] = []
     while True:
         try:
@@ -33,12 +29,7 @@ def _drain_queue(queue: asyncio.Queue) -> list[str]:
 
 
 class CommandDispatcher:
-    """Thin dispatch layer that resolves command names to instances,
-    wires I/O streams, and delegates execution.
-
-    Precondition: the caller must verify command existence via
-    ``registry.exists()`` before calling ``dispatch()``.
-    """
+    """Resolves commands, wires I/O streams, delegates execution."""
 
     def __init__(self, registry):
         self.registry = registry
@@ -54,16 +45,7 @@ class CommandDispatcher:
         stdout_redirect: str | None = None,
         stdout_append: bool = False,
     ) -> CommandResult:
-        """Execute a registered command, wrapping it in live stream queues.
-
-        When ``stdin``/``stdout``/``stderr`` are not provided (the common
-        case), internal ``QueueStreamWriter`` instances are created and
-        drained into a ``CommandResult`` after the command returns.
-        Provided streams pass through for pipe/redirect support.
-
-        When ``stdout_redirect`` is set, stdout is written directly to that
-        VFS path via ``FileStreamWriter`` instead of appearing in the result.
-        """
+        """Execute a registered command. Creates internal stream queues if none provided."""
 
         command = self.registry.get(cmd_name)
 
@@ -72,11 +54,18 @@ class CommandDispatcher:
 
         command.args = args
 
+        if command.parameters:
+            normalized = command.normalize_args(args)
+            parsed, errs = parse_arguments(normalized, command.parameters, cmd_name)
+            if errs:
+                return CommandResult(stderr=errs, exit_code=ExitCode.INVALID_ARGUMENT)
+            command.parsed_args = parsed
+
         if stdin is not None:
             stdin_reader = stdin
         else:
             stdin_queue: asyncio.Queue = asyncio.Queue()
-            stdin_queue.put_nowait(None)  # immediate EOF for standalone commands
+            stdin_queue.put_nowait(None)
             stdin_reader = QueueStreamReader(stdin_queue)
 
         out_queue: asyncio.Queue = asyncio.Queue() if not stdout_redirect else None
@@ -106,6 +95,7 @@ class CommandDispatcher:
             stdout=stdout_lines,
             stderr=stderr_lines,
             exit_code=exit_code,
+            clear_screen=command.clear_screen and exit_code == ExitCode.SUCCESS,
         )
 
     async def dispatch_pipeline(
@@ -113,12 +103,7 @@ class CommandDispatcher:
         segments: list[tuple[str, list[str], str | None, bool]],
         ctx: CommandContext,
     ) -> CommandResult:
-        """Execute a pipeline of commands connected by |.
-
-        Each tuple is ``(command, args, stdout_redirect, stdout_append)``.
-        Creates N-1 pipe queues between N commands, runs all concurrently,
-        returns merged stderr and the last segment's stdout/exit code.
-        """
+        """Execute a | pipeline: concurrent segments connected by pipe queues."""
 
         n = len(segments)
         pipe_queues: list[asyncio.Queue] = [asyncio.Queue() for _ in range(n - 1)]
@@ -130,17 +115,29 @@ class CommandDispatcher:
             command = self.registry.get(cmd_name)
             command.args = args
 
-            # stdin: previous pipe or standalone EOF
+            err_queue: asyncio.Queue = asyncio.Queue()
+            err_writer = QueueStreamWriter(err_queue)
+
+            if command.parameters:
+                normalized = command.normalize_args(args)
+                parsed, errs = parse_arguments(normalized, command.parameters, cmd_name)
+                if errs:
+                    err_writer.write("\n".join(errs))
+                    err_writer.close()
+                    merged_stderr.extend(_drain_queue(err_queue))
+                    results[idx] = ExitCode.INVALID_ARGUMENT
+                    return
+                command.parsed_args = parsed
+
+            segment_clear.append(command.clear_screen)
+
             if idx == 0:
                 stdin_queue: asyncio.Queue = asyncio.Queue()
-
-                stdin_queue.put_nowait(None) 
-                    
+                stdin_queue.put_nowait(None)
                 stdin_reader = QueueStreamReader(stdin_queue)
             else:
                 stdin_reader = QueueStreamReader(pipe_queues[idx - 1])
 
-            # stdout: next pipe or capture/redirect for last
             out_queue: asyncio.Queue | None = None
             if idx == n - 1:
                 if redirect is not None:
@@ -156,10 +153,6 @@ class CommandDispatcher:
             else:
                 out_writer = QueueStreamWriter(pipe_queues[idx])
 
-            # stderr: captured per-segment, merged after
-            err_queue: asyncio.Queue = asyncio.Queue()
-            err_writer = QueueStreamWriter(err_queue)
-
             try:
                 results[idx] = await command.execute(
                     ctx, stdin_reader, out_writer, err_writer,
@@ -173,6 +166,7 @@ class CommandDispatcher:
             if out_queue is not None:
                 pipe_results[idx] = _drain_queue(out_queue)
 
+        segment_clear: list[bool] = []
         pipe_results: dict[int, list[str]] = {}
 
         await asyncio.gather(*[run_segment(i) for i in range(n)])
@@ -184,4 +178,5 @@ class CommandDispatcher:
             stdout=last_stdout,
             stderr=merged_stderr,
             exit_code=last_exit,
+            clear_screen=segment_clear[-1] and last_exit == ExitCode.SUCCESS if segment_clear else False,
         )

@@ -1,18 +1,14 @@
 """Core runtime models shared across command execution pipeline."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from dataclasses import field
 from enum import IntEnum
 
 
 class ExitCode(IntEnum):
-    """Standardized process exit codes for command execution.
-
-    Simplified compared to real Linux: only SUCCESS(0), ERROR(1), and
-    INVALID_ARGUMENT(2). Missing: SIGINT(130), SIGPIPE(141), and the full
-    sysexits.h range. This is an intentional simplification — real POSIX
-    exit codes are not needed for the training use case.
-    """
+    """Simplified POSIX exit codes: SUCCESS(0), ERROR(1), INVALID_ARGUMENT(2)."""
 
     SUCCESS = 0
     ERROR = 1
@@ -21,13 +17,9 @@ class ExitCode(IntEnum):
 
 @dataclass
 class CommandResult:
-    """Transport contract between command execution and the API layer.
-
-    Built by the dispatcher after command execution by draining stream
-    queues. Commands do not construct ``CommandResult`` directly — they
-    write to ``stdout``/``stderr`` streams and return ``ExitCode``.
-    """
+    """Dispatched command output — drained stream queues bundled into a result."""
 
     stdout: list[str] = field(default_factory=list)
     stderr: list[str] = field(default_factory=list)
     exit_code: ExitCode = ExitCode.SUCCESS
+    clear_screen: bool = False

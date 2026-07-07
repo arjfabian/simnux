@@ -13,21 +13,80 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // ─────────────────────────────────────────────
+  // ANSI escape parser (SGR only, safe DOM)
+  // ─────────────────────────────────────────────
+  const ANSI_CLASSES = {
+    "1": "ansi-bold", "2": "ansi-dim", "3": "ansi-italic",
+    "4": "ansi-underline", "7": "ansi-reverse",
+    "30": "ansi-black", "31": "ansi-red", "32": "ansi-green",
+    "33": "ansi-yellow", "34": "ansi-blue", "35": "ansi-magenta",
+    "36": "ansi-cyan", "37": "ansi-white",
+    "90": "ansi-bright-black", "91": "ansi-bright-red",
+    "92": "ansi-bright-green", "93": "ansi-bright-yellow",
+    "94": "ansi-bright-blue", "95": "ansi-bright-magenta",
+    "96": "ansi-bright-cyan", "97": "ansi-bright-white",
+  };
+
+  function parseANSI(text) {
+    const fragment = document.createDocumentFragment();
+    const re = /\x1b\[([0-9;]*)m/g;
+    let last = 0, classes = [], m;
+
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) {
+        const node = document.createTextNode(text.slice(last, m.index));
+        if (classes.length) {
+          const span = document.createElement("span");
+          span.className = classes.join(" ");
+          span.appendChild(node);
+          fragment.appendChild(span);
+        } else {
+          fragment.appendChild(node);
+        }
+      }
+      const codes = (m[1] || "0").split(";");
+      for (const c of codes) {
+        if (c === "0" || c === "") { classes = []; }
+        else if (ANSI_CLASSES[c]) { classes.push(ANSI_CLASSES[c]); }
+      }
+      last = re.lastIndex;
+    }
+
+    if (last < text.length) {
+      const node = document.createTextNode(text.slice(last));
+      if (classes.length) {
+        const span = document.createElement("span");
+        span.className = classes.join(" ");
+        span.appendChild(node);
+        fragment.appendChild(span);
+      } else {
+        fragment.appendChild(node);
+      }
+    }
+
+    return fragment;
+  }
+
+  // ─────────────────────────────────────────────
   // Rendering (NO logic, only display)
   // ─────────────────────────────────────────────
-  const addLine = (text = "", color = "inherit") => {
+  const addLine = (text = "", extraClass = null) => {
     const line = document.createElement("div");
     line.className = "terminal-line";
-    line.style.color = color;
+    if (extraClass) line.classList.add(extraClass);
 
-    line.textContent = text;
+    if (text.includes("\x1b")) {
+      line.appendChild(parseANSI(text));
+    } else {
+      line.textContent = text;
+    }
     terminalOutput.appendChild(line);
 
     terminalOutput.scrollTop = terminalOutput.scrollHeight;
   };
 
-  const addLines = (lines = [], color = "inherit") => {
-    lines.forEach(line => addLine(line, color));
+  const addLines = (lines = [], extraClass = null) => {
+    lines.forEach(line => addLine(line, extraClass));
     addLine("");
   };
 
@@ -102,21 +161,16 @@ document.addEventListener("DOMContentLoaded", () => {
       if (data.clear_screen) clearTerminal();
 
       if (data.stdout?.length) addLines(data.stdout);
-      if (data.stderr?.length) addLines(data.stderr);
-      // if (data.stdout?.length) {
-      //   data.stdout.forEach(line => addLine(line));
-      //   addLine("");
-      // }
 
-      // if (data.stderr?.length) {
-      //   data.stderr.forEach(line => addLine(line, "#ff5555"));
-      //   addLine("");
-      // }
+      if (data.stderr?.length) {
+        const hasAnsi = data.stderr.some(l => l.includes("\x1b"));
+        addLines(data.stderr, hasAnsi ? null : "ansi-red");
+      }
 
       renderPrompt(data);
     } catch (err) {
-      addLine("Kernel connection lost.", "#ff5555");
-      addLine(String(err), "#ff5555");
+      addLine("Kernel connection lost.", "ansi-red");
+      addLine(String(err), "ansi-red");
     }
   }
 
@@ -142,7 +196,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       renderPrompt(data);
     } catch (e) {
-      addLine("FATAL: backend unreachable.", "#ff5555");
+      addLine("FATAL: backend unreachable.", "ansi-red");
     }
   }
 

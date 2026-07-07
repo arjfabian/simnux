@@ -5,14 +5,10 @@ directory appending when the target is a directory, and error handling
 for nonexistent paths, directories, and missing operands.
 """
 
-import asyncio
-from unittest.mock import MagicMock
 
 import pytest
 
 from simnux.commands.errors import CommandError
-from simnux.commands.models import CommandContext
-from simnux.commands.streams import QueueStreamWriter
 from simnux.runtime.models import ExitCode
 from tests.helpers import assert_error
 from tests.helpers import assert_success

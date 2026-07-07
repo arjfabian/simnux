@@ -111,9 +111,27 @@ body {
   border: 1px solid #555555;
 }
 
-/* For text colors */ 
-.dir { color: #569cd6; font-weight: bold; }
-.file { color: #d1d1d1; }
-.exec { color: #b5cea8; font-style: italic; }
-.error-text { color: #ff5555; }
-.success-text { color: #50fa7b; }
+/* ANSI SGR color classes */
+.ansi-bold { font-weight: bold; }
+.ansi-dim { opacity: 0.7; }
+.ansi-italic { font-style: italic; }
+.ansi-underline { text-decoration: underline; }
+.ansi-reverse { background-color: #d1d1d1; color: #0d0d0d; }
+
+.ansi-black { color: #000000; }
+.ansi-red { color: #cd3131; }
+.ansi-green { color: #0dbc79; }
+.ansi-yellow { color: #e5e510; }
+.ansi-blue { color: #2472c8; }
+.ansi-magenta { color: #bc3fbc; }
+.ansi-cyan { color: #11a8cd; }
+.ansi-white { color: #e5e5e5; }
+
+.ansi-bright-black { color: #666666; }
+.ansi-bright-red { color: #f14c4c; }
+.ansi-bright-green { color: #23d18b; }
+.ansi-bright-yellow { color: #f5f543; }
+.ansi-bright-blue { color: #3b8eea; }
+.ansi-bright-magenta { color: #d670d6; }
+.ansi-bright-cyan { color: #29b8db; }
+.ansi-bright-white { color: #e5e5e5; }

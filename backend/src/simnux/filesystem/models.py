@@ -1,8 +1,4 @@
-"""
-Core filesystem models for SIMNUX VFS.
-
-Defines nodes, permissions, and filesystem operation results.
-"""
+"""Core filesystem models: nodes, permissions, and operation results."""
 
 from __future__ import annotations
 
@@ -15,12 +11,7 @@ from simnux.runtime.models import ExitCode
 
 @dataclass
 class PermissionFlags:
-    """Decorative permission flags modeled on Unix r/w/x.
-
-    NOTE: permissions are NOT enforced by the VFS or command layer.
-    Currently present for scenario display and future authorization
-    integration.
-    """
+    """Unix r/w/x flags (NOTE: not enforced by VFS, present for display/future use)."""
 
     read: bool = False
     write: bool = False
@@ -45,11 +36,7 @@ class PermissionFlags:
 
 @dataclass
 class SNXPermissions:
-    """Three-tier (user/group/other) permission set matching Unix convention.
-
-    Stored per-node but not enforced at read/write time.
-    Designed for future enforcement.
-    """
+    """Three-tier (user/group/other) permission set per node."""
 
     user: PermissionFlags = field(default_factory=PermissionFlags)
     group: PermissionFlags = field(default_factory=PermissionFlags)
@@ -57,11 +44,7 @@ class SNXPermissions:
 
 
 class PermissionPresets:
-    """Standard permission profiles applied to new nodes.
-
-    Directories get rwxr-xr-x, files get rw-r--r--.
-    These mirror Linux defaults (umask 022).
-    """
+    """Default permission profiles (Linux umask 022)."""
 
     FILE_DEFAULT = SNXPermissions(
         user=PermissionFlags.rw(),
@@ -78,12 +61,7 @@ class PermissionPresets:
 
 @dataclass
 class SNXNode:
-    """File or directory node in the virtual filesystem.
-
-    Invariants: ``path`` must be absolute and normalized. ``is_directory``
-    and ``deleted`` are mutually non-exclusive but deleted nodes are excluded
-    from all read operations.
-    """
+    """File or directory node. Path must be absolute and normalized."""
 
     path: str
     content: str | None = None
@@ -94,20 +72,12 @@ class SNXNode:
     owner: str = "root"
     group: str = "root"
 
-    # Default permissions are all-False; callers must assign appropriate
-    # PermissionPresets. This is intentional — no implicit permissions are
-    # assumed on node creation.
     permissions: SNXPermissions = field(default_factory=SNXPermissions)
 
 
 @dataclass
 class FSResult:
-    """Result contract for all VFS operations.
-
-    ``success`` property checks ``exit_code == SUCCESS``.
-    ``node`` is populated on success; ``message`` carries the error string
-    on failure.
-    """
+    """VFS operation result contract — exit_code, message, optional node."""
 
     exit_code: ExitCode = ExitCode.SUCCESS
     message: str = ""
@@ -118,10 +88,7 @@ class FSResult:
 
 
 class ContentMode(str, Enum):
-    """Write mode selector for VFS write operations.
-
-    NONE: preserve existing content, OVERWRITE: replace, APPEND: concatenate.
-    """
+    """Write mode for VFS write operations: NONE, OVERWRITE, APPEND."""
 
     NONE = "none"
     OVERWRITE = "overwrite"

@@ -1,9 +1,4 @@
-"""Tests for the ``cat`` command implementation.
-
-Covers reading existing files, stdin fallback, handling nonexistent
-paths, directory rejection, relative path resolution, and ``-`` for
-explicit stdin interleaved with file paths.
-"""
+"""Tests for the ``cat`` command."""
 
 import asyncio
 from unittest.mock import MagicMock
@@ -22,16 +17,16 @@ from tests.helpers import stderr_text
 from tests.helpers import stdout_text
 
 
+def _write(shell, path, content):
+    shell.filesystem.touch(path)
+    shell.filesystem.delta_layer[path].content = content
+
+
 pytestmark = pytest.mark.asyncio
 
 
 class TestCatCommand:
-    """File content display via the ``cat`` command.
-
-    Uses the ``shell_with_commands`` fixture which provides a shell with
-    all standard commands loaded and the ``base_layer`` filesystem
-    (containing ``/home/user/notes.txt``, ``/etc/hostname``, etc.).
-    """
+    """Shell-level integration tests for cat."""
 
     async def test_cat_existing_file(self, shell_with_commands):
         """Cat on an existing file returns its content with SUCCESS."""
@@ -85,13 +80,19 @@ class TestCatCommand:
         assert_error(result)
         assert CommandError.NOT_FOUND in stderr_text(result)
 
+    async def test_cat_mixed_stdin_and_files(self, shell_with_commands):
+        """``cat file - file`` interleaves VFS content with piped stdin."""
+        _write(shell_with_commands, "/tmp/before.txt", "before\n")
+        _write(shell_with_commands, "/tmp/after.txt", "after\n")
+        result = await shell_with_commands.execute(
+            "echo piped | cat /tmp/before.txt - /tmp/after.txt"
+        )
+        assert_success(result)
+        assert stdout_text(result) == "before\npiped\nafter"
+
 
 class TestCatCommandStream:
-    """Stream-level tests for cat's stdin reading.
-
-    Feeds inline data via QueueStreamReader to verify that cat reads
-    from stdin when no arguments are given and when ``-`` is used.
-    """
+    """Unit-level tests with direct QueueStreamReader injection."""
 
     @pytest.fixture
     def cat_command(self):

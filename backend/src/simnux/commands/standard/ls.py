@@ -7,14 +7,7 @@ from simnux.runtime.models import ExitCode
 
 
 class Command(SNXCommand):
-    """List directory contents.
-
-    Currently supports a single target path argument.
-    Always includes . and .. entries.
-    Output is space-separated single-line (not columnated).
-    Directories are suffixed with '/'.
-    This is a simplified POSIX-like listing, not a full implementation.
-    """
+    """List directory contents (simplified POSIX-like, single-line output)."""
 
     name = "ls"
 

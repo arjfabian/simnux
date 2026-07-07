@@ -3,8 +3,8 @@
 import re
 import shlex
 
-from simnux.shell.models import ParsedCommand
 from simnux.shell.models import ParseResult
+from simnux.shell.models import ParsedCommand
 
 
 class ShellParser:

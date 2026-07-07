@@ -1,11 +1,4 @@
-"""
-Virtual layered filesystem for SIMNUX.
-
-Implements a two-layer model:
-- base_layer: immutable scenario state
-- delta_layer: session mutations (overlay)
-Copies-on-write: delta layer shadows (never mutates) base_layer on read.
-"""
+"""Virtual layered filesystem: immutable base_layer + per-session delta_layer overlay."""
 
 from __future__ import annotations
 
@@ -21,13 +14,7 @@ from simnux.runtime.models import ExitCode
 
 
 class SNXFileSystem:
-    """Two-layer overlay filesystem.
-
-    ``base_layer`` is immutable (scenario-defined); ``delta_layer`` captures
-    per-session mutations. Reads merge both layers with delta taking priority.
-    Writes always target ``delta_layer``. This enables session isolation
-    without copying the entire filesystem tree.
-    """
+    """Two-layer overlay filesystem with copy-on-write delta isolation."""
 
     def __init__(
         self,
@@ -44,12 +31,7 @@ class SNXFileSystem:
             self.logger.info(message)
 
     def normalize_path(self, path: str) -> str:
-        """Normalize an absolute path.
-
-        Precondition: path must be absolute (starts with '/').
-        Raises ValueError otherwise. Normalizes '/../' and duplicate
-        slashes via posixpath.normpath.
-        """
+        """Normalize an absolute path via posixpath.normpath."""
         if not path.startswith("/"):
             raise ValueError(f"absolute path required: {path!r}")
         return posixpath.normpath(path)
@@ -60,14 +42,7 @@ class SNXFileSystem:
         target_path: str,
         home_directory: str,
     ) -> str:
-        """Resolve shell-style paths to absolute canonical paths.
-
-        Handles ~ expansion (home_directory), relative path resolution, and
-        posixpath.normpath normalization. Guaranteed to return '/' or a path
-        starting with '/'. Precondition: ``current_directory`` must be
-        absolute.
-        """
-
+        """Resolve shell paths to absolute canonical paths (~, relative, .)."""
         if target_path.startswith("~"):
             target_path = target_path.replace("~", home_directory, 1)
 
@@ -79,8 +54,7 @@ class SNXFileSystem:
         return normalized if normalized.startswith("/") else "/"
 
     def validate_directory(self, path: str) -> FSResult:
-        """Validate that a path exists and resolves to a directory."""
-
+        """Check path exists and is a directory."""
         node = self.get_node(path)
 
         if not node:
@@ -98,23 +72,14 @@ class SNXFileSystem:
         return FSResult(exit_code=ExitCode.SUCCESS)
 
     def _all_nodes(self) -> dict[str, SNXNode]:
-        """Merge of base_layer and delta_layer with delta taking priority.
-
-        Excludes nodes marked as deleted. The merge is materialized per-call
-        — no caching.
-        """
+        """Merged view of base_layer + delta_layer (delta wins, tombstones excluded)."""
         merged = dict(self.base_layer)
         merged.update(self.delta_layer)
 
         return {path: node for path, node in merged.items() if not node.deleted}
 
     def get_node(self, path: str) -> SNXNode | None:
-        """Look up a node in delta_layer first, then base_layer.
-
-        Delta layer is checked first; base_layer is queried only if delta has
-        no entry (not even a deleted tombstone). Returns None for deleted
-        nodes.
-        """
+        """Look up node: delta_layer first, then base_layer. Returns None for tombstones."""
         path = self.normalize_path(path)
 
         node = self.delta_layer.get(path)
@@ -131,7 +96,6 @@ class SNXFileSystem:
         return bool(node and node.is_directory)
 
     def create_file(self, path: str) -> FSResult:
-
         path = self.normalize_path(path)
 
         if self.exists(path):
@@ -146,7 +110,6 @@ class SNXFileSystem:
             )
 
         parent_path = str(PurePosixPath(path).parent)
-
         parent = self.get_node(parent_path)
 
         if parent is None:
@@ -171,16 +134,11 @@ class SNXFileSystem:
         )
 
         self.delta_layer[path] = node
-
         self._log(f"create_file: {path}")
 
-        return FSResult(
-            exit_code=ExitCode.SUCCESS,
-            node=node,
-        )
+        return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
     def create_directory(self, path: str) -> FSResult:
-
         path = self.normalize_path(path)
 
         if self.exists(path):
@@ -190,7 +148,6 @@ class SNXFileSystem:
             )
 
         parent_path = str(PurePosixPath(path).parent)
-
         parent = self.get_node(parent_path)
 
         if parent is None:
@@ -215,18 +172,12 @@ class SNXFileSystem:
         )
 
         self.delta_layer[path] = node
-
         self._log(f"create_directory: {path}")
 
-        return FSResult(
-            exit_code=ExitCode.SUCCESS,
-            node=node,
-        )
+        return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
     def read(self, path: str) -> FSResult:
-
         path = self.normalize_path(path)
-
         node = self.get_node(path)
 
         if node is None:
@@ -241,15 +192,10 @@ class SNXFileSystem:
                 message=CommandError.IS_A_DIRECTORY,
             )
 
-        return FSResult(
-            exit_code=ExitCode.SUCCESS,
-            node=node,
-        )
+        return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
     def write(self, path: str, content: str) -> FSResult:
-
         path = self.normalize_path(path)
-
         existing = self.get_node(path)
 
         if existing is None:
@@ -278,18 +224,12 @@ class SNXFileSystem:
         )
 
         self.delta_layer[path] = node
-
         self._log(f"write: {path}")
 
-        return FSResult(
-            exit_code=ExitCode.SUCCESS,
-            node=node,
-        )
+        return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
     def append(self, path: str, content: str) -> FSResult:
-
         path = self.normalize_path(path)
-
         existing = self.get_node(path)
 
         if existing is None:
@@ -318,18 +258,12 @@ class SNXFileSystem:
         )
 
         self.delta_layer[path] = node
-
         self._log(f"append: {path}")
 
-        return FSResult(
-            exit_code=ExitCode.SUCCESS,
-            node=node,
-        )
+        return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
     def delete_file(self, path: str) -> FSResult:
-
         path = self.normalize_path(path)
-
         node = self.get_node(path)
 
         if node is None:
@@ -344,21 +278,13 @@ class SNXFileSystem:
                 message=CommandError.IS_A_DIRECTORY,
             )
 
-        self.delta_layer[path] = SNXNode(
-            path=path,
-            deleted=True,
-        )
-
+        self.delta_layer[path] = SNXNode(path=path, deleted=True)
         self._log(f"delete_file: {path}")
 
-        return FSResult(
-            exit_code=ExitCode.SUCCESS,
-        )
+        return FSResult(exit_code=ExitCode.SUCCESS)
 
     def delete_directory(self, path: str) -> FSResult:
-
         path = self.normalize_path(path)
-
         node = self.get_node(path)
 
         if node is None:
@@ -381,24 +307,13 @@ class SNXFileSystem:
                 message=CommandError.DIRECTORY_NOT_EMPTY,
             )
 
-        self.delta_layer[path] = SNXNode(
-            path=path,
-            deleted=True,
-        )
-
+        self.delta_layer[path] = SNXNode(path=path, deleted=True)
         self._log(f"delete_directory: {path}")
 
-        return FSResult(
-            exit_code=ExitCode.SUCCESS,
-        )
+        return FSResult(exit_code=ExitCode.SUCCESS)
 
     def touch(self, path: str) -> FSResult:
-        """Idempotent file creation.
-
-        If the file exists, it is a no-op (no timestamp update — POSIX
-        divergence). If it does not exist, creates an empty file in
-        delta_layer.
-        """
+        """Idempotent file creation (POSIX divergence: no timestamp update)."""
         path = self.normalize_path(path)
         node = self.get_node(path)
 
@@ -409,16 +324,8 @@ class SNXFileSystem:
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
     def delete(self, path: str, delete_dir: bool = False) -> FSResult:
-        """Marks a node as deleted in delta_layer.
-
-        Does NOT remove the underlying base_layer node — deletion is a
-        tombstone in the overlay.
-
-        By default, directories cannot be deleted. When ``delete_dir=True``,
-        only empty directories may be deleted.
-        """
+        """Mark node as deleted in delta_layer (tombstone). By default, dirs cannot be deleted."""
         path = self.normalize_path(path)
-
         node = self.get_node(path)
 
         if node is None:
@@ -451,12 +358,7 @@ class SNXFileSystem:
         return sorted(self._all_nodes().keys())
 
     def list_directory(self, path: str) -> list[SNXNode]:
-        """Returns immediate children of the given directory path.
-
-        Scans merged node set, returns one level deep only. Results are
-        deduplicated and sorted by path.
-        Precondition: path must be absolute and normalized.
-        """
+        """Return immediate children of the given directory, sorted by path."""
         path = self.normalize_path(path)
         nodes = self._all_nodes()
 
@@ -467,7 +369,7 @@ class SNXFileSystem:
             if not node_path.startswith(prefix):
                 continue
 
-            relative = node_path[len(prefix) :]
+            relative = node_path[len(prefix):]
             if not relative:
                 continue
 

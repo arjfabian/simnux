@@ -5,7 +5,6 @@ command instances works correctly, including error propagation and
 registry isolation.
 """
 
-import asyncio
 
 import pytest
 

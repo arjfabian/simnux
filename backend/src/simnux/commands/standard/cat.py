@@ -1,4 +1,3 @@
-from simnux.commands.errors import CommandError
 from simnux.commands.models import CommandContext
 from simnux.commands.runtime import SNXCommand
 from simnux.commands.streams import AsyncStreamReader

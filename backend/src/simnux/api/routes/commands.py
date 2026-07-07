@@ -46,5 +46,6 @@ async def execute(
         stdout=result.stdout,
         stderr=result.stderr,
         prompt=shell.render_prompt(),
+        clear_screen=result.clear_screen,
         status="ok",
     )
