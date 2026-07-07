@@ -7,15 +7,12 @@ from typing import Any
 from simnux.scenarios.models import SNXScenario
 
 
+_HISTORY_CAPACITY = 1000
+
+
 @dataclass
 class SNXSession:
-    """Mutable session state. NOT thread-safe — currently runs in a
-    single-threaded async context.
-
-    If concurrent access is added, ``current_directory`` mutations will need
-    synchronization. The ``metadata`` dict is opaque storage for scenario
-    progress.
-    """
+    """Mutable session state. NOT thread-safe — runs in a single-threaded async context."""
 
     session_id: str
     scenario: SNXScenario
@@ -25,6 +22,7 @@ class SNXSession:
     tasks_completed: int = 0
 
     metadata: dict[str, Any] = field(default_factory=dict)
+    history: list[str] = field(default_factory=list)
 
     @property
     def motd(self) -> str:
@@ -42,12 +40,16 @@ class SNXSession:
     def hostname(self) -> str:
         return self.scenario.hostname
 
-    def set_cwd(self, path: str) -> None:
-        """Mutate session's working directory.
+    def add_history(self, raw_input: str) -> None:
+        """Append a raw command line. Drops oldest entries past capacity."""
+        if not raw_input.strip():
+            return
+        self.history.append(raw_input)
+        if len(self.history) > _HISTORY_CAPACITY:
+            self.history.pop(0)
 
-        Precondition: path must be absolute, normalized, and verified to exist
-        as a directory by the caller (typically the ``cd`` command).
-        """
+    def set_cwd(self, path: str) -> None:
+        """Update working directory. Caller must verify path exists and is a directory."""
         self.current_directory = path
 
     def get_status(self) -> dict:

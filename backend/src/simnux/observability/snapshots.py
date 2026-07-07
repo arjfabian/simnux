@@ -5,11 +5,7 @@ from dataclasses import dataclass
 
 @dataclass
 class ShellSnapshot:
-    """Lightweight representation of a running shell session.
-
-    Read-only view; mutations to this object do not affect the running
-    session.
-    """
+    """Read-only view of a running shell session."""
 
     session_id: str
     scenario_name: str
@@ -17,6 +13,8 @@ class ShellSnapshot:
     filesystem: list[str]
     filesystem_nodes: int
     current_path: str
+    recent_history: list[str]
+    history_count: int
 
 
 @dataclass

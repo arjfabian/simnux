@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 
-from simnux.commands.errors import CommandError
 from simnux.commands.models import CommandContext
 from simnux.commands.runtime import SNXCommand
 from simnux.commands.streams import AsyncStreamReader
@@ -63,22 +62,38 @@ class Command(SNXCommand):
                 await stdout.write(line)
             return ExitCode.SUCCESS
 
+        stdin_cache: list[str] | None = None
+        multiple = len(file_args) > 1
+        first = True
+
         for file_arg in file_args:
-            abs_path = self.resolve_path(file_arg, ctx)
-            result = ctx.filesystem.read(abs_path)
+            if multiple:
+                if not first:
+                    await stdout.write("\n")
+                await stdout.write(f"==> {file_arg} <==\n")
 
-            if result.exit_code != ExitCode.SUCCESS:
-                await stderr.write(f"tail: {file_arg}: {result.message}")
-                return result.exit_code
+            if file_arg == "-":
+                if stdin_cache is None:
+                    stdin_cache = []
+                    async for line in stdin:
+                        stdin_cache.append(line)
+                selected = stdin_cache[-n:] if n > 0 else []
+                for line in selected:
+                    await stdout.write(line)
+            else:
+                abs_path = self.resolve_path(file_arg, ctx)
+                result = ctx.filesystem.read(abs_path)
 
-            if result.node.is_directory:
-                await stderr.write(f"tail: {file_arg}: {CommandError.IS_A_DIRECTORY}")
-                return ExitCode.ERROR
+                if result.exit_code != ExitCode.SUCCESS:
+                    await stderr.write(f"tail: {file_arg}: {result.message}")
+                    return result.exit_code
 
-            content = result.node.content or ""
-            lines = content.splitlines()
-            lines = lines[-n:] if n > 0 else []
-            for line in lines:
-                await stdout.write(f"{line}\n")
+                content = result.node.content or ""
+                lines = content.splitlines()
+                selected = lines[-n:] if n > 0 else []
+                for line in selected:
+                    await stdout.write(f"{line}\n")
+
+            first = False
 
         return ExitCode.SUCCESS

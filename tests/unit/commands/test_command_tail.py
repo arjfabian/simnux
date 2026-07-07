@@ -23,6 +23,10 @@ class TestTailCommand:
         shell.filesystem.touch(path)
         shell.filesystem.delta_layer[path].content = MULTI_LINE
 
+    async def _write(self, shell, path, content):
+        shell.filesystem.touch(path)
+        shell.filesystem.delta_layer[path].content = content
+
     # -- basic file reading ------------------------------------------------
 
     async def test_tail_default_n(self, shell_with_commands):
@@ -115,3 +119,84 @@ class TestTailCommand:
         result = await shell_with_commands.execute("tail -n abc /home/user/multi.txt")
         assert_invalid_args(result)
         assert "tail: invalid number of lines: 'abc'" in stderr_text(result)
+
+    # -- multi-file banners ------------------------------------------------
+
+    async def test_tail_two_files_shows_banners(self, shell_with_commands):
+        """``tail`` with two files outputs ``==> name <==`` banners."""
+        await self._write(shell_with_commands, "/home/user/a.txt", "first\n")
+        await self._write(shell_with_commands, "/home/user/b.txt", "second\n")
+        result = await shell_with_commands.execute(
+            "tail /home/user/a.txt /home/user/b.txt"
+        )
+        assert_success(result)
+        stdout = stdout_text(result)
+        assert "==> /home/user/a.txt <==" in stdout
+        assert "==> /home/user/b.txt <==" in stdout
+        assert stdout.startswith("==> /home/user/a.txt <==")
+
+    async def test_tail_two_files_separator(self, shell_with_commands):
+        """A blank line separates the second banner from the first file's output."""
+        await self._write(shell_with_commands, "/home/user/a.txt", "first\n")
+        await self._write(shell_with_commands, "/home/user/b.txt", "second\n")
+        result = await shell_with_commands.execute(
+            "tail /home/user/a.txt /home/user/b.txt"
+        )
+        assert_success(result)
+        stdout = stdout_text(result)
+        assert "\n\n==> /home/user/b.txt <==" in stdout
+
+    async def test_tail_single_file_no_banner(self, shell_with_commands):
+        """``tail`` with one file does not show a banner."""
+        await self._write(shell_with_commands, "/home/user/a.txt", "hello\n")
+        result = await shell_with_commands.execute("tail /home/user/a.txt")
+        assert_success(result)
+        assert stdout_text(result) == "hello"
+
+    # -- stdin "-" argument ------------------------------------------------
+
+    async def test_tail_stdin_dash(self, shell_with_commands):
+        """``tail -`` reads from stdin."""
+        await self._write(shell_with_commands, "/home/user/data.txt", "a\nb\nc\n")
+        result = await shell_with_commands.execute(
+            "cat /home/user/data.txt | tail -"
+        )
+        assert_success(result)
+        assert stdout_text(result) == "a\nb\nc"
+
+    async def test_tail_stdin_dash_with_n(self, shell_with_commands):
+        """``tail -n 1 -`` reads the last line from stdin."""
+        await self._write(shell_with_commands, "/tmp/data.txt", "a\nb\nc\n")
+        result = await shell_with_commands.execute(
+            "cat /tmp/data.txt | tail -n 1 -"
+        )
+        assert_success(result)
+        assert stdout_text(result) == "c"
+
+    async def test_tail_stdin_dash_between_files(self, shell_with_commands):
+        """``tail file - file`` interleaves file with stdin."""
+        await self._write(shell_with_commands, "/home/user/a.txt", "from_a\n")
+        await self._write(shell_with_commands, "/home/user/b.txt", "from_b\n")
+        result = await shell_with_commands.execute(
+            "echo from_stdin | tail /home/user/a.txt - /home/user/b.txt"
+        )
+        assert_success(result)
+        stdout = stdout_text(result)
+        assert "==> /home/user/a.txt <==" in stdout
+        assert "from_a" in stdout
+        assert "==> - <==" in stdout
+        assert "from_stdin" in stdout
+        assert "==> /home/user/b.txt <==" in stdout
+        assert "from_b" in stdout
+
+    async def test_tail_double_dash_reuses_cache(self, shell_with_commands):
+        """``tail - -`` reads stdin once; second ``-`` reuses cached lines."""
+        await self._write(shell_with_commands, "/tmp/data.txt", "line1\nline2\nline3\n")
+        result = await shell_with_commands.execute(
+            "cat /tmp/data.txt | tail -n 2 - -"
+        )
+        assert_success(result)
+        stdout = stdout_text(result)
+        assert stdout.count("==> - <==") == 2
+        assert stdout.count("line2") == 2
+        assert stdout.count("line3") == 2

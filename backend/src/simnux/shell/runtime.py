@@ -72,6 +72,8 @@ class SNXShell:
         if not parsed.segments:
             return CommandResult()
 
+        self.session.add_history(raw_input)
+
         # Validate all commands exist before any execution
         for seg in parsed.segments:
             if not seg.command:
@@ -131,6 +133,8 @@ class SNXShell:
             filesystem=filesystem_paths,
             filesystem_nodes=len(filesystem_paths),
             current_path=self.session.current_directory,
+            recent_history=self.session.history[-20:] if self.session.history else [],
+            history_count=len(self.session.history),
         )
 
     def render_prompt(self) -> str:
