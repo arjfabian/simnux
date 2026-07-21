@@ -8,14 +8,14 @@ interaction.
 
 ## What It Is
 
-SIMNUX is a **Python-based simulation engine** that reproduces shell semantics
-inside a controlled virtual runtime. It replaces real OS processes with a
-session-bound, HTTP-accessible shell runtime backed by an in-memory layered
-filesystem. The frontend is a dumb terminal renderer: all state lives server-
-side.
+SIMNUX is a **Python-based simulation engine** that reproduces Linux shell
+semantics inside a controlled virtual runtime. It replaces real OS processes
+with a session-bound, HTTP-accessible shell backed by an in-memory layered
+filesystem. The browser frontend is a thin terminal renderer — all state
+lives server-side.
 
-The project is designed for **scenario-based training environments** where
-determinism, isolation, and reproducibility matter more than POSIX fidelity.
+Built for **scenario-based training environments** where determinism,
+isolation, and reproducibility matter more than full POSIX fidelity.
 
 ---
 
@@ -36,7 +36,7 @@ filesystem tree.
 ### Session Model
 
 Each client gets an isolated `SNXShell` bound to:
-- An `SNXSession` (CWD, task progress, scenario metadata)
+- An `SNXSession` (CWD, command history, scenario metadata)
 - An `SNXFileSystem` instance (two-layer overlay)
 - A `CommandRegistry` (auto-discovered command classes)
 
@@ -62,11 +62,15 @@ Pipes (`|`) and output redirection (`>` / `>>`) are fully supported.
 The shell parser handles operator tokenization, pipeline segmentation,
 and redirect-path extraction before dispatch.
 
+**19 built-in commands**: `cat`, `cd`, `cal`, `clear`, `cp`, `diff`, `echo`,
+`grep`, `head`, `history`, `ls`, `mkdir`, `mv`, `pwd`, `rm`, `rmdir`, `tail`,
+`touch`, `whoami`.
+
 ### API Surface
 
 | Route | Method | Purpose |
 |---|---|---|
-| `/start` | GET | Create or resume a session |
+| `/start` | GET | Create or resume a session (accepts optional `session_id` and `scenario_name` query params) |
 | `/execute_command` | POST | Execute shell input |
 | `/sessions/{id}` | GET | Session snapshot (read-only) |
 | `/` | GET | Health check / runtime snapshot |
@@ -76,7 +80,7 @@ and redirect-path extraction before dispatch.
 
 - **Exit codes**: 0 (SUCCESS), 1 (ERROR), 2 (INVALID_ARGUMENT) — simplified
   from real POSIX. No SIGINT/SIGPIPE codes.
-- **Error strings**: Maps to GNU coreutils conventions (`no such file or
+- **Error strings**: Map to GNU coreutils conventions (`no such file or
   directory`, `is a directory`, etc.).
 - **Permissions**: Stored per-node (rwxr-xr-x / rw-r--r-- defaults) but not
   enforced. Present for scenario display and future authorization.
@@ -85,7 +89,7 @@ and redirect-path extraction before dispatch.
 
 ### Observability
 
-- Structured dual-output logging (ANSI console + plain-text file)
+- Structured dual-output logging (ANSI-colored console + plain-text file)
 - Custom `OK` log level (25) for positive operational signals
 - `RuntimeSnapshot` / `ShellSnapshot` dataclasses for debug endpoints
 
@@ -97,7 +101,10 @@ Behavior is defined by declarative YAML files under `scenarios/<name>/`:
 
 ```yaml
 name: "Hello SIMNUX"
-motd: "Welcome to SIMNUX!"
+motd: |
+  Welcome to SIMNUX!
+  This is the default scenario. It was designed to help you familiarize yourself
+  with the virtual console. There are no goals or time limits.
 difficulty: "Easy"
 username: "user"
 hostname: "simnux"
@@ -105,10 +112,12 @@ starting_dir: "/home/user"
 
 filesystem:
   "/etc/hostname": "simnux-edge-01"
+  "/etc/motd": "PRIVATE PROPERTY - UNAUTHORIZED ACCESS WILL BE MONITORED"
   "/home/user/notes.txt":
     - "TO DO:"
     - "1. Change admin password."
-  "/var/log/auth.log": "Apr  2 11:30:01 simnux sshd[123]: ..."
+    - "2. Close port 8080."
+  "/var/log/auth.log": "Apr  2 11:30:01 simnux sshd[123]: Accepted password for user..."
   "/bin/sh": "__BINARY_PLACEHOLDER__"
   "/home/user/.config/": ""
 ```
@@ -140,15 +149,22 @@ compatibility.
 
 ### Backend
 
-- **Python ≥3.10** — single dependency: `fastapi`, `uvicorn`, `pydantic`
+- **Python >=3.10** — FastAPI, Uvicorn, Pydantic, PyYAML
 - **FastAPI** — async HTTP transport for shell execution
 - **No ORM, no database** — all state is in-memory
-- **pytest + httpx** — unit, integration, regression, and e2e test suite
+- **pytest + pytest-asyncio + httpx** — unit, integration, regression, and
+  e2e test suite with 85% coverage threshold
+- **Ruff** — linting and formatting
+- **mypy** — static type checking
 
 ### Frontend
 
-- **Vanilla JS** — ~150 LOC, no framework
-- **HTML/CSS** — single-file terminal UI
+- **Vanilla JavaScript** — ~200 LOC, no framework, no build step
+- **HTML/CSS** — single-page terminal UI with ANSI color rendering
+
+### CI/CD
+
+- **Forgejo Actions** — lint, format, type-check, test with coverage gate
 
 ---
 
