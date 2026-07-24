@@ -1,5 +1,4 @@
 name: "Test Scenario"
-motd: "Welcome to the test scenario!"
 difficulty: "Easy"
 username: "testuser"
 hostname: "testhost"
@@ -7,7 +6,7 @@ starting_dir: "/home/testuser"
 
 filesystem:
   "/etc/hostname": "testhost-01"
-  "/etc/motd": "UNAUTHORIZED ACCESS FORBIDDEN"
+  "/etc/motd": "Welcome to the test scenario!"
   "/home/testuser/readme.txt": "Hello, World!"
   "/home/testuser/.secret": "s3cr3t"
   "/var/log/syslog": "May 20 10:00:00 testhost systemd[1]: Started"

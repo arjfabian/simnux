@@ -18,7 +18,6 @@ def scenario():
     """Scratch scenario with hacker-themed metadata and minimal root-only filesystem."""
     return SNXScenario(
         name="ScenarioX",
-        motd="Solve the puzzle",
         difficulty="Hard",
         username="hacker",
         hostname="pwnbox",
@@ -29,7 +28,13 @@ def scenario():
                 content="",
                 is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
-            )
+            ),
+            "/etc/motd": SNXNode(
+                path="/etc/motd",
+                content="Solve the puzzle",
+                is_directory=False,
+                permissions=PermissionPresets.FILE_DEFAULT,
+            ),
         },
     )
 

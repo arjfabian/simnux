@@ -18,6 +18,14 @@ from httpx import AsyncClient
 import pytest
 import pytest_asyncio
 
+
+def pytest_configure(config):
+    """Suppress PytestCollectionWarning for production Command class in condition.py."""
+    config.addinivalue_line(
+        "filterwarnings",
+        "ignore::pytest.PytestCollectionWarning",
+    )
+
 from simnux.commands.dispatcher import CommandDispatcher
 from simnux.commands.loader import CommandLoader
 from simnux.commands.models import CommandContext
@@ -55,7 +63,6 @@ def create_scenario():
     def factory(starting_dir="/home/user"):
         return SNXScenario(
             name="Regression",
-            motd="Test",
             difficulty="Easy",
             username="user",
             hostname="simnux",
@@ -488,7 +495,6 @@ def base_scenario(base_layer):
 
     Scenario details:
         - name: "TestScenario"
-        - motd: "Welcome to SIMNUX Test"
         - difficulty: "Easy"
         - username: "testuser"
         - hostname: "testhost"
@@ -499,7 +505,6 @@ def base_scenario(base_layer):
     """
     return SNXScenario(
         name="TestScenario",
-        motd="Welcome to SIMNUX Test",
         difficulty="Easy",
         username="testuser",
         hostname="testhost",

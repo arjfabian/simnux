@@ -13,6 +13,7 @@ from simnux.observability.logging import setup_simnux_logger
 from simnux.runtime.runtime import SNXRuntime
 
 from .config import RuntimeConfig
+from .config import load_limits_config
 from .lifecycle import lifespan
 from .middleware import configure_middleware
 from .routes import register_routes
@@ -25,13 +26,14 @@ def create_app() -> FastAPI:
     """
 
     config = RuntimeConfig()
+    limits = load_limits_config()
 
     logger = setup_simnux_logger(config.log_path)
     logger.info("Initializing SIMNUX API")
 
     app = FastAPI(
         title="SIMNUX Runtime",
-        version="0.2.0",
+        version="0.4.1",
         lifespan=lifespan,
     )
 
@@ -39,6 +41,7 @@ def create_app() -> FastAPI:
     app.state.runtime = SNXRuntime(
         logger=logger,
         config=config,
+        limits=limits,
     )
 
     logger.info("SNXRuntime initialized")

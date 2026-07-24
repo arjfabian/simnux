@@ -52,6 +52,23 @@ class QueueStreamReader(AsyncStreamReader):
         self._queue = queue
         self._eof = False
 
+    def has_pending(self) -> bool:
+        """Return True if the queue has a non-None item available (non-blocking).
+
+        Drains and re-enqueues in original order so queue order is preserved.
+        """
+        if self._queue.empty():
+            return False
+        items: list = []
+        while not self._queue.empty():
+            try:
+                items.append(self._queue.get_nowait())
+            except asyncio.QueueEmpty:
+                break
+        for item in items:
+            self._queue.put_nowait(item)
+        return any(item is not None for item in items)
+
     async def readline(self) -> str | None:
         if self._eof:
             return None
@@ -95,7 +112,10 @@ class FileStreamWriter(AsyncStreamWriter):
     On ``close()``, all buffered data is joined and written to the VFS at
     ``path``. If the file does not yet exist it is created (``touch``).
     ``append=False`` → ``write()`` (truncate); ``append=True`` → ``append()``.
-    Errors during flush are logged but not raised (``close()`` is sync).
+
+    After ``close()``, ``last_error`` contains the error message from the
+    VFS if the write/append was rejected (e.g. ``DISK_QUOTA_EXCEEDED``),
+    or ``None`` on success.
     """
 
     def __init__(
@@ -109,6 +129,7 @@ class FileStreamWriter(AsyncStreamWriter):
         self._append = append
         self._lines: list[str] = []
         self._closed = False
+        self.last_error: str | None = None
 
     async def write(self, data: str) -> None:
         if self._closed:
@@ -124,8 +145,11 @@ class FileStreamWriter(AsyncStreamWriter):
             if not self._filesystem.exists(self._path):
                 self._filesystem.touch(self._path)
             if self._append:
-                self._filesystem.append(self._path, content)
+                result = self._filesystem.append(self._path, content)
             else:
-                self._filesystem.write(self._path, content)
+                result = self._filesystem.write(self._path, content)
+            if result.message:
+                self.last_error = str(result.message)
         except Exception:
             logger.exception("FileStreamWriter: failed to flush to %s", self._path)
+            self.last_error = "write failed"

@@ -22,11 +22,17 @@ class SNXSession:
     tasks_completed: int = 0
 
     metadata: dict[str, Any] = field(default_factory=dict)
+    environment: dict[str, str] = field(default_factory=dict)
     history: list[str] = field(default_factory=list)
+
+    awaiting_input: bool = False
+    pending_var_name: str | None = None
+    pending_command: str | None = None
 
     @property
     def motd(self) -> str:
-        return self.scenario.motd
+        node = self.scenario.filesystem.get("/etc/motd")
+        return node.content if node else ""
 
     @property
     def home_directory(self) -> str:

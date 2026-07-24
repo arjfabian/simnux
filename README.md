@@ -1,8 +1,8 @@
 # SIMNUX
 
-Deterministic Linux-shell simulator for cybersecurity training and systems
-simulation. Runs entirely in userspace — no containers, no VMs, no kernel
-interaction.
+**A lightweight, browser-based Linux CLI simulator built for general training,**
+**CTFs, and interactive tutorials. Runs entirely in userspace — no containers,**
+**no VMs, no kernel interaction.**
 
 ---
 
@@ -36,7 +36,7 @@ filesystem tree.
 ### Session Model
 
 Each client gets an isolated `SNXShell` bound to:
-- An `SNXSession` (CWD, command history, scenario metadata)
+- An `SNXSession` (CWD, command history, scenario metadata, interactive input state)
 - An `SNXFileSystem` instance (two-layer overlay)
 - A `CommandRegistry` (auto-discovered command classes)
 
@@ -47,24 +47,52 @@ opaque token for subsequent requests. No client-supplied session IDs.
 
 Commands are `SNXCommand` subclasses in `commands/standard/`, auto-discovered
 via `pkgutil` at session init. Each command receives a `CommandContext`
-(session + filesystem), reads/writes async streams, and returns an `ExitCode`:
+(session + filesystem), reads/writes async streams, and returns an `ExitCode`.
+
+Logical operators `&&` (AND) and `||` (OR) compose with pipelines and
+redirections, using short-circuit evaluation — `&&` runs the next segment
+only if the previous succeeded; `||` runs only if it failed.
 
 ```
-raw input → pre-process operators → split on | → ParseResult
-                                              ├─ single command → dispatch ─┐
-                                              └─ multiple       → dispatch  │
-                                                   segments        pipeline │
-                                                                           ↓
-                                                            CommandResult
+raw input → parse logical (&&/||) → split on | → ParseResult
+                                                  ├─ single command → dispatch
+                                                  └─ multiple       → pipeline
 ```
 
-Pipes (`|`) and output redirection (`>` / `>>`) are fully supported.
-The shell parser handles operator tokenization, pipeline segmentation,
-and redirect-path extraction before dispatch.
+Commands can also emit **terminal actions** (clear-screen, scenario win/fail)
+via a `TerminalAction` enum, allowing the evaluator to trigger side effects
+on the frontend.
 
-**19 built-in commands**: `cat`, `cd`, `cal`, `clear`, `cp`, `diff`, `echo`,
-`grep`, `head`, `history`, `ls`, `mkdir`, `mv`, `pwd`, `rm`, `rmdir`, `tail`,
-`touch`, `whoami`.
+**22 built-in commands**: `cat`, `cd`, `cal`, `clear`, `cp`, `diff`, `echo`,
+`grep`, `head`, `history`, `ls`, `mkdir`, `mv`, `pwd`, `read`, `rm`, `rmdir`,
+`sh` (alias: `bash`), `tail`, `test` (alias: `[`), `touch`, `whoami`.
+
+### Interactive Input
+
+The `read` command suspends the shell and returns an `awaiting_input` signal
+to the frontend. The user types input inline; on submit, the shell resumes
+with the captured value stored in a shell variable (or `REPLY` by default).
+
+### Script Execution
+
+`sh` and `bash` commands load and execute VFS-hosted scripts line by line
+via the `ScriptRunner`, supporting logical operators (`&&`, `||`),
+pipelines, redirections, and loop constructs (`while ... done`,
+`for ... done`) within scripts.
+
+### Resource Limits
+
+VFS byte caps and script execution bounds are configurable via
+`config/limits.yaml` (git-ignored; copy `config/limits.yaml.example`).
+Defaults: 1 MB per file, 10 MB total, 10 000 loop iterations, 30 s
+wall-clock, 5 000 lines per script. Setting any value to `0` disables
+that check.
+
+### Scenario Objective Evaluation
+
+The evaluator checks objective conditions (`file_state`, `command_output`,
+`flag_input`) after every command execution and emits terminal actions
+(`WIN` / `FAIL`) when conditions are met.
 
 ### API Surface
 
@@ -73,6 +101,8 @@ and redirect-path extraction before dispatch.
 | `/start` | GET | Create or resume a session (accepts optional `session_id` and `scenario_name` query params) |
 | `/execute_command` | POST | Execute shell input |
 | `/sessions/{id}` | GET | Session snapshot (read-only) |
+| `/sessions/{id}` | DELETE | Destroy a session |
+| `/api/scenarios` | GET | List available scenario names |
 | `/` | GET | Health check / runtime snapshot |
 | `/debug/runtime` | GET | Unredacted runtime introspection |
 
@@ -101,10 +131,6 @@ Behavior is defined by declarative YAML files under `scenarios/<name>/`:
 
 ```yaml
 name: "Hello SIMNUX"
-motd: |
-  Welcome to SIMNUX!
-  This is the default scenario. It was designed to help you familiarize yourself
-  with the virtual console. There are no goals or time limits.
 difficulty: "Easy"
 username: "user"
 hostname: "simnux"
@@ -112,7 +138,9 @@ starting_dir: "/home/user"
 
 filesystem:
   "/etc/hostname": "simnux-edge-01"
-  "/etc/motd": "PRIVATE PROPERTY - UNAUTHORIZED ACCESS WILL BE MONITORED"
+  "/etc/motd": |
+    Welcome to SIMNUX!
+    This is the default scenario.
   "/home/user/notes.txt":
     - "TO DO:"
     - "1. Change admin password."
@@ -153,7 +181,8 @@ compatibility.
 - **FastAPI** — async HTTP transport for shell execution
 - **No ORM, no database** — all state is in-memory
 - **pytest + pytest-asyncio + httpx** — unit, integration, regression, and
-  e2e test suite with 85% coverage threshold
+  e2e test suite with 85% coverage threshold; includes resource-limit stress
+  tests (infinite-loop halting, script line cap, VFS quota breach via `>>`)
 - **Ruff** — linting and formatting
 - **mypy** — static type checking
 
@@ -208,6 +237,9 @@ pytest tests/regression          # regression suite
 5. **Scenarios are the deployment unit** — a SIMNUX deployment defines a set
    of scenarios; no DB migrations or schema changes are required to add new
    training content.
+6. **No permission model** — there is no file-permission or ownership logic.
+   `sh` executes any file as a script regardless of mode bits; every VFS node
+   is readable, writable, and executable by any session.
 
 ---
 

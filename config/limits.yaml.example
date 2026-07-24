@@ -1,0 +1,24 @@
+# SIMNUX resource limits configuration.
+#
+# Copy this file to config/limits.yaml and adjust as needed.
+# Missing keys fall back to the defaults shown below.
+
+# ── VFS byte caps ────────────────────────────────────────────────────────
+vfs:
+  # Maximum size of a single file in bytes (default: 1 MB).
+  max_file_bytes: 1048576
+
+  # Maximum total bytes across all files in a session (default: 10 MB).
+  # Set to 0 to disable the cap.
+  max_total_bytes: 10485760
+
+# ── Script execution bounds ──────────────────────────────────────────────
+script:
+  # Maximum number of loop iterations (while / for) per script (default: 10000).
+  max_loop_iterations: 10000
+
+  # Maximum wall-clock seconds for a single script invocation (default: 30).
+  max_execution_time_seconds: 30
+
+  # Maximum number of non-blank, non-comment lines a script may contain (default: 5000).
+  max_lines: 5000

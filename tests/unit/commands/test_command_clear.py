@@ -7,6 +7,7 @@ arguments.
 import pytest
 
 from simnux.commands.errors import CommandError
+from simnux.runtime.models import TerminalAction
 from tests.helpers import assert_invalid_args
 from tests.helpers import assert_success
 from tests.helpers import stderr_text
@@ -19,15 +20,15 @@ class TestClearCommand:
     """Terminal screen clearing via the ``clear`` command.
 
     Uses the ``shell_with_commands`` fixture. Verifies the
-    ``clear_screen`` flag is set and that extra arguments are
-    rejected.
+    ``action_type`` is set to ``CLEAR_SCREEN`` and that extra
+    arguments are rejected.
     """
 
-    async def test_clear_sets_flag(self, shell_with_commands):
-        """``clear`` returns SUCCESS with ``clear_screen`` set to True."""
+    async def test_clear_sets_action_type(self, shell_with_commands):
+        """``clear`` returns SUCCESS with ``action_type`` set to ``CLEAR_SCREEN``."""
         result = await shell_with_commands.execute("clear")
         assert_success(result)
-        assert result.clear_screen is True
+        assert result.action_type == TerminalAction.CLEAR_SCREEN
         assert result.stdout == []
         assert result.stderr == []
 
@@ -36,4 +37,4 @@ class TestClearCommand:
         result = await shell_with_commands.execute("clear extra")
         assert_invalid_args(result)
         assert CommandError.TOO_MANY_ARGUMENTS in stderr_text(result)
-        assert result.clear_screen is False
+        assert result.action_type == TerminalAction.NONE

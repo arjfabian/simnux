@@ -14,7 +14,12 @@ from simnux.commands.registry import CommandRegistry
 from simnux.commands.runtime import SNXCommand
 from simnux.commands.streams import AsyncStreamReader
 from simnux.commands.streams import AsyncStreamWriter
+from simnux.filesystem.models import SNXNode
+from simnux.filesystem.models import PermissionPresets
+from simnux.filesystem.vfs import SNXFileSystem
 from simnux.runtime.models import ExitCode
+from simnux.scenarios.models import SNXScenario
+from simnux.sessions.runtime import SNXSession
 
 
 pytestmark = pytest.mark.asyncio
@@ -58,7 +63,24 @@ def make_registry(*commands):
 
 @pytest.fixture
 def ctx():
-    return object()
+    scenario = SNXScenario(
+        name="test",
+        difficulty="easy",
+        username="user",
+        hostname="host",
+        starting_dir="/",
+        filesystem={
+            "/": SNXNode(
+                path="/",
+                content="",
+                is_directory=True,
+                permissions=PermissionPresets.DIRECTORY_DEFAULT,
+            ),
+        },
+    )
+    session = SNXSession(session_id="test", scenario=scenario, current_directory="/")
+    filesystem = SNXFileSystem(base_layer={})
+    return CommandContext(session=session, filesystem=filesystem)
 
 
 @pytest.fixture
@@ -99,14 +121,15 @@ class TestCommandDispatcher:
 class TestCommandDispatcherErrors:
     """Error-handling dispatch scenarios.
 
-    Verifies that missing commands raise ``ValueError`` and that
+    Verifies that missing commands return an error result and that
     exceptions thrown by command execution propagate correctly.
     """
 
-    async def test_missing_command_raises(self, dispatcher, ctx):
-        """Dispatching an unregistered command raises ``ValueError`` (precondition enforcement)."""
-        with pytest.raises(ValueError, match="not registered"):
-            await dispatcher.dispatch("nonexistent", [], ctx)
+    async def test_missing_command_returns_error(self, dispatcher, ctx):
+        """Dispatching an unregistered command returns an error result."""
+        result = await dispatcher.dispatch("nonexistent", [], ctx)
+        assert result.exit_code == ExitCode.ERROR
+        assert "not found" in "\n".join(result.stderr)
 
     async def test_exception_propagation(self, ctx):
         """Exceptions raised inside command ``execute()`` propagate to the caller."""
@@ -139,5 +162,5 @@ class TestCommandDispatcherIsolation:
 
         dispatcher2 = CommandDispatcher(registry=make_registry())
 
-        with pytest.raises(ValueError):
-            await dispatcher2.dispatch("simple", [], ctx)
+        result = await dispatcher2.dispatch("simple", [], ctx)
+        assert result.exit_code == ExitCode.ERROR

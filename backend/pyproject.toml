@@ -1,6 +1,6 @@
 [project]
 name = "simnux"
-version = "0.2.0"
+version = "0.4.0"
 description = "Browser-based Linux shell simulator for cybersecurity training and systems simulation."
 authors = [
     { name = "José Fabián", email = "jfabian@datorum.net" }

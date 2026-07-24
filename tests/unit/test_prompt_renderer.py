@@ -28,7 +28,6 @@ def _make_session(
     """
     scenario = SNXScenario(
         name="Test",
-        motd="Hello",
         difficulty="Easy",
         username=username,
         hostname=hostname,

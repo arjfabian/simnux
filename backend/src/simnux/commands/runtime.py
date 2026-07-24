@@ -9,6 +9,7 @@ from simnux.commands.models import CommandContext
 from simnux.commands.streams import AsyncStreamReader
 from simnux.commands.streams import AsyncStreamWriter
 from simnux.runtime.models import ExitCode
+from simnux.runtime.models import TerminalAction
 
 
 logger = logging.getLogger("simnux.commands")
@@ -18,10 +19,12 @@ class SNXCommand(ABC):
     """Abstract base for all shell commands."""
 
     name: str = ""
+    aliases: list[str] = []
     args: list[str] | None = None
-    clear_screen: bool = False
+    action_type: TerminalAction = TerminalAction.NONE
     parameters: dict[str, dict] = {}
     parsed_args: ParseResult | None = None
+    _invoked_name: str = ""
 
     def __init__(self, context) -> None:
 

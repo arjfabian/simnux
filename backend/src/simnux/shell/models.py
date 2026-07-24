@@ -1,6 +1,7 @@
 """Shell-level command parsing models for SIMNUX."""
 
 from dataclasses import dataclass
+from enum import Enum
 
 
 @dataclass
@@ -37,3 +38,25 @@ class ParseResult:
     @property
     def stdout_append(self) -> bool:
         return self.segments[0].stdout_append if self.segments else False
+
+
+class LogicalOperator(Enum):
+    """Operators that connect logical command segments."""
+
+    NONE = "none"  # First segment (no preceding operator)
+    AND = "and"  # &&
+    OR = "or"  # ||
+
+
+@dataclass
+class LogicalSegment:
+    """A segment of a command line connected by && or ||.
+
+    Each logical segment contains a pipeline (one or more ParsedCommand
+    segments) that executes as a unit. Short-circuit evaluation applies:
+    - AND: execute only if previous segment succeeded
+    - OR: execute only if previous segment failed
+    """
+
+    operator: LogicalOperator
+    pipeline: ParseResult

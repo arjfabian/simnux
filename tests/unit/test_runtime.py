@@ -121,3 +121,26 @@ class TestSNXRuntime:
         """New sessions start in the scenario's configured starting directory."""
         shell = runtime.create_session(scenario_name="hello", session_id="cwd-test")
         assert shell.session.current_directory == "/home/user"
+
+    def test_destroy_session(self, runtime):
+        """``destroy_session`` removes the session and returns True."""
+        runtime.create_session(scenario_name="hello", session_id="doomed")
+        assert runtime.exists("doomed")
+        assert runtime.destroy_session("doomed") is True
+        assert not runtime.exists("doomed")
+        assert runtime.get_session("doomed") is None
+
+    def test_destroy_nonexistent_session(self, runtime):
+        """``destroy_session`` returns False for an unknown session_id."""
+        assert runtime.destroy_session("ghost") is False
+
+    def test_destroy_prevents_leak(self, runtime):
+        """After destroying a session, the snapshot no longer includes it."""
+        runtime.create_session(scenario_name="hello", session_id="s1")
+        runtime.create_session(scenario_name="hello", session_id="s2")
+        assert runtime.get_snapshot().total_sessions == 2
+
+        runtime.destroy_session("s1")
+        snapshot = runtime.get_snapshot()
+        assert snapshot.total_sessions == 1
+        assert all(s.session_id != "s1" for s in snapshot.active_sessions)

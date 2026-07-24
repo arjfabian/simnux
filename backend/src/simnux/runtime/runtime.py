@@ -10,6 +10,7 @@ from simnux.commands.loader import CommandLoader
 from simnux.commands.models import CommandContext
 from simnux.commands.registry import CommandRegistry
 from simnux.filesystem.vfs import SNXFileSystem
+from simnux.init.config import LimitsConfig
 from simnux.init.config import RuntimeConfig
 from simnux.observability.snapshots import RuntimeSnapshot
 from simnux.scenarios.loader import ScenarioLoader
@@ -25,9 +26,15 @@ class SNXRuntime:
     dependencies flow through ``create_session()``.
     """
 
-    def __init__(self, logger: logging.Logger, config: RuntimeConfig) -> None:
+    def __init__(
+        self,
+        logger: logging.Logger,
+        config: RuntimeConfig,
+        limits: LimitsConfig | None = None,
+    ) -> None:
         self.logger = logger
         self.config = config
+        self.limits = limits or LimitsConfig()
         self.shells: dict[str, SNXShell] = {}
 
         self.logger.info("SNXRuntime ready")
@@ -58,6 +65,7 @@ class SNXRuntime:
         filesystem = SNXFileSystem(
             base_layer=scenario.filesystem,
             logger=self.logger,
+            vfs_limits=self.limits.vfs,
         )
 
         registry = CommandRegistry()
@@ -80,6 +88,7 @@ class SNXRuntime:
             filesystem=filesystem,
             registry=registry,
             logger=self.logger,
+            limits=self.limits,
         )
 
         self.shells[session_id] = shell
@@ -95,6 +104,18 @@ class SNXRuntime:
     def exists(self, session_id: str) -> bool:
         """Check whether a session exists."""
         return session_id in self.shells
+
+    def destroy_session(self, session_id: str) -> bool:
+        """Remove an active session from the runtime.
+
+        Returns ``True`` if the session existed and was removed,
+        ``False`` if the session_id was not found.
+        """
+        if session_id in self.shells:
+            del self.shells[session_id]
+            self.logger.info(f"Session {session_id} destroyed")
+            return True
+        return False
 
     def get_snapshot(self) -> RuntimeSnapshot:
         """Return runtime snapshot for observability."""

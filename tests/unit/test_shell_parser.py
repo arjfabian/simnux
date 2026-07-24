@@ -287,6 +287,6 @@ class TestShellParser:
             ShellParser.parse("| ls")
 
     def test_pipe_empty_segment_raises(self):
-        """Double ``|`` with nothing in between raises ValueError."""
+        """Consecutive ``|`` with nothing in between raises ValueError."""
         with pytest.raises(ValueError, match="Empty pipeline segment"):
-            ShellParser.parse("ls || grep")
+            ShellParser.parse("ls | | grep")

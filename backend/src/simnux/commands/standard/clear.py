@@ -4,13 +4,14 @@ from simnux.commands.runtime import SNXCommand
 from simnux.commands.streams import AsyncStreamReader
 from simnux.commands.streams import AsyncStreamWriter
 from simnux.runtime.models import ExitCode
+from simnux.runtime.models import TerminalAction
 
 
 class Command(SNXCommand):
     """Clear the terminal screen."""
 
     name = "clear"
-    clear_screen = True
+    action_type = TerminalAction.CLEAR_SCREEN
 
     async def execute(
         self,

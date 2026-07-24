@@ -7,9 +7,12 @@ Session identity is always controlled by the backend unless explicitly resumed.
 import uuid
 
 from fastapi import APIRouter
+from fastapi import HTTPException
 from fastapi import Request
 
 from simnux.api.models.contracts import ShellResponse
+from simnux.scenarios.loader import ScenarioLoader
+from simnux.scenarios.loader import ScenarioNotFoundError
 
 
 router = APIRouter()
@@ -50,18 +53,26 @@ async def start(
                 status="ok",
             )
 
-        # TODO: return 404 for invalid resume session_id instead of silently
-        # falling through to create.
+        raise HTTPException(
+            status_code=404,
+            detail="Session not found or expired",
+        )
 
     # Session_id is always backend-generated (never client-supplied) to
     # prevent session fixation and ID collision. The frontend receives and
     # stores the opaque token.
     session_id = str(uuid.uuid4())
 
-    shell = runtime.create_session(
-        scenario_name=scenario_name,
-        session_id=session_id,
-    )
+    try:
+        shell = runtime.create_session(
+            scenario_name=scenario_name,
+            session_id=session_id,
+        )
+    except ScenarioNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Scenario '{scenario_name}' not found",
+        ) from None
 
     session = shell.session
 

@@ -49,6 +49,7 @@ def assert_shell_response(data) -> None:
         "stderr",
         "prompt",
         "status",
+        "action_type",
     ):
         assert field in data
 
@@ -56,6 +57,7 @@ def assert_shell_response(data) -> None:
     assert isinstance(data["stdout"], list)
     assert isinstance(data["stderr"], list)
     assert isinstance(data["prompt"], str)
+    assert isinstance(data["action_type"], int)
     assert data["status"] in ("ok", "error")
 
 
@@ -136,21 +138,15 @@ class TestStartEndpoint:
         assert data["session_id"] == session_id
         assert data["stdout"] == []
 
-    async def test_start_invalid_session_creates_new_session(self, api_client):
-        """
-        Current behavior: invalid session IDs fall back to new-session creation.
-
-        TODO(simnux): replace with HTTP 404 once invalid-session handling
-        becomes strict in the public API contract.
-        """
+    async def test_start_invalid_session_returns_404(self, api_client):
+        """Invalid session IDs return HTTP 404 instead of creating a new session."""
         resp = await api_client.get("/start?session_id=nonexistent")
 
-        assert_ok_response(resp)
+        assert resp.status_code == 404
 
         data = json_of(resp)
 
-        assert data["session_id"] != "nonexistent"
-        assert len(data["stdout"]) == 1
+        assert data["detail"] == "Session not found or expired"
 
     async def test_start_custom_scenario(self, api_client):
         """Starting with a custom ``?scenario_name=`` loads the requested scenario."""
@@ -164,6 +160,19 @@ class TestStartEndpoint:
         data = json_of(resp)
 
         assert data["scenario_name"] == "Hello SIMNUX"
+
+    async def test_start_unknown_scenario_returns_404(self, api_client):
+        """Requesting a nonexistent scenario returns HTTP 404."""
+        resp = await api_client.get(
+            "/start",
+            params={"scenario_name": "nonexistent_scenario"},
+        )
+
+        assert resp.status_code == 404
+
+        data = json_of(resp)
+
+        assert "not found" in data["detail"]
 
 
 class TestExecuteCommandEndpoint:
@@ -308,6 +317,46 @@ class TestSessionEndpoint:
         data = snapshot.json()
 
         assert "/tmp/isolated-file" not in data["filesystem"]
+
+
+class TestDestroySessionEndpoint:
+    """``DELETE /sessions/{session_id}`` — session destruction."""
+
+    async def test_destroy_returns_200(self, api_client):
+        """Deleting an existing session returns 200 with ok status."""
+        sid = await create_session(api_client)
+
+        resp = await api_client.delete(f"/sessions/{sid}")
+
+        assert_ok_response(resp)
+        assert json_of(resp)["status"] == "ok"
+
+    async def test_destroy_removes_session(self, api_client):
+        """After deletion, the session can no longer be resumed."""
+        sid = await create_session(api_client)
+
+        await api_client.delete(f"/sessions/{sid}")
+
+        resp = await api_client.get(f"/start?session_id={sid}")
+        assert resp.status_code == 404
+
+    async def test_destroy_is_idempotent(self, api_client):
+        """Deleting a non-existent session still returns 200."""
+        resp = await api_client.delete("/sessions/ghost-id")
+
+        assert_ok_response(resp)
+        assert json_of(resp)["status"] == "ok"
+
+    async def test_destroy_does_not_affect_other_sessions(self, api_client):
+        """Destroying one session leaves other sessions intact."""
+        sid1 = await create_session(api_client)
+        sid2 = await create_session(api_client)
+
+        await api_client.delete(f"/sessions/{sid1}")
+
+        resp = await api_client.get(f"/start?session_id={sid2}")
+        assert resp.status_code == 200
+        assert json_of(resp)["session_id"] == sid2
 
 
 class TestDebugRuntimeEndpoint:

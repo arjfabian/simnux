@@ -10,6 +10,7 @@ from simnux.commands.errors import CommandError
 from simnux.filesystem.models import FSResult
 from simnux.filesystem.models import PermissionPresets
 from simnux.filesystem.models import SNXNode
+from simnux.init.config import VfsLimits
 from simnux.runtime.models import ExitCode
 
 
@@ -20,15 +21,70 @@ class SNXFileSystem:
         self,
         base_layer: dict[str, SNXNode],
         logger: logging.Logger | None = None,
+        *,
+        vfs_limits: VfsLimits | None = None,
+        max_file_bytes: int = 0,
+        max_total_bytes: int = 0,
     ) -> None:
 
         self.base_layer = base_layer
         self.delta_layer: dict[str, SNXNode] = {}
         self.logger = logger
+        if vfs_limits is not None:
+            self.max_file_bytes = vfs_limits.max_file_bytes
+            self.max_total_bytes = vfs_limits.max_total_bytes
+        else:
+            self.max_file_bytes = max_file_bytes
+            self.max_total_bytes = max_total_bytes
+
+        self._total_bytes_initialized = False
+        self._current_total_bytes = 0
 
     def _log(self, message: str) -> None:
         if self.logger:
             self.logger.info(message)
+
+    # ── Byte cap helpers ──────────────────────────────────────────────
+
+    def _ensure_total_bytes_initialized(self) -> None:
+        """Lazily compute the total byte count across all effective files."""
+        if self._total_bytes_initialized:
+            return
+        for path, node in self._all_nodes().items():
+            if not node.is_directory and node.content:
+                self._current_total_bytes += len(node.content.encode("utf-8"))
+        self._total_bytes_initialized = True
+
+    def _effective_content_bytes(self, path: str) -> int:
+        """Return the byte count of the current effective content for *path*."""
+        node = self.get_node(path)
+        if node is None or node.is_directory or not node.content:
+            return 0
+        return len(node.content.encode("utf-8"))
+
+    def _check_write_limit(self, path: str, new_content: str) -> str | None:
+        """Return an error string if the write would exceed byte caps, else None."""
+        new_bytes = len(new_content.encode("utf-8"))
+
+        if self.max_file_bytes > 0 and new_bytes > self.max_file_bytes:
+            return str(CommandError.DISK_QUOTA_EXCEEDED)
+
+        if self.max_total_bytes > 0:
+            self._ensure_total_bytes_initialized()
+            old_bytes = self._effective_content_bytes(path)
+            projected = self._current_total_bytes - old_bytes + new_bytes
+            if projected > self.max_total_bytes:
+                return str(CommandError.DISK_QUOTA_EXCEEDED)
+
+        return None
+
+    def _apply_byte_delta(self, path: str, old_bytes: int, new_bytes: int) -> None:
+        """Update the running total byte counter after a successful write."""
+        if self.max_total_bytes <= 0:
+            return
+        self._current_total_bytes += new_bytes - old_bytes
+
+    # ── Path utilities ────────────────────────────────────────────────
 
     def normalize_path(self, path: str) -> str:
         """Normalize an absolute path via posixpath.normpath."""
@@ -214,6 +270,13 @@ class SNXFileSystem:
                 message=CommandError.IS_A_DIRECTORY,
             )
 
+        err = self._check_write_limit(path, content)
+        if err is not None:
+            return FSResult(exit_code=ExitCode.ERROR, message=err)
+
+        old_bytes = self._effective_content_bytes(path)
+        new_bytes = len(content.encode("utf-8"))
+
         node = SNXNode(
             path=path,
             content=content,
@@ -224,6 +287,7 @@ class SNXFileSystem:
         )
 
         self.delta_layer[path] = node
+        self._apply_byte_delta(path, old_bytes, new_bytes)
         self._log(f"write: {path}")
 
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)
@@ -248,9 +312,17 @@ class SNXFileSystem:
                 message=CommandError.IS_A_DIRECTORY,
             )
 
+        new_content = (existing.content or "") + content
+        err = self._check_write_limit(path, new_content)
+        if err is not None:
+            return FSResult(exit_code=ExitCode.ERROR, message=err)
+
+        old_bytes = self._effective_content_bytes(path)
+        new_bytes = len(new_content.encode("utf-8"))
+
         node = SNXNode(
             path=path,
-            content=(existing.content or "") + content,
+            content=new_content,
             is_directory=False,
             owner=existing.owner,
             group=existing.group,
@@ -258,6 +330,7 @@ class SNXFileSystem:
         )
 
         self.delta_layer[path] = node
+        self._apply_byte_delta(path, old_bytes, new_bytes)
         self._log(f"append: {path}")
 
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)

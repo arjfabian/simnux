@@ -11,6 +11,7 @@ class CommandError(str, Enum):
 
     COMMAND_NOT_FOUND = "command not found"
     DIRECTORY_NOT_EMPTY = "directory not empty"
+    DISK_QUOTA_EXCEEDED = "disk quota exceeded"
     FILE_EXISTS = "file exists"
     IS_A_DIRECTORY = "is a directory"
     MISSING_FILE_OPERAND = "missing file operand"

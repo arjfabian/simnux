@@ -14,8 +14,10 @@ class CommandRegistry:
         self._commands: dict[str, SNXCommand] = {}
 
     def register(self, command: SNXCommand) -> None:
-        """Register a command instance under its declared name."""
+        """Register a command instance under its declared name and any aliases."""
         self._commands[command.name] = command
+        for alias in getattr(command, "aliases", []):
+            self._commands[alias] = command
 
     def get(self, name: str) -> SNXCommand | None:
         """Return a command instance or None if not registered."""

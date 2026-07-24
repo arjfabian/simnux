@@ -15,6 +15,21 @@ class ExitCode(IntEnum):
     INVALID_ARGUMENT = 2
 
 
+class TerminalAction(IntEnum):
+    """Side-effect signals the frontend should apply after a command.
+
+    ``NONE``         — no special action.
+    ``CLEAR_SCREEN`` — the terminal display should be cleared.
+    ``WIN``          — the scenario objective has been satisfied.
+    ``FAIL``         — the scenario's failure condition has triggered.
+    """
+
+    NONE = 0
+    CLEAR_SCREEN = 1
+    WIN = 2
+    FAIL = 3
+
+
 @dataclass
 class CommandResult:
     """Dispatched command output — drained stream queues bundled into a result."""
@@ -22,4 +37,5 @@ class CommandResult:
     stdout: list[str] = field(default_factory=list)
     stderr: list[str] = field(default_factory=list)
     exit_code: ExitCode = ExitCode.SUCCESS
-    clear_screen: bool = False
+    action_type: TerminalAction = TerminalAction.NONE
+    action_message: str | None = None

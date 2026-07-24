@@ -87,7 +87,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const addLines = (lines = [], extraClass = null) => {
     lines.forEach(line => addLine(line, extraClass));
-    addLine("");
   };
 
   const clearTerminal = () => {
@@ -112,6 +111,39 @@ document.addEventListener("DOMContentLoaded", () => {
     terminalOutput.appendChild(container);
 
     currentInput = container.querySelector("input");
+    currentInput.focus();
+
+    currentInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") handleCommand();
+    });
+  };
+
+  // ─────────────────────────────────────────────
+  // Input-only rendering (for awaiting_input)
+  // ─────────────────────────────────────────────
+  const renderInputOnly = () => {
+    if (currentInput) currentInput.remove();
+
+    const lines = terminalOutput.querySelectorAll(".terminal-line");
+    const lastLine = lines.length > 0 ? lines[lines.length - 1] : null;
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "terminal-input";
+    input.spellcheck = false;
+    input.autocomplete = "off";
+
+    if (lastLine && lastLine.textContent.length > 0) {
+      lastLine.appendChild(input);
+      lastLine.classList.add("input-line");
+    } else {
+      const container = document.createElement("div");
+      container.className = "input-line";
+      container.appendChild(input);
+      terminalOutput.appendChild(container);
+    }
+
+    currentInput = input;
     currentInput.focus();
 
     currentInput.addEventListener("keydown", (e) => {
@@ -158,7 +190,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // ─────────────────────────────────────────────
       // Parse stdout/stderr from the response
       // ─────────────────────────────────────────────
-      if (data.clear_screen) clearTerminal();
+      if (data.action_type === 1) clearTerminal();
 
       if (data.stdout?.length) addLines(data.stdout);
 
@@ -167,7 +199,22 @@ document.addEventListener("DOMContentLoaded", () => {
         addLines(data.stderr, hasAnsi ? null : "ansi-red");
       }
 
-      renderPrompt(data);
+      if (data.action_type === 2 && data.action_message) {
+        addLine(data.action_message, "ansi-green");
+      }
+      if (data.action_type === 3 && data.action_message) {
+        addLine(data.action_message, "ansi-red");
+      }
+
+
+      // ── Interactive input bridge ──────────────────────────────
+      if (data.awaiting_input) {
+        renderInputOnly();
+      } else {
+        // Add line at the end of the command output and before the new prompt
+        addLine("");
+        renderPrompt(data);
+      }
     } catch (err) {
       addLine("Kernel connection lost.", "ansi-red");
       addLine(String(err), "ansi-red");
@@ -177,16 +224,61 @@ document.addEventListener("DOMContentLoaded", () => {
   // ─────────────────────────────────────────────
   // Boot sequence (ONLY session init, no logic)
   // ─────────────────────────────────────────────
+  function scenarioFromPath() {
+    const path = window.location.pathname.replace(/\/+$/, "");
+    if (!path || path === "" || path.startsWith("/assets/")) return null;
+    return path.replace(/^\//, "");
+  }
+
+  async function startFetch(params) {
+    const qs = new URLSearchParams(params).toString();
+    const res = await fetch(`${BACKEND_URL}/start?${qs}`);
+    if (!res.ok && res.status === 404) return null;
+    if (!res.ok) throw new Error(`Backend error: ${res.status}`);
+    return res.json();
+  }
+
+  async function destroySession(id) {
+    if (!id) return;
+    try {
+      await fetch(`${BACKEND_URL}/sessions/${id}`, { method: "DELETE" });
+    } catch (_) { /* best-effort */ }
+  }
+
   async function init() {
     try {
+      const scenarioFromUrl = scenarioFromPath();
       const storedId = getSessionId();
 
-      const url = storedId
-        ? `${BACKEND_URL}/start?session_id=${storedId}`
-        : `${BACKEND_URL}/start`;
-    
-      const res = await fetch(url);
-      const data = await res.json();
+      let data = null;
+
+      if (scenarioFromUrl) {
+        // ── Scenario deep-link (e.g. /shadow_key) ──
+        if (storedId) {
+          data = await startFetch({ session_id: storedId });
+          if (data && data.scenario_name !== scenarioFromUrl) {
+            await destroySession(storedId);
+            data = null;
+          }
+        }
+        if (!data) {
+          localStorage.removeItem("session_id");
+          data = await startFetch({ scenario_name: scenarioFromUrl });
+        }
+      } else {
+        // ── Root path (/) ──
+        if (storedId) {
+          data = await startFetch({ session_id: storedId });
+        }
+        if (!data) {
+          localStorage.removeItem("session_id");
+          data = await startFetch({ scenario_name: "hello" });
+        }
+      }
+
+      if (!data) {
+        throw new Error("Backend error: 404");
+      }
 
       setSessionId(data.session_id);
 

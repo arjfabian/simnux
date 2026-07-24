@@ -1,7 +1,6 @@
-"""Session introspection endpoint for SIMNUX.
+"""Session management endpoints for SIMNUX.
 
-Returns a snapshot of an active shell session for UI rendering and debugging.
-This is a read-only view over runtime state and does not allow mutation.
+Provides read-only introspection and session destruction for the frontend.
 """
 
 from fastapi import APIRouter
@@ -25,8 +24,6 @@ async def session_snapshot(
 
     runtime = request.app.state.runtime
 
-    # Guard against access to unknown session_id. Session isolation is enforced
-    # at this single check point.
     if not runtime.exists(session_id):
         raise HTTPException(
             status_code=404,
@@ -35,8 +32,6 @@ async def session_snapshot(
 
     shell = runtime.get_session(session_id)
 
-    # Frontend contract: flatten internal runtime structures into a single
-    # response shape to decouple UI from internal representation.
     return {
         "session_id": shell.session.session_id,
         "scenario_name": shell.session.scenario.name,
@@ -44,3 +39,20 @@ async def session_snapshot(
         "filesystem": shell.filesystem.list_paths(),
         "current_path": shell.session.current_directory,
     }
+
+
+@router.delete("/sessions/{session_id}")
+async def destroy_session(
+    session_id: str,
+    request: Request,
+):
+    """Destroy an active session, freeing its runtime resources.
+
+    Idempotent — returns 200 even if the session was already removed.
+    Used by the frontend when switching scenarios to prevent session leaks.
+    """
+
+    runtime = request.app.state.runtime
+    runtime.destroy_session(session_id)
+
+    return {"status": "ok", "session_id": session_id}

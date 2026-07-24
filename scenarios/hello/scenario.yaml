@@ -1,0 +1,91 @@
+name: "Hello SIMNUX"
+difficulty: "Easy"
+username: "user"
+hostname: "simnux"
+starting_dir: "/home/user"
+
+filesystem:
+  "/etc/hostname": "simnux-edge-01"
+  "/etc/motd": |
+    Welcome to SIMNUX!
+    This is the default scenario. It was designed to help you familiarize yourself
+    with the virtual console. There are no goals or time limits.
+  "/home/user/notes.txt":
+    - "TO DO:"
+    - "1. Change admin password."
+    - "2. Close port 8080."
+  "/var/log/auth.log": "Apr  2 11:30:01 simnux sshd[123]: Accepted password for user..."
+  "/home/user/scripts/echo.sh": |
+    #!/bin/sh
+    echo "=== 1. Testing Echo ==="
+    echo "1 This is a simple test script."
+    echo -e "2 It was specially crafted to showcase basic scripting support in SIMNUX.\n3 This sentence should be in a line of its own."
+    echo "4 Feel free to edit this text in scenarios/hello/scenario.yaml and have fun!"
+  "/home/user/scripts/for_loop.sh": |
+    #!/bin/sh
+    echo "=== SIMNUX For Loop Demo ==="
+    for item in alpha beta gamma delta; do
+        echo "[FOR] Processing item: $item"
+    done
+  "/home/user/scripts/while_loop.sh": |
+    #!/bin/sh
+    echo "=== SIMNUX While Loop Demo ==="
+    i=1
+    while [ $i -le 3 ]; do
+        echo "[WHILE] Iteration $i"
+        i=$((i + 1))
+    done
+  "/home/user/tests/conditionals.sh": |
+    #!/bin/sh
+
+    echo -e "\n=== 1. Testing File Conditionals ==="
+    [ -f notes.txt ] && echo "[PASS] notes.txt is a file" || echo "[FAIL] notes.txt file check"
+    [ -d /var/log ] && echo "[PASS] /var/log is a directory" || echo "[FAIL] /var/log directory check"
+    [ -e nonexistent.txt ] && echo "[FAIL] nonexistent file check" || echo "[PASS] nonexistent file correctly missing"
+    echo -e "\n=== 2. Testing String Comparisons ==="
+    [ -z "" ] && echo "[PASS] empty string check (-z)" || echo "[FAIL] -z check"
+    [ -n "hello" ] && echo "[PASS] non-empty string check (-n)" || echo "[FAIL] -n check"
+    [ "alpha" = "alpha" ] && echo "[PASS] string equality (=)" || echo "[FAIL] string equality (=)"
+    [ "alpha" != "beta" ] && echo "[PASS] string inequality (!=)" || echo "[FAIL] string inequality (!=)"
+    echo -e "\n=== 3. Testing Integer Comparisons ==="
+    [ 10 -gt 5 ] && echo "[PASS] 10 > 5 (-gt)" || echo "[FAIL] -gt check"
+    [ 4 -le 4 ] && echo "[PASS] 4 <= 4 (-le)" || echo "[FAIL] -le check"
+    [ 100 -ne 200 ] && echo "[PASS] 100 != 200 (-ne)" || echo "[FAIL] -ne check"
+    echo -e "\n=== 4. Testing Negation & Syntax Errors ==="
+    [ ! -f nonexistent.txt ] && echo "[PASS] negation (!)" || echo "[FAIL] negation (!)"
+    [ -f notes.txt  # Missing closing bracket test
+  "/home/user/tests/limit_iterations.sh": |
+    #!/bin/sh
+    echo "=== SIMNUX Resource Guard Test: Infinite Loop ==="
+    echo "Attempting to run an unbounded while loop..."
+    count=0
+    while [ 1 -eq 1 ]; do
+        count=$((count + 1))
+    done
+  "/home/user/tests/limit_quota.sh": |
+    #!/bin/sh
+    echo "=== SIMNUX Resource Guard Test: File Size Quota ==="
+    echo "Attempting to exceed per-file size limit..."
+
+    # Build a ~10 KB chunk (100 chars × 100 repetitions)
+    chunk="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    chunk="$chunk$chunk$chunk$chunk$chunk$chunk$chunk$chunk$chunk$chunk"
+    chunk="$chunk$chunk$chunk$chunk$chunk$chunk$chunk$chunk$chunk$chunk"
+
+    # 101 iterations × 10 KB ≈ 1 MB, exceeding default max_file_bytes
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101; do
+        echo "Writing 10KB block $i..."
+        echo "$chunk" >> /tmp/quota_fill.log
+    done
+  "/home/user/tests/limit_time.sh": |
+    #!/bin/sh
+    echo "=== SIMNUX Resource Guard Test: Execution Timeout ==="
+    echo "Starting infinite loop to trigger script timeout limit..."
+
+    # Continuous loop designed to run until deadline is hit
+    while true; do
+        # Simple arithmetic or echo to consume ticks without flooding output
+        x=$((x + 1))
+    done
+  "/home/user/.config/": ""
+  "/tmp/": ""

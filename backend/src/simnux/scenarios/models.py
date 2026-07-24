@@ -1,5 +1,7 @@
 """Scenario domain models for SIMNUX."""
 
+from typing import Any
+
 from pydantic import BaseModel
 
 from simnux.filesystem.models import SNXNode
@@ -13,7 +15,6 @@ class SNXScenario(BaseModel):
     """
 
     name: str
-    motd: str
     difficulty: str
 
     username: str
@@ -21,3 +22,6 @@ class SNXScenario(BaseModel):
     starting_dir: str
 
     filesystem: dict[str, SNXNode]
+
+    objective: dict[str, Any] | None = None
+    triggers: list[dict[str, Any]] | None = None

@@ -8,8 +8,11 @@ from simnux.commands.streams import AsyncStreamWriter
 from simnux.commands.streams import FileStreamWriter
 from simnux.commands.streams import QueueStreamReader
 from simnux.commands.streams import QueueStreamWriter
+from simnux.init.config import LimitsConfig
 from simnux.runtime.models import CommandResult
 from simnux.runtime.models import ExitCode
+from simnux.runtime.models import TerminalAction
+from simnux.scripting.runner import ScriptRunner
 
 
 logger = logging.getLogger("simnux.commands")
@@ -31,8 +34,31 @@ def _drain_queue(queue: asyncio.Queue) -> list[str]:
 class CommandDispatcher:
     """Resolves commands, wires I/O streams, delegates execution."""
 
-    def __init__(self, registry):
+    def __init__(self, registry, limits: LimitsConfig | None = None):
         self.registry = registry
+        self._script_runner = ScriptRunner(registry, limits=limits)
+
+    async def _resolve_script(
+        self,
+        cmd_name: str,
+        ctx: CommandContext,
+    ) -> tuple[str | None, str | None]:
+        """Delegate to ScriptRunner for VFS path resolution."""
+        return await self._script_runner.resolve(cmd_name, ctx)
+
+    async def execute_script(
+        self,
+        content: str,
+        ctx: CommandContext,
+        stdin: AsyncStreamReader,
+        stdout: AsyncStreamWriter,
+        stderr: AsyncStreamWriter,
+        script_args: list[str] | None = None,
+    ) -> CommandResult:
+        """Delegate to ScriptRunner for line-by-line script execution."""
+        return await self._script_runner.execute(
+            content, ctx, stdin, stdout, stderr, script_args,
+        )
 
     async def dispatch(
         self,
@@ -45,21 +71,8 @@ class CommandDispatcher:
         stdout_redirect: str | None = None,
         stdout_append: bool = False,
     ) -> CommandResult:
-        """Execute a registered command. Creates internal stream queues if none provided."""
 
         command = self.registry.get(cmd_name)
-
-        if command is None:
-            raise ValueError(f"Command not registered: {cmd_name}")
-
-        command.args = args
-
-        if command.parameters:
-            normalized = command.normalize_args(args)
-            parsed, errs = parse_arguments(normalized, command.parameters, cmd_name)
-            if errs:
-                return CommandResult(stderr=errs, exit_code=ExitCode.INVALID_ARGUMENT)
-            command.parsed_args = parsed
 
         if stdin is not None:
             stdin_reader = stdin
@@ -83,19 +96,58 @@ class CommandDispatcher:
 
         err_writer = stderr or QueueStreamWriter(err_queue)
 
+        if command is None:
+            content, err = await self._resolve_script(cmd_name, ctx)
+            if err:
+                out_writer.close()
+                err_writer.close()
+                return CommandResult(stderr=[err], exit_code=ExitCode.ERROR)
+
+            script_result = await self.execute_script(
+                content, ctx, stdin_reader, out_writer, err_writer, args,
+            )
+            out_writer.close()
+            err_writer.close()
+            stdout_lines = _drain_queue(out_queue) if out_queue is not None else []
+            stderr_lines = _drain_queue(err_queue)
+            return CommandResult(
+                stdout=stdout_lines,
+                stderr=stderr_lines,
+                exit_code=script_result.exit_code,
+            )
+
+        command.args = args
+        command._invoked_name = cmd_name
+
+        if command.parameters:
+            normalized = command.normalize_args(args)
+            parsed, errs = parse_arguments(normalized, command.parameters, cmd_name)
+            if errs:
+                out_writer.close()
+                err_writer.close()
+                return CommandResult(stderr=errs, exit_code=ExitCode.INVALID_ARGUMENT)
+            command.parsed_args = parsed
+
         exit_code: ExitCode = await command.execute(ctx, stdin_reader, out_writer, err_writer)
 
         out_writer.close()
+        if isinstance(out_writer, FileStreamWriter) and out_writer.last_error:
+            await err_writer.write(f"{out_writer.last_error}\n")
+            exit_code = ExitCode.ERROR
         err_writer.close()
 
         stdout_lines = _drain_queue(out_queue) if out_queue is not None else []
         stderr_lines = _drain_queue(err_queue)
 
+        action_type = (
+            command.action_type if exit_code == ExitCode.SUCCESS
+            else TerminalAction.NONE
+        )
         return CommandResult(
             stdout=stdout_lines,
             stderr=stderr_lines,
             exit_code=exit_code,
-            clear_screen=command.clear_screen and exit_code == ExitCode.SUCCESS,
+            action_type=action_type,
         )
 
     async def dispatch_pipeline(
@@ -103,7 +155,6 @@ class CommandDispatcher:
         segments: list[tuple[str, list[str], str | None, bool]],
         ctx: CommandContext,
     ) -> CommandResult:
-        """Execute a | pipeline: concurrent segments connected by pipe queues."""
 
         n = len(segments)
         pipe_queues: list[asyncio.Queue] = [asyncio.Queue() for _ in range(n - 1)]
@@ -113,23 +164,9 @@ class CommandDispatcher:
         async def run_segment(idx: int) -> None:
             cmd_name, args, redirect, append = segments[idx]
             command = self.registry.get(cmd_name)
-            command.args = args
 
             err_queue: asyncio.Queue = asyncio.Queue()
             err_writer = QueueStreamWriter(err_queue)
-
-            if command.parameters:
-                normalized = command.normalize_args(args)
-                parsed, errs = parse_arguments(normalized, command.parameters, cmd_name)
-                if errs:
-                    err_writer.write("\n".join(errs))
-                    err_writer.close()
-                    merged_stderr.extend(_drain_queue(err_queue))
-                    results[idx] = ExitCode.INVALID_ARGUMENT
-                    return
-                command.parsed_args = parsed
-
-            segment_clear.append(command.clear_screen)
 
             if idx == 0:
                 stdin_queue: asyncio.Queue = asyncio.Queue()
@@ -153,12 +190,55 @@ class CommandDispatcher:
             else:
                 out_writer = QueueStreamWriter(pipe_queues[idx])
 
+            # Script path resolution
+            if command is None:
+                content, err = await self._resolve_script(cmd_name, ctx)
+                if err:
+                    err_writer.close()
+                    merged_stderr.extend(_drain_queue(err_queue))
+                    results[idx] = ExitCode.ERROR
+                    return
+
+                script_result = await self.execute_script(
+                    content, ctx, stdin_reader, out_writer, err_writer, args,
+                )
+                out_writer.close()
+                err_writer.close()
+                merged_stderr.extend(_drain_queue(err_queue))
+                results[idx] = script_result.exit_code
+
+                if out_queue is not None:
+                    pipe_results[idx] = _drain_queue(out_queue)
+                return
+
+            command.args = args
+            command._invoked_name = cmd_name
+
+            if command.parameters:
+                normalized = command.normalize_args(args)
+                parsed, errs = parse_arguments(normalized, command.parameters, cmd_name)
+                if errs:
+                    err_writer.write("\n".join(errs))
+                    err_writer.close()
+                    merged_stderr.extend(_drain_queue(err_queue))
+                    results[idx] = ExitCode.INVALID_ARGUMENT
+                    return
+                command.parsed_args = parsed
+
+            segment_action_types.append(
+                command.action_type if results[idx] == ExitCode.SUCCESS
+                else TerminalAction.NONE
+            )
+
             try:
                 results[idx] = await command.execute(
                     ctx, stdin_reader, out_writer, err_writer,
                 )
             finally:
                 out_writer.close()
+                if isinstance(out_writer, FileStreamWriter) and out_writer.last_error:
+                    await err_writer.write(f"{out_writer.last_error}\n")
+                    results[idx] = ExitCode.ERROR
                 err_writer.close()
 
             merged_stderr.extend(_drain_queue(err_queue))
@@ -166,7 +246,7 @@ class CommandDispatcher:
             if out_queue is not None:
                 pipe_results[idx] = _drain_queue(out_queue)
 
-        segment_clear: list[bool] = []
+        segment_action_types: list[TerminalAction] = []
         pipe_results: dict[int, list[str]] = {}
 
         await asyncio.gather(*[run_segment(i) for i in range(n)])
@@ -174,9 +254,15 @@ class CommandDispatcher:
         last_stdout = pipe_results.get(n - 1, [])
         last_exit = results[-1] if results[-1] is not None else ExitCode.ERROR
 
+        action_type = (
+            segment_action_types[-1] if segment_action_types
+            and last_exit == ExitCode.SUCCESS
+            else TerminalAction.NONE
+        )
+
         return CommandResult(
             stdout=last_stdout,
             stderr=merged_stderr,
             exit_code=last_exit,
-            clear_screen=segment_clear[-1] and last_exit == ExitCode.SUCCESS if segment_clear else False,
+            action_type=action_type,
         )

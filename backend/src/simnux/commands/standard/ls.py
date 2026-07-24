@@ -7,9 +7,22 @@ from simnux.runtime.models import ExitCode
 
 
 class Command(SNXCommand):
-    """List directory contents (simplified POSIX-like, single-line output)."""
+    """List directory contents (POSIX-like, single-line output)."""
 
     name = "ls"
+
+    parameters = {
+        "all": {
+            "flags": ["-a", "--all"],
+            "type": bool,
+            "help": "include . and .. and hidden files",
+        },
+        "almost_all": {
+            "flags": ["-A", "--almost-all"],
+            "type": bool,
+            "help": "include hidden files but not . and ..",
+        },
+    }
 
     async def execute(
         self,
@@ -19,9 +32,9 @@ class Command(SNXCommand):
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
 
-        args = self.args or []
-        if args:
-            raw_target = args[0]
+        pos_args = self.parsed_args.positional if self.parsed_args else (self.args or [])
+        if pos_args:
+            raw_target = pos_args[0]
             target = self.resolve_path(raw_target, ctx)
         else:
             raw_target = "."
@@ -39,23 +52,36 @@ class Command(SNXCommand):
             )
             return ExitCode.ERROR
 
+        show_all = (
+            self.parsed_args
+            and self.parsed_args.flags.get("all", False)
+        )
+        show_almost_all = (
+            self.parsed_args
+            and self.parsed_args.flags.get("almost_all", False)
+        )
+
         nodes = ctx.filesystem.list_directory(target)
 
-        if not nodes:
-            return ExitCode.SUCCESS
+        names: list[str] = []
 
-        names = []
-        names.append(".")
-        if target != "/":
-            names.append("..")
+        if show_all:
+            names.append(".")
+            if target != "/":
+                names.append("..")
 
-        for node in nodes:
+        for node in sorted(nodes, key=lambda n: n.path.split("/")[-1]):
             name = node.path.split("/")[-1]
+
+            if name.startswith(".") and not show_all and not show_almost_all:
+                continue
 
             if node.is_directory:
                 names.append(name + "/")
             else:
                 names.append(name)
 
-        await stdout.write("  ".join(names))
+        if names:
+            await stdout.write("  ".join(names))
+
         return ExitCode.SUCCESS

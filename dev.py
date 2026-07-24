@@ -72,11 +72,8 @@ class DevEnvironment:
         self.start(
             [
                 "python3",
-                "-m",
-                "http.server",
+                str(ROOT / "frontend" / "server.py"),
                 "8001",
-                "-d",
-                str(ROOT / "frontend"),
             ]
         )
 
