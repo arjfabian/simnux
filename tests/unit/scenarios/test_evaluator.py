@@ -7,7 +7,6 @@ types, including failure cases.
 import pytest
 
 from simnux.commands.dispatcher import CommandDispatcher
-from simnux.commands.models import CommandContext
 from simnux.runtime.models import TerminalAction
 from simnux.scenarios.evaluator import _check_file_state
 from simnux.scenarios.evaluator import _check_flag_input
@@ -31,26 +30,30 @@ def _make_scenario(objective: dict) -> SNXScenario:
 
 
 class TestFileStateObjective:
-
     async def test_file_state_existing_file(self, session, filesystem):
         """Existing file with no content constraints passes."""
         filesystem.touch("/home/user/config.txt")
         filesystem.write("/home/user/config.txt", "hello world")
-        scenario = _make_scenario({
-            "type": "file_state",
-            "path": "/home/user/config.txt",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "file_state",
+                "path": "/home/user/config.txt",
+            }
+        )
         session.scenario = scenario
         assert _check_file_state(
-            scenario.objective, filesystem,
+            scenario.objective,
+            filesystem,
         )
 
     async def test_file_state_nonexistent_file_fails(self, session, filesystem):
         """Missing file fails file_state check."""
-        scenario = _make_scenario({
-            "type": "file_state",
-            "path": "/home/user/missing.txt",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "file_state",
+                "path": "/home/user/missing.txt",
+            }
+        )
         session.scenario = scenario
         assert not _check_file_state(scenario.objective, filesystem)
 
@@ -58,11 +61,13 @@ class TestFileStateObjective:
         """``contains`` sub-string constraint is enforced."""
         filesystem.touch("/tmp/secret.txt")
         filesystem.write("/tmp/secret.txt", "FLAG{hidden}")
-        scenario = _make_scenario({
-            "type": "file_state",
-            "path": "/tmp/secret.txt",
-            "contains": "FLAG",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "file_state",
+                "path": "/tmp/secret.txt",
+                "contains": "FLAG",
+            }
+        )
         session.scenario = scenario
         assert _check_file_state(scenario.objective, filesystem)
 
@@ -70,11 +75,13 @@ class TestFileStateObjective:
         """``contains`` check fails when sub-string is absent."""
         filesystem.touch("/tmp/secret.txt")
         filesystem.write("/tmp/secret.txt", "nothing here")
-        scenario = _make_scenario({
-            "type": "file_state",
-            "path": "/tmp/secret.txt",
-            "contains": "FLAG",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "file_state",
+                "path": "/tmp/secret.txt",
+                "contains": "FLAG",
+            }
+        )
         session.scenario = scenario
         assert not _check_file_state(scenario.objective, filesystem)
 
@@ -82,11 +89,13 @@ class TestFileStateObjective:
         """``exact_match`` exact-content constraint is enforced."""
         filesystem.touch("/home/user/config.txt")
         filesystem.write("/home/user/config.txt", "foo=bar")
-        scenario = _make_scenario({
-            "type": "file_state",
-            "path": "/home/user/config.txt",
-            "exact_match": "foo=bar",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "file_state",
+                "path": "/home/user/config.txt",
+                "exact_match": "foo=bar",
+            }
+        )
         session.scenario = scenario
         assert _check_file_state(scenario.objective, filesystem)
 
@@ -94,68 +103,79 @@ class TestFileStateObjective:
         """``exact_match`` fails when content differs."""
         filesystem.touch("/home/user/config.txt")
         filesystem.write("/home/user/config.txt", "foo=baz")
-        scenario = _make_scenario({
-            "type": "file_state",
-            "path": "/home/user/config.txt",
-            "exact_match": "foo=bar",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "file_state",
+                "path": "/home/user/config.txt",
+                "exact_match": "foo=bar",
+            }
+        )
         session.scenario = scenario
         assert not _check_file_state(scenario.objective, filesystem)
 
     async def test_file_state_directory_fails(self, session, filesystem):
         """A directory path fails file_state check."""
-        scenario = _make_scenario({
-            "type": "file_state",
-            "path": "/home",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "file_state",
+                "path": "/home",
+            }
+        )
         session.scenario = scenario
         assert not _check_file_state(scenario.objective, filesystem)
 
     async def test_file_state_exists_false_when_missing(self, session, filesystem):
         """``exists: false`` triggers when the file does not exist."""
-        scenario = _make_scenario({
-            "type": "file_state",
-            "path": "/home/user/deleted.txt",
-            "exists": False,
-        })
+        scenario = _make_scenario(
+            {
+                "type": "file_state",
+                "path": "/home/user/deleted.txt",
+                "exists": False,
+            }
+        )
         session.scenario = scenario
         assert _check_file_state(scenario.objective, filesystem)
 
     async def test_file_state_exists_false_when_present(self, session, filesystem):
         """``exists: false`` does NOT trigger when the file exists."""
         filesystem.touch("/home/user/deleted.txt")
-        scenario = _make_scenario({
-            "type": "file_state",
-            "path": "/home/user/deleted.txt",
-            "exists": False,
-        })
+        scenario = _make_scenario(
+            {
+                "type": "file_state",
+                "path": "/home/user/deleted.txt",
+                "exists": False,
+            }
+        )
         session.scenario = scenario
         assert not _check_file_state(scenario.objective, filesystem)
 
     async def test_file_state_exists_true_when_present(self, session, filesystem):
         """``exists: true`` triggers when the file exists."""
         filesystem.touch("/home/user/flag.txt")
-        scenario = _make_scenario({
-            "type": "file_state",
-            "path": "/home/user/flag.txt",
-            "exists": True,
-        })
+        scenario = _make_scenario(
+            {
+                "type": "file_state",
+                "path": "/home/user/flag.txt",
+                "exists": True,
+            }
+        )
         session.scenario = scenario
         assert _check_file_state(scenario.objective, filesystem)
 
     async def test_file_state_exists_true_when_missing(self, session, filesystem):
         """``exists: true`` does NOT trigger when the file is absent."""
-        scenario = _make_scenario({
-            "type": "file_state",
-            "path": "/home/user/flag.txt",
-            "exists": True,
-        })
+        scenario = _make_scenario(
+            {
+                "type": "file_state",
+                "path": "/home/user/flag.txt",
+                "exists": True,
+            }
+        )
         session.scenario = scenario
         assert not _check_file_state(scenario.objective, filesystem)
 
 
 class TestCommandOutputObjective:
-
     async def test_command_output_flag_found(self, session, filesystem, populated_registry):
         """``command_output`` detects flag when matching command is executed."""
         dispatcher = CommandDispatcher(registry=populated_registry)
@@ -164,14 +184,18 @@ class TestCommandOutputObjective:
             "/home/user/validate.sh",
             '#!/bin/bash\necho "FLAG{found}"\n',
         )
-        scenario = _make_scenario({
-            "type": "command_output",
-            "target_command": "bash /home/user/validate.sh",
-            "expected_output": "FLAG{found}",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "command_output",
+                "target_command": "bash /home/user/validate.sh",
+                "expected_output": "FLAG{found}",
+            }
+        )
         session.scenario = scenario
         action, _ = await evaluate(
-            session, filesystem, dispatcher,
+            session,
+            filesystem,
+            dispatcher,
             executed_command="bash /home/user/validate.sh",
         )
         assert action == TerminalAction.WIN
@@ -184,19 +208,25 @@ class TestCommandOutputObjective:
             "/home/user/validate.sh",
             '#!/bin/bash\necho "wrong output"\n',
         )
-        scenario = _make_scenario({
-            "type": "command_output",
-            "target_command": "bash /home/user/validate.sh",
-            "expected_output": "FLAG{something}",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "command_output",
+                "target_command": "bash /home/user/validate.sh",
+                "expected_output": "FLAG{something}",
+            }
+        )
         session.scenario = scenario
         action, _ = await evaluate(
-            session, filesystem, dispatcher,
+            session,
+            filesystem,
+            dispatcher,
             executed_command="bash /home/user/validate.sh",
         )
         assert action == TerminalAction.NONE
 
-    async def test_command_output_ignores_unrelated_command(self, session, filesystem, populated_registry):
+    async def test_command_output_ignores_unrelated_command(
+        self, session, filesystem, populated_registry
+    ):
         """``command_output`` returns NONE when an unrelated command is run."""
         dispatcher = CommandDispatcher(registry=populated_registry)
         filesystem.touch("/home/user/validate.sh")
@@ -204,19 +234,25 @@ class TestCommandOutputObjective:
             "/home/user/validate.sh",
             '#!/bin/bash\necho "FLAG{found}"\n',
         )
-        scenario = _make_scenario({
-            "type": "command_output",
-            "target_command": "bash /home/user/validate.sh",
-            "expected_output": "FLAG{found}",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "command_output",
+                "target_command": "bash /home/user/validate.sh",
+                "expected_output": "FLAG{found}",
+            }
+        )
         session.scenario = scenario
         action, _ = await evaluate(
-            session, filesystem, dispatcher,
+            session,
+            filesystem,
+            dispatcher,
             executed_command="ls",
         )
         assert action == TerminalAction.NONE
 
-    async def test_command_output_ignores_cat_validate(self, session, filesystem, populated_registry):
+    async def test_command_output_ignores_cat_validate(
+        self, session, filesystem, populated_registry
+    ):
         """``command_output`` returns NONE for ``cat validate.sh`` (not the target)."""
         dispatcher = CommandDispatcher(registry=populated_registry)
         filesystem.touch("/home/user/validate.sh")
@@ -224,19 +260,25 @@ class TestCommandOutputObjective:
             "/home/user/validate.sh",
             '#!/bin/bash\necho "FLAG{found}"\n',
         )
-        scenario = _make_scenario({
-            "type": "command_output",
-            "target_command": "bash /home/user/validate.sh",
-            "expected_output": "FLAG{found}",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "command_output",
+                "target_command": "bash /home/user/validate.sh",
+                "expected_output": "FLAG{found}",
+            }
+        )
         session.scenario = scenario
         action, _ = await evaluate(
-            session, filesystem, dispatcher,
+            session,
+            filesystem,
+            dispatcher,
             executed_command="cat validate.sh",
         )
         assert action == TerminalAction.NONE
 
-    async def test_command_output_gate_no_executed_command(self, session, filesystem, populated_registry):
+    async def test_command_output_gate_no_executed_command(
+        self, session, filesystem, populated_registry
+    ):
         """Without ``executed_command`` the gate is skipped (backward compat)."""
         dispatcher = CommandDispatcher(registry=populated_registry)
         filesystem.touch("/home/user/validate.sh")
@@ -244,50 +286,56 @@ class TestCommandOutputObjective:
             "/home/user/validate.sh",
             '#!/bin/bash\necho "FLAG{found}"\n',
         )
-        scenario = _make_scenario({
-            "type": "command_output",
-            "target_command": "bash /home/user/validate.sh",
-            "expected_output": "FLAG{found}",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "command_output",
+                "target_command": "bash /home/user/validate.sh",
+                "expected_output": "FLAG{found}",
+            }
+        )
         session.scenario = scenario
         action, _ = await evaluate(session, filesystem, dispatcher)
         assert action == TerminalAction.WIN
 
 
 class TestFlagInputObjective:
-
     async def test_flag_input_correct(self, session):
         """Correct flag via metadata passes flag_input check."""
-        scenario = _make_scenario({
-            "type": "flag_input",
-            "flag": "s3cr3t",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "flag_input",
+                "flag": "s3cr3t",
+            }
+        )
         session.scenario = scenario
         session.metadata["submitted_flag"] = "s3cr3t"
         assert _check_flag_input(scenario.objective, session)
 
     async def test_flag_input_wrong(self, session):
         """Wrong flag fails flag_input check."""
-        scenario = _make_scenario({
-            "type": "flag_input",
-            "flag": "s3cr3t",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "flag_input",
+                "flag": "s3cr3t",
+            }
+        )
         session.scenario = scenario
         session.metadata["submitted_flag"] = "wrong"
         assert not _check_flag_input(scenario.objective, session)
 
     async def test_flag_input_not_submitted(self, session):
         """No submitted flag fails flag_input check."""
-        scenario = _make_scenario({
-            "type": "flag_input",
-            "flag": "s3cr3t",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "flag_input",
+                "flag": "s3cr3t",
+            }
+        )
         session.scenario = scenario
         assert not _check_flag_input(scenario.objective, session)
 
 
 class TestEvaluateTopLevel:
-
     async def test_evaluate_no_objective(self, session):
         """Sessions without an objective return (NONE, None)."""
         action, msg = await evaluate(session, None, None)
@@ -297,10 +345,12 @@ class TestEvaluateTopLevel:
     async def test_evaluate_already_completed(self, session):
         """Sessions already marked complete return (NONE, None)."""
         session.tasks_completed = 1
-        scenario = _make_scenario({
-            "type": "file_state",
-            "path": "/home/user/notes.txt",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "file_state",
+                "path": "/home/user/notes.txt",
+            }
+        )
         session.scenario = scenario
         action, msg = await evaluate(session, None, None)
         assert action == TerminalAction.NONE
@@ -308,9 +358,11 @@ class TestEvaluateTopLevel:
 
     async def test_evaluate_unknown_type(self, session):
         """Unknown objective type returns (NONE, None)."""
-        scenario = _make_scenario({
-            "type": "unknown_type",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "unknown_type",
+            }
+        )
         session.scenario = scenario
         action, msg = await evaluate(session, None, None)
         assert action == TerminalAction.NONE
@@ -320,10 +372,12 @@ class TestEvaluateTopLevel:
         """Default win_message is used when objective omits it."""
         filesystem.touch("/home/user/flag.txt")
         filesystem.write("/home/user/flag.txt", "win")
-        scenario = _make_scenario({
-            "type": "file_state",
-            "path": "/home/user/flag.txt",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "file_state",
+                "path": "/home/user/flag.txt",
+            }
+        )
         session.scenario = scenario
         action, msg = await evaluate(session, filesystem, None)
         assert action == TerminalAction.WIN
@@ -331,7 +385,6 @@ class TestEvaluateTopLevel:
 
 
 class TestTriggersEvaluation:
-
     async def test_triggers_win_file_state(self, session, filesystem):
         """``triggers`` with a matching file_state condition returns WIN."""
         filesystem.touch("/home/user/.solved")
@@ -419,7 +472,9 @@ class TestTriggersEvaluation:
         ]
         session.scenario = scenario
         action, msg = await evaluate(
-            session, filesystem, dispatcher,
+            session,
+            filesystem,
+            dispatcher,
             executed_command="bash /home/user/check.sh",
         )
         assert action == TerminalAction.WIN
@@ -429,11 +484,13 @@ class TestTriggersEvaluation:
         """Legacy ``objective`` dict still triggers WIN via backward compat."""
         filesystem.touch("/home/user/flag.txt")
         filesystem.write("/home/user/flag.txt", "secret")
-        scenario = _make_scenario({
-            "type": "file_state",
-            "path": "/home/user/flag.txt",
-            "win_message": "Old style works!",
-        })
+        scenario = _make_scenario(
+            {
+                "type": "file_state",
+                "path": "/home/user/flag.txt",
+                "win_message": "Old style works!",
+            }
+        )
         session.scenario = scenario
         action, msg = await evaluate(session, filesystem, None)
         assert action == TerminalAction.WIN

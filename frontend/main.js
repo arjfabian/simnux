@@ -2,7 +2,23 @@ const BACKEND_URL = "http://127.0.0.1:8000";
 
 document.addEventListener("DOMContentLoaded", () => {
   const terminalOutput = document.getElementById("terminal-output");
+  const terminalContainer = document.querySelector(".terminal-container");
   let currentInput = null;
+
+  // ─────────────────────────────────────────────
+  // Client-side command history
+  // ─────────────────────────────────────────────
+  const commandHistory = [];
+  let historyIndex = 0;
+
+  // ─────────────────────────────────────────────
+  // Global terminal focus capture
+  // ─────────────────────────────────────────────
+  terminalContainer.addEventListener("click", (e) => {
+    if (currentInput && !window.getSelection().toString()) {
+      currentInput.focus();
+    }
+  });
 
   // ─────────────────────────────────────────────
   // Session
@@ -94,6 +110,47 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // ─────────────────────────────────────────────
+  // Contenteditable input helpers
+  // ─────────────────────────────────────────────
+  function moveCaretToEnd(el) {
+    const range = document.createRange();
+    const sel = window.getSelection();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function setInputText(el, text) {
+    el.textContent = text;
+    moveCaretToEnd(el);
+  }
+
+  function attachInputHandlers(el) {
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleCommand();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (historyIndex > 0) {
+          historyIndex--;
+          setInputText(el, commandHistory[historyIndex]);
+        }
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (historyIndex < commandHistory.length - 1) {
+          historyIndex++;
+          setInputText(el, commandHistory[historyIndex]);
+        } else {
+          historyIndex = commandHistory.length;
+          setInputText(el, "");
+        }
+      }
+    });
+  }
+
+  // ─────────────────────────────────────────────
   // Prompt rendering (fully backend-driven)
   // ─────────────────────────────────────────────
   const renderPrompt = (data) => {
@@ -103,19 +160,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const container = document.createElement("div");
     container.className = "input-line";
 
-    container.innerHTML = `
-      <span class="prompt">${data.prompt}</span>
-      <input type="text" class="terminal-input" spellcheck="false" autocomplete="off" />
-    `;
+    const prompt = document.createElement("span");
+    prompt.className = "prompt";
+    prompt.textContent = data.prompt;
 
+    const input = document.createElement("span");
+    input.className = "terminal-input";
+    input.contentEditable = "true";
+    input.spellcheck = false;
+
+    container.appendChild(prompt);
+    container.appendChild(input);
     terminalOutput.appendChild(container);
 
-    currentInput = container.querySelector("input");
+    currentInput = input;
     currentInput.focus();
-
-    currentInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") handleCommand();
-    });
+    moveCaretToEnd(currentInput);
+    attachInputHandlers(input);
   };
 
   // ─────────────────────────────────────────────
@@ -127,11 +188,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const lines = terminalOutput.querySelectorAll(".terminal-line");
     const lastLine = lines.length > 0 ? lines[lines.length - 1] : null;
 
-    const input = document.createElement("input");
-    input.type = "text";
+    const input = document.createElement("span");
     input.className = "terminal-input";
+    input.contentEditable = "true";
     input.spellcheck = false;
-    input.autocomplete = "off";
 
     if (lastLine && lastLine.textContent.length > 0) {
       lastLine.appendChild(input);
@@ -145,10 +205,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     currentInput = input;
     currentInput.focus();
-
-    currentInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") handleCommand();
-    });
+    moveCaretToEnd(currentInput);
+    attachInputHandlers(input);
   };
 
   // ─────────────────────────────────────────────
@@ -169,13 +227,21 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function handleCommand() {
-    const cmd = currentInput.value;
+    const cmd = currentInput.textContent;
+
+    // Record command in client-side history
+    if (cmd.trim()) {
+      commandHistory.push(cmd);
+    }
+    historyIndex = commandHistory.length;
 
     // Render what user typed (like a real terminal)
     const parent = currentInput.parentNode;
     currentInput.remove();
+    parent.className = "terminal-line command-line";
 
     const echo = document.createElement("span");
+    echo.className = "command-text";
     echo.textContent = cmd;
     parent.appendChild(echo);
 

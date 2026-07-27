@@ -66,7 +66,9 @@ class TestPromptRenderer:
     def test_normal_user_prompt(self):
         """Full format: ``user@hostname:~$ `` for normal users at home."""
         session = _make_session(
-            username="alice", starting_dir="/home/alice", current_directory="/home/alice"
+            username="alice",
+            starting_dir="/home/alice",
+            current_directory="/home/alice",
         )
         prompt = PromptRenderer.render(session)
         assert prompt.startswith("alice@simnux:~$ ")

@@ -139,35 +139,34 @@ class ShellParser:
         # Tokenize manually to handle && and || correctly
         while i < len(raw_stripped):
             # Skip whitespace
-            while i < len(raw_stripped) and raw_stripped[i] in ' \t':
+            while i < len(raw_stripped) and raw_stripped[i] in " \t":
                 i += 1
 
             if i >= len(raw_stripped):
                 break
 
             # Check for && or ||
-            if raw_stripped[i:i+2] in ('&&', '||'):
-                op = LogicalOperator.AND if raw_stripped[i:i+2] == '&&' else LogicalOperator.OR
-                segment_str = ''.join(current_parts).strip()
+            if raw_stripped[i : i + 2] in ("&&", "||"):
+                op = LogicalOperator.AND if raw_stripped[i : i + 2] == "&&" else LogicalOperator.OR
+                segment_str = "".join(current_parts).strip()
                 if segment_str:
                     parts.append((pending_op or LogicalOperator.NONE, segment_str))
                 pending_op = op
                 current_parts = []
                 i += 2
             # Check for | (single pipe) - add to current_parts
-            elif raw_stripped[i] == '|':
-                current_parts.append('|')
+            elif raw_stripped[i] == "|":
+                current_parts.append("|")
                 i += 1
             else:
                 # Read until next operator or end
-                start = i
-                while i < len(raw_stripped) and raw_stripped[i:i+2] not in ('&&', '||'):
-                    if raw_stripped[i] == '|':
+                while i < len(raw_stripped) and raw_stripped[i : i + 2] not in ("&&", "||"):
+                    if raw_stripped[i] == "|":
                         # Check if it's || or just |
-                        if i + 1 < len(raw_stripped) and raw_stripped[i+1] == '|':
+                        if i + 1 < len(raw_stripped) and raw_stripped[i + 1] == "|":
                             break
                         else:
-                            current_parts.append('|')
+                            current_parts.append("|")
                             i += 1
                             break
                     else:
@@ -175,7 +174,7 @@ class ShellParser:
                         i += 1
 
         # Add the last segment
-        segment_str = ''.join(current_parts).strip()
+        segment_str = "".join(current_parts).strip()
         if segment_str:
             parts.append((pending_op or LogicalOperator.NONE, segment_str))
 
@@ -191,6 +190,6 @@ class ShellParser:
                 logical_segments.append(LogicalSegment(operator=op, pipeline=pipeline))
             except ValueError as e:
                 # Re-raise with context
-                raise ValueError(f"Error parsing logical segment: {e}")
+                raise ValueError(f"Error parsing logical segment: {e}") from e
 
         return logical_segments

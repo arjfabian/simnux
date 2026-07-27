@@ -5,7 +5,6 @@ directory appending when the target is a directory, and error handling
 for nonexistent paths, directories, and missing operands.
 """
 
-
 import pytest
 
 from simnux.commands.errors import CommandError
@@ -29,9 +28,7 @@ class TestCpCommand:
 
     async def test_cp_file_to_new_file(self, shell_with_commands):
         """Cp copies content to a new file path."""
-        result = await shell_with_commands.execute(
-            "cp /etc/hostname /home/user/hostname_copy"
-        )
+        result = await shell_with_commands.execute("cp /etc/hostname /home/user/hostname_copy")
         assert_success(result)
 
         result = await shell_with_commands.execute("cat /home/user/hostname_copy")
@@ -40,9 +37,7 @@ class TestCpCommand:
 
     async def test_cp_overwrite_existing(self, shell_with_commands):
         """Cp overwrites the target file when it already exists."""
-        result = await shell_with_commands.execute(
-            "cp /etc/hostname /home/user/notes.txt"
-        )
+        result = await shell_with_commands.execute("cp /etc/hostname /home/user/notes.txt")
         assert_success(result)
 
         result = await shell_with_commands.execute("cat /home/user/notes.txt")
@@ -50,25 +45,19 @@ class TestCpCommand:
 
     async def test_cp_nonexistent_source(self, shell_with_commands):
         """Cp on a nonexistent source returns ERROR with NOT_FOUND."""
-        result = await shell_with_commands.execute(
-            "cp /missing/file /home/user/target"
-        )
+        result = await shell_with_commands.execute("cp /missing/file /home/user/target")
         assert_error(result)
         assert CommandError.NOT_FOUND in stderr_text(result)
 
     async def test_cp_source_is_directory(self, shell_with_commands):
         """Cp with a directory source returns ERROR with IS_A_DIRECTORY."""
-        result = await shell_with_commands.execute(
-            "cp /home /home/user/target"
-        )
+        result = await shell_with_commands.execute("cp /home /home/user/target")
         assert_error(result)
         assert CommandError.IS_A_DIRECTORY in stderr_text(result)
 
     async def test_cp_to_directory_appends_basename(self, shell_with_commands):
         """Cp to a directory implicitly appends the source basename."""
-        result = await shell_with_commands.execute(
-            "cp /etc/hostname /home/user"
-        )
+        result = await shell_with_commands.execute("cp /etc/hostname /home/user")
         assert_success(result)
 
         result = await shell_with_commands.execute("cat /home/user/hostname")
@@ -77,9 +66,7 @@ class TestCpCommand:
 
     async def test_cp_to_directory_with_trailing_slash(self, shell_with_commands):
         """Cp to a directory with trailing slash appends basename."""
-        result = await shell_with_commands.execute(
-            "cp /etc/hostname /home/user/"
-        )
+        result = await shell_with_commands.execute("cp /etc/hostname /home/user/")
         assert_success(result)
 
         result = await shell_with_commands.execute("cat /home/user/hostname")
@@ -90,9 +77,7 @@ class TestCpCommand:
         """Cp to a directory overwrites an existing file at the implied path."""
         await shell_with_commands.execute("touch /home/user/hostname")
 
-        result = await shell_with_commands.execute(
-            "cp /etc/hostname /home/user"
-        )
+        result = await shell_with_commands.execute("cp /etc/hostname /home/user")
         assert_success(result)
 
         result = await shell_with_commands.execute("cat /home/user/hostname")
@@ -102,17 +87,13 @@ class TestCpCommand:
         """Cp to directory errors when the implied path is itself a directory."""
         await shell_with_commands.execute("mkdir /home/user/hostname")
 
-        result = await shell_with_commands.execute(
-            "cp /etc/hostname /home/user"
-        )
+        result = await shell_with_commands.execute("cp /etc/hostname /home/user")
         assert_error(result)
         assert CommandError.IS_A_DIRECTORY in stderr_text(result)
 
     async def test_cp_same_file(self, shell_with_commands):
         """Cp with source == target is a no-op and returns SUCCESS."""
-        result = await shell_with_commands.execute(
-            "cp /etc/hostname /etc/hostname"
-        )
+        result = await shell_with_commands.execute("cp /etc/hostname /etc/hostname")
         assert_success(result)
 
         result = await shell_with_commands.execute("cat /etc/hostname")
@@ -120,9 +101,7 @@ class TestCpCommand:
 
     async def test_cp_same_file_via_directory_appending(self, shell_with_commands):
         """Cp with source basename resolving to itself via dir appending is a no-op."""
-        result = await shell_with_commands.execute(
-            "cp /etc/hostname /etc"
-        )
+        result = await shell_with_commands.execute("cp /etc/hostname /etc")
         assert_success(result)
 
         result = await shell_with_commands.execute("cat /etc/hostname")

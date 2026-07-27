@@ -76,9 +76,7 @@ class TestGrepCommand:
 
     async def test_grep_multiple_files(self, shell_with_commands):
         """Grep with multiple file arguments searches each."""
-        result = await shell_with_commands.execute(
-            "grep e /etc/hostname /home/user/notes.txt"
-        )
+        result = await shell_with_commands.execute("grep e /etc/hostname /home/user/notes.txt")
         assert_success(result)
         stdout = stdout_text(result)
         assert "simnux-edge" in stdout
@@ -98,9 +96,7 @@ class TestGrepCommand:
 
     async def test_grep_mixed_files_and_dash_no_hang(self, shell_with_commands):
         """``grep pattern file - -`` searches file then stdin twice (second ``-`` safe)."""
-        result = await shell_with_commands.execute(
-            "grep e /etc/hostname - -"
-        )
+        result = await shell_with_commands.execute("grep e /etc/hostname - -")
         assert_success(result)
         assert "simnux-edge" in stdout_text(result)
 

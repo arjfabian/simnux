@@ -26,7 +26,6 @@ class SNXFileSystem:
         max_file_bytes: int = 0,
         max_total_bytes: int = 0,
     ) -> None:
-
         self.base_layer = base_layer
         self.delta_layer: dict[str, SNXNode] = {}
         self.logger = logger
@@ -50,7 +49,7 @@ class SNXFileSystem:
         """Lazily compute the total byte count across all effective files."""
         if self._total_bytes_initialized:
             return
-        for path, node in self._all_nodes().items():
+        for _path, node in self._all_nodes().items():
             if not node.is_directory and node.content:
                 self._current_total_bytes += len(node.content.encode("utf-8"))
         self._total_bytes_initialized = True
@@ -442,7 +441,7 @@ class SNXFileSystem:
             if not node_path.startswith(prefix):
                 continue
 
-            relative = node_path[len(prefix):]
+            relative = node_path[len(prefix) :]
             if not relative:
                 continue
 

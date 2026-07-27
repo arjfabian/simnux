@@ -97,9 +97,7 @@ class ScriptRunner:
 
         max_lines = self.limits.script.max_lines
         if max_lines > 0 and num_lines > max_lines:
-            await stderr.write(
-                f"script: exceeded maximum line limit ({max_lines})\n"
-            )
+            await stderr.write(f"script: exceeded maximum line limit ({max_lines})\n")
             return CommandResult(exit_code=ExitCode.ERROR)
 
         last_exit = ExitCode.SUCCESS
@@ -108,12 +106,9 @@ class ScriptRunner:
 
         while line_idx < num_lines:
             # ── time guard ──
-            if self.limits.script.max_execution_time_seconds > 0:
-                if time.monotonic() >= deadline:
-                    await stderr.write(
-                        "script: exceeded maximum execution time\n"
-                    )
-                    return CommandResult(exit_code=ExitCode.ERROR)
+            if self.limits.script.max_execution_time_seconds > 0 and time.monotonic() >= deadline:
+                await stderr.write("script: exceeded maximum execution time\n")
+                return CommandResult(exit_code=ExitCode.ERROR)
 
             raw_line = lines[line_idx]
             stripped = raw_line.strip()
@@ -134,7 +129,14 @@ class ScriptRunner:
             if stripped.startswith("while "):
                 try:
                     result = await self._execute_while(
-                        stripped, lines, line_idx, ctx, stdin, stdout, stderr, deadline,
+                        stripped,
+                        lines,
+                        line_idx,
+                        ctx,
+                        stdin,
+                        stdout,
+                        stderr,
+                        deadline,
                     )
                     last_exit = result.exit_code
                     line_idx = result._next_line_idx  # type: ignore[attr-defined]
@@ -147,7 +149,14 @@ class ScriptRunner:
             if stripped.startswith("for "):
                 try:
                     result = await self._execute_for(
-                        stripped, lines, line_idx, ctx, stdin, stdout, stderr, deadline,
+                        stripped,
+                        lines,
+                        line_idx,
+                        ctx,
+                        stdin,
+                        stdout,
+                        stderr,
+                        deadline,
                     )
                     last_exit = result.exit_code
                     line_idx = result._next_line_idx  # type: ignore[attr-defined]
@@ -161,7 +170,11 @@ class ScriptRunner:
                 try:
                     expanded = self._expand_vars(stripped, ctx.session.environment)
                     result = await self._execute_logical_line(
-                        expanded, ctx, stdin, stdout, stderr,
+                        expanded,
+                        ctx,
+                        stdin,
+                        stdout,
+                        stderr,
                     )
                     last_exit = result.exit_code
                 except ValueError as e:
@@ -186,8 +199,7 @@ class ScriptRunner:
 
             if len(parsed.segments) > 1:
                 pipe_segments = [
-                    (s.command, s.args, s.stdout_redirect, s.stdout_append)
-                    for s in parsed.segments
+                    (s.command, s.args, s.stdout_redirect, s.stdout_append) for s in parsed.segments
                 ]
                 try:
                     result = await self._dispatch_pipeline(pipe_segments, ctx)
@@ -214,7 +226,9 @@ class ScriptRunner:
             if command.parameters:
                 normalized = command.normalize_args(cmd_args)
                 parsed_args, errs = parse_arguments(
-                    normalized, command.parameters, cmd_name,
+                    normalized,
+                    command.parameters,
+                    cmd_name,
                 )
                 if errs:
                     for err in errs:
@@ -231,7 +245,9 @@ class ScriptRunner:
                     home_directory=ctx.session.home_directory,
                 )
                 cmd_stdout = FileStreamWriter(
-                    ctx.filesystem, resolved, append=seg.stdout_append,
+                    ctx.filesystem,
+                    resolved,
+                    append=seg.stdout_append,
                 )
 
             try:
@@ -276,30 +292,30 @@ class ScriptRunner:
 
         while True:
             if max_iter > 0 and iteration >= max_iter:
-                await stderr.write(
-                    f"script: exceeded maximum loop iterations ({max_iter})\n"
-                )
+                await stderr.write(f"script: exceeded maximum loop iterations ({max_iter})\n")
                 r = CommandResult(exit_code=ExitCode.ERROR)
                 r._next_line_idx = body_end  # type: ignore[attr-defined]
                 return r
 
-            if self.limits.script.max_execution_time_seconds > 0:
-                if time.monotonic() >= deadline:
-                    await stderr.write(
-                        "script: exceeded maximum execution time\n"
-                    )
-                    r = CommandResult(exit_code=ExitCode.ERROR)
-                    r._next_line_idx = body_end  # type: ignore[attr-defined]
-                    return r
+            if self.limits.script.max_execution_time_seconds > 0 and time.monotonic() >= deadline:
+                await stderr.write("script: exceeded maximum execution time\n")
+                r = CommandResult(exit_code=ExitCode.ERROR)
+                r._next_line_idx = body_end  # type: ignore[attr-defined]
+                return r
 
             cond_true = await self._eval_condition(condition, ctx, stdin, stdout, stderr)
             if not cond_true:
                 break
 
             last_exit = await self._execute_body(
-                body, ctx, stdin, stdout, stderr, deadline,
+                body,
+                ctx,
+                stdin,
+                stdout,
+                stderr,
+                deadline,
             )
-            iteration += 1
+            iteration += 1  # noqa: SIM113
 
         r = CommandResult(exit_code=last_exit)
         r._next_line_idx = body_end  # type: ignore[attr-defined]
@@ -328,27 +344,27 @@ class ScriptRunner:
 
         for word in word_list:
             if max_iter > 0 and iteration >= max_iter:
-                await stderr.write(
-                    f"script: exceeded maximum loop iterations ({max_iter})\n"
-                )
+                await stderr.write(f"script: exceeded maximum loop iterations ({max_iter})\n")
                 r = CommandResult(exit_code=ExitCode.ERROR)
                 r._next_line_idx = body_end  # type: ignore[attr-defined]
                 return r
 
-            if self.limits.script.max_execution_time_seconds > 0:
-                if time.monotonic() >= deadline:
-                    await stderr.write(
-                        "script: exceeded maximum execution time\n"
-                    )
-                    r = CommandResult(exit_code=ExitCode.ERROR)
-                    r._next_line_idx = body_end  # type: ignore[attr-defined]
-                    return r
+            if self.limits.script.max_execution_time_seconds > 0 and time.monotonic() >= deadline:
+                await stderr.write("script: exceeded maximum execution time\n")
+                r = CommandResult(exit_code=ExitCode.ERROR)
+                r._next_line_idx = body_end  # type: ignore[attr-defined]
+                return r
 
             ctx.session.environment[var_name] = word
             last_exit = await self._execute_body(
-                body, ctx, stdin, stdout, stderr, deadline,
+                body,
+                ctx,
+                stdin,
+                stdout,
+                stderr,
+                deadline,
             )
-            iteration += 1
+            iteration += 1  # noqa: SIM113
 
         r = CommandResult(exit_code=last_exit)
         r._next_line_idx = body_end  # type: ignore[attr-defined]
@@ -358,7 +374,7 @@ class ScriptRunner:
 
     def _extract_while_condition(self, header: str) -> str:
         """Extract the condition from ``while COND; do ...`` or ``while COND``."""
-        rest = header[len("while "):]
+        rest = header[len("while ") :]
         # Strip trailing "do" if present on same line
         if "; do" in rest:
             return rest.split("; do")[0].strip()
@@ -368,7 +384,7 @@ class ScriptRunner:
 
     def _parse_for_header(self, header: str) -> tuple[str, list[str]]:
         """Parse ``for VAR in WORD1 WORD2 ...`` and return (var_name, words)."""
-        rest = header[len("for "):]
+        rest = header[len("for ") :]
         # Strip trailing "do" if present on same line
         if "; do" in rest:
             rest = rest.split("; do")[0].strip()
@@ -385,7 +401,9 @@ class ScriptRunner:
         return var_name, word_list
 
     def _collect_do_done(
-        self, start_idx: int, lines: list[str],
+        self,
+        start_idx: int,
+        lines: list[str],
     ) -> tuple[list[str], int]:
         """Collect the body of a ``do ... done`` block.
 
@@ -413,10 +431,11 @@ class ScriptRunner:
                 continue
 
             # Count ``for/while ... do`` on one line as opening a do block
-            if (depth >= 0
-                    and (stripped.startswith("for ")
-                         or stripped.startswith("while "))
-                    and re.search(r";\s*do\s*$", stripped)):
+            if (
+                depth >= 0
+                and (stripped.startswith("for ") or stripped.startswith("while "))
+                and re.search(r";\s*do\s*$", stripped)
+            ):
                 depth += 1
                 body.append(lines[idx])
                 idx += 1
@@ -450,7 +469,9 @@ class ScriptRunner:
         return _VAR_RE.sub(_replace, text)
 
     def _expand_args(
-        self, args: list[str], environment: dict[str, str],
+        self,
+        args: list[str],
+        environment: dict[str, str],
     ) -> list[str]:
         """Expand variables in a list of command arguments."""
         return [self._expand_vars(a, environment) for a in args]
@@ -462,6 +483,7 @@ class ScriptRunner:
         Supports: integers, ``$var`` / ``var`` references, ``+``, ``-``,
         ``*``, ``/``, ``%``, ``(``)``.  Division by zero returns 0.
         """
+
         # First expand $var / ${var} references
         def _replace_var(m: re.Match) -> str:
             name = m.group(1) or m.group(2)
@@ -488,7 +510,8 @@ class ScriptRunner:
 
     @staticmethod
     def _try_assignment(
-        line: str, environment: dict[str, str],
+        line: str,
+        environment: dict[str, str],
     ) -> bool:
         """Handle ``VAR=VALUE`` assignment.  Returns True if handled."""
         m = _ASSIGN_RE.match(line)
@@ -538,7 +561,11 @@ class ScriptRunner:
         if "&&" in condition or "||" in condition:
             try:
                 result = await self._execute_logical_line(
-                    condition, ctx, stdin, stdout, stderr,
+                    condition,
+                    ctx,
+                    stdin,
+                    stdout,
+                    stderr,
                 )
                 return result.exit_code == ExitCode.SUCCESS
             except Exception:
@@ -566,7 +593,9 @@ class ScriptRunner:
             if command.parameters:
                 normalized = command.normalize_args(seg_args)
                 parsed_args, errs = parse_arguments(
-                    normalized, command.parameters, seg.command,
+                    normalized,
+                    command.parameters,
+                    seg.command,
                 )
                 if errs:
                     return False
@@ -582,8 +611,7 @@ class ScriptRunner:
 
         # Pipeline
         pipe_segments = [
-            (s.command, s.args, s.stdout_redirect, s.stdout_append)
-            for s in parsed.segments
+            (s.command, s.args, s.stdout_redirect, s.stdout_append) for s in parsed.segments
         ]
         result = await self._dispatch_pipeline(pipe_segments, ctx)
         return result.exit_code == ExitCode.SUCCESS
@@ -606,12 +634,9 @@ class ScriptRunner:
         idx = 0
 
         while idx < len(body):
-            if self.limits.script.max_execution_time_seconds > 0:
-                if time.monotonic() >= deadline:
-                    await stderr.write(
-                        "script: exceeded maximum execution time\n"
-                    )
-                    return ExitCode.ERROR
+            if self.limits.script.max_execution_time_seconds > 0 and time.monotonic() >= deadline:
+                await stderr.write("script: exceeded maximum execution time\n")
+                return ExitCode.ERROR
 
             raw_line = body[idx]
             stripped = raw_line.strip()
@@ -632,8 +657,14 @@ class ScriptRunner:
             if stripped.startswith("while "):
                 try:
                     result = await self._execute_while(
-                        stripped, body, idx,
-                        ctx, stdin, stdout, stderr, deadline,
+                        stripped,
+                        body,
+                        idx,
+                        ctx,
+                        stdin,
+                        stdout,
+                        stderr,
+                        deadline,
                     )
                     last_exit = result.exit_code
                     idx = result._next_line_idx  # type: ignore[attr-defined]
@@ -645,8 +676,14 @@ class ScriptRunner:
             if stripped.startswith("for "):
                 try:
                     result = await self._execute_for(
-                        stripped, body, idx,
-                        ctx, stdin, stdout, stderr, deadline,
+                        stripped,
+                        body,
+                        idx,
+                        ctx,
+                        stdin,
+                        stdout,
+                        stderr,
+                        deadline,
                     )
                     last_exit = result.exit_code
                     idx = result._next_line_idx  # type: ignore[attr-defined]
@@ -659,7 +696,11 @@ class ScriptRunner:
                 try:
                     expanded = self._expand_vars(stripped, env)
                     result = await self._execute_logical_line(
-                        expanded, ctx, stdin, stdout, stderr,
+                        expanded,
+                        ctx,
+                        stdin,
+                        stdout,
+                        stderr,
                     )
                     last_exit = result.exit_code
                 except ValueError as e:
@@ -685,8 +726,7 @@ class ScriptRunner:
 
             if len(parsed.segments) > 1:
                 pipe_segments = [
-                    (s.command, s.args, s.stdout_redirect, s.stdout_append)
-                    for s in parsed.segments
+                    (s.command, s.args, s.stdout_redirect, s.stdout_append) for s in parsed.segments
                 ]
                 try:
                     result = await self._dispatch_pipeline(pipe_segments, ctx)
@@ -713,7 +753,9 @@ class ScriptRunner:
             if command.parameters:
                 normalized = command.normalize_args(cmd_args)
                 parsed_args, errs = parse_arguments(
-                    normalized, command.parameters, cmd_name,
+                    normalized,
+                    command.parameters,
+                    cmd_name,
                 )
                 if errs:
                     for err in errs:
@@ -730,7 +772,9 @@ class ScriptRunner:
                     home_directory=ctx.session.home_directory,
                 )
                 cmd_stdout = FileStreamWriter(
-                    ctx.filesystem, resolved, append=seg.stdout_append,
+                    ctx.filesystem,
+                    resolved,
+                    append=seg.stdout_append,
                 )
 
             exit_code = await command.execute(ctx, stdin, cmd_stdout, stderr)
@@ -766,11 +810,13 @@ class ScriptRunner:
         last_exit = ExitCode.SUCCESS
 
         for idx, logical_seg in enumerate(logical_segments):
-            if idx > 0:
-                if logical_seg.operator.value == "and" and last_exit != ExitCode.SUCCESS:
-                    continue
-                elif logical_seg.operator.value == "or" and last_exit == ExitCode.SUCCESS:
-                    continue
+            if idx > 0 and (
+                logical_seg.operator.value == "and"
+                and last_exit != ExitCode.SUCCESS
+                or logical_seg.operator.value == "or"
+                and last_exit == ExitCode.SUCCESS
+            ):
+                continue
 
             pipeline = logical_seg.pipeline
             if len(pipeline.segments) > 1:
@@ -798,7 +844,9 @@ class ScriptRunner:
                 if command.parameters:
                     normalized = command.normalize_args(cmd_args)
                     parsed_args, errs = parse_arguments(
-                        normalized, command.parameters, cmd_name,
+                        normalized,
+                        command.parameters,
+                        cmd_name,
                     )
                     if errs:
                         for err in errs:
@@ -815,7 +863,9 @@ class ScriptRunner:
                     home_directory=ctx.session.home_directory,
                 )
                 cmd_stdout = FileStreamWriter(
-                    ctx.filesystem, resolved, append=seg.stdout_append,
+                    ctx.filesystem,
+                    resolved,
+                    append=seg.stdout_append,
                 )
 
             try:
@@ -892,7 +942,9 @@ class ScriptRunner:
             if command.parameters:
                 normalized = command.normalize_args(expanded_args)
                 parsed, errs = parse_arguments(
-                    normalized, command.parameters, cmd_name,
+                    normalized,
+                    command.parameters,
+                    cmd_name,
                 )
                 if errs:
                     for err in errs:
@@ -906,7 +958,10 @@ class ScriptRunner:
 
             try:
                 results[idx] = await command.execute(
-                    ctx, stdin_reader, out_writer, err_writer,
+                    ctx,
+                    stdin_reader,
+                    out_writer,
+                    err_writer,
                 )
             finally:
                 out_writer.close()

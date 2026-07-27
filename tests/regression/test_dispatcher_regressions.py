@@ -4,7 +4,6 @@ Validates that the dispatcher correctly errors on unregistered commands
 and succeeds after registration (foundational invariants).
 """
 
-
 import pytest
 
 from simnux.commands.dispatcher import CommandDispatcher
@@ -13,8 +12,8 @@ from simnux.commands.registry import CommandRegistry
 from simnux.commands.runtime import SNXCommand
 from simnux.commands.streams import AsyncStreamReader
 from simnux.commands.streams import AsyncStreamWriter
-from simnux.filesystem.models import SNXNode
 from simnux.filesystem.models import PermissionPresets
+from simnux.filesystem.models import SNXNode
 from simnux.filesystem.vfs import SNXFileSystem
 from simnux.runtime.models import ExitCode
 from simnux.scenarios.models import SNXScenario

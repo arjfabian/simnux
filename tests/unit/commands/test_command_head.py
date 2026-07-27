@@ -53,9 +53,7 @@ class TestHeadCommand:
     async def test_head_long_option(self, shell_with_commands):
         """``head --lines=7`` outputs the first 7 lines."""
         await self._write_multi(shell_with_commands)
-        result = await shell_with_commands.execute(
-            "head --lines=7 /home/user/multi.txt"
-        )
+        result = await shell_with_commands.execute("head --lines=7 /home/user/multi.txt")
         assert_success(result)
         assert stdout_text(result) == "\n".join(f"line {i}" for i in range(1, 8))
 
@@ -64,19 +62,17 @@ class TestHeadCommand:
     async def test_head_stdin_pipe(self, shell_with_commands):
         """``head`` with no file reads from stdin."""
         await self._write_multi(shell_with_commands)
-        result = await shell_with_commands.execute(
-            "cat /home/user/multi.txt | head"
-        )
+        result = await shell_with_commands.execute("cat /home/user/multi.txt | head")
         assert_success(result)
         assert stdout_text(result) == "\n".join(f"line {i}" for i in range(1, 11))
 
     async def test_head_stdin_with_n(self, shell_with_commands):
         """``head -n 3`` reads from stdin with custom count."""
         shell_with_commands.filesystem.touch("/home/user/data.txt")
-        shell_with_commands.filesystem.delta_layer["/home/user/data.txt"].content = "hello\nworld\nfoo\nbar\nbaz"
-        result = await shell_with_commands.execute(
-            "cat /home/user/data.txt | head -n 3"
-        )
+        shell_with_commands.filesystem.delta_layer[
+            "/home/user/data.txt"
+        ].content = "hello\nworld\nfoo\nbar\nbaz"
+        result = await shell_with_commands.execute("cat /home/user/data.txt | head -n 3")
         assert_success(result)
         assert stdout_text(result) == "hello\nworld\nfoo"
 
@@ -85,10 +81,10 @@ class TestHeadCommand:
     async def test_head_file_shorter_than_n(self, shell_with_commands):
         """File with fewer lines than N outputs all lines."""
         shell_with_commands.filesystem.touch("/home/user/short.txt")
-        shell_with_commands.filesystem.delta_layer["/home/user/short.txt"].content = "only\nthree\nlines"
-        result = await shell_with_commands.execute(
-            "head -n 50 /home/user/short.txt"
-        )
+        shell_with_commands.filesystem.delta_layer[
+            "/home/user/short.txt"
+        ].content = "only\nthree\nlines"
+        result = await shell_with_commands.execute("head -n 50 /home/user/short.txt")
         assert_success(result)
         assert stdout_text(result) == "only\nthree\nlines"
 
@@ -126,9 +122,7 @@ class TestHeadCommand:
         """``head`` with two files outputs ``==> name <==`` banners."""
         await self._write_multi(shell_with_commands, "/home/user/a.txt")
         await self._write_multi(shell_with_commands, "/home/user/b.txt")
-        result = await shell_with_commands.execute(
-            "head /home/user/a.txt /home/user/b.txt"
-        )
+        result = await shell_with_commands.execute("head /home/user/a.txt /home/user/b.txt")
         assert_success(result)
         stdout = stdout_text(result)
         assert "==> /home/user/a.txt <==" in stdout
@@ -139,9 +133,7 @@ class TestHeadCommand:
         """A blank line separates the second banner from the first file's content."""
         await self._write(shell_with_commands, "/home/user/a.txt", "first\n")
         await self._write(shell_with_commands, "/home/user/b.txt", "second\n")
-        result = await shell_with_commands.execute(
-            "head /home/user/a.txt /home/user/b.txt"
-        )
+        result = await shell_with_commands.execute("head /home/user/a.txt /home/user/b.txt")
         assert_success(result)
         stdout = stdout_text(result)
         assert "\n\n==> /home/user/b.txt <==" in stdout
@@ -164,9 +156,7 @@ class TestHeadCommand:
     async def test_head_stdin_dash_with_n(self, shell_with_commands):
         """``head -n 1 -`` reads one line from stdin."""
         await self._write(shell_with_commands, "/tmp/data.txt", "a\nb\nc\n")
-        result = await shell_with_commands.execute(
-            "cat /tmp/data.txt | head -n 1 -"
-        )
+        result = await shell_with_commands.execute("cat /tmp/data.txt | head -n 1 -")
         assert_success(result)
         assert stdout_text(result) == "a"
 

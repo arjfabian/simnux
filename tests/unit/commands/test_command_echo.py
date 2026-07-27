@@ -302,7 +302,7 @@ class TestEchoFlags:
         items = drain_queue(stdout_queue)
         assert items == ["A"]
 
-    async def test_E_disables_escapes(self, echo_command, ctx):
+    async def test_uppercase_e_disables_escapes(self, echo_command, ctx):
         """``-E`` disables escape interpretation (default)."""
         echo_command.args = ["-E", "line1\\nline2"]
         stdout_queue: asyncio.Queue = asyncio.Queue()
@@ -447,13 +447,11 @@ class TestEchoCommand:
 
     async def test_echo_e_header(self, shell_with_commands):
         """``-e`` expands ``\\n`` at the start of a string."""
-        result = await shell_with_commands.execute(
-            'echo -e "\\n=== Header ==="'
-        )
+        result = await shell_with_commands.execute('echo -e "\\n=== Header ==="')
         assert_success(result)
         assert "=== Header ===" in stdout_text(result)
 
-    async def test_echo_E_literal(self, shell_with_commands):
+    async def test_echo_uppercase_e_literal(self, shell_with_commands):
         """``-E`` keeps escape sequences literal."""
         result = await shell_with_commands.execute('echo -E "hello\\nworld"')
         assert_success(result)

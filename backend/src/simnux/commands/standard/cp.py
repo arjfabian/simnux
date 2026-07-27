@@ -29,7 +29,6 @@ class Command(SNXCommand):
         stdout: AsyncStreamWriter,
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
-
         args = self.args or []
 
         if len(args) < 2:
@@ -72,7 +71,8 @@ class Command(SNXCommand):
             return touch_result.exit_code
 
         write_result = ctx.filesystem.write(
-            target_path, source_node.content or "",
+            target_path,
+            source_node.content or "",
         )
         if write_result.exit_code != ExitCode.SUCCESS:
             await stderr.write(f"cp: {target_display}: {write_result.message}")

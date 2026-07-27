@@ -26,6 +26,7 @@ def pytest_configure(config):
         "ignore::pytest.PytestCollectionWarning",
     )
 
+
 from simnux.commands.dispatcher import CommandDispatcher
 from simnux.commands.loader import CommandLoader
 from simnux.commands.models import CommandContext
@@ -280,7 +281,10 @@ def base_layer():
     """
     return {
         "/": SNXNode(
-            path="/", content="", is_directory=True, permissions=PermissionPresets.DIRECTORY_DEFAULT
+            path="/",
+            content="",
+            is_directory=True,
+            permissions=PermissionPresets.DIRECTORY_DEFAULT,
         ),
         "/home": SNXNode(
             path="/home",

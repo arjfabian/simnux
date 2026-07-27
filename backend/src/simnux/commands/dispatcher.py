@@ -57,7 +57,12 @@ class CommandDispatcher:
     ) -> CommandResult:
         """Delegate to ScriptRunner for line-by-line script execution."""
         return await self._script_runner.execute(
-            content, ctx, stdin, stdout, stderr, script_args,
+            content,
+            ctx,
+            stdin,
+            stdout,
+            stderr,
+            script_args,
         )
 
     async def dispatch(
@@ -71,7 +76,6 @@ class CommandDispatcher:
         stdout_redirect: str | None = None,
         stdout_append: bool = False,
     ) -> CommandResult:
-
         command = self.registry.get(cmd_name)
 
         if stdin is not None:
@@ -104,7 +108,12 @@ class CommandDispatcher:
                 return CommandResult(stderr=[err], exit_code=ExitCode.ERROR)
 
             script_result = await self.execute_script(
-                content, ctx, stdin_reader, out_writer, err_writer, args,
+                content,
+                ctx,
+                stdin_reader,
+                out_writer,
+                err_writer,
+                args,
             )
             out_writer.close()
             err_writer.close()
@@ -139,10 +148,7 @@ class CommandDispatcher:
         stdout_lines = _drain_queue(out_queue) if out_queue is not None else []
         stderr_lines = _drain_queue(err_queue)
 
-        action_type = (
-            command.action_type if exit_code == ExitCode.SUCCESS
-            else TerminalAction.NONE
-        )
+        action_type = command.action_type if exit_code == ExitCode.SUCCESS else TerminalAction.NONE
         return CommandResult(
             stdout=stdout_lines,
             stderr=stderr_lines,
@@ -155,7 +161,6 @@ class CommandDispatcher:
         segments: list[tuple[str, list[str], str | None, bool]],
         ctx: CommandContext,
     ) -> CommandResult:
-
         n = len(segments)
         pipe_queues: list[asyncio.Queue] = [asyncio.Queue() for _ in range(n - 1)]
         merged_stderr: list[str] = []
@@ -200,7 +205,12 @@ class CommandDispatcher:
                     return
 
                 script_result = await self.execute_script(
-                    content, ctx, stdin_reader, out_writer, err_writer, args,
+                    content,
+                    ctx,
+                    stdin_reader,
+                    out_writer,
+                    err_writer,
+                    args,
                 )
                 out_writer.close()
                 err_writer.close()
@@ -226,13 +236,15 @@ class CommandDispatcher:
                 command.parsed_args = parsed
 
             segment_action_types.append(
-                command.action_type if results[idx] == ExitCode.SUCCESS
-                else TerminalAction.NONE
+                command.action_type if results[idx] == ExitCode.SUCCESS else TerminalAction.NONE
             )
 
             try:
                 results[idx] = await command.execute(
-                    ctx, stdin_reader, out_writer, err_writer,
+                    ctx,
+                    stdin_reader,
+                    out_writer,
+                    err_writer,
                 )
             finally:
                 out_writer.close()
@@ -255,8 +267,8 @@ class CommandDispatcher:
         last_exit = results[-1] if results[-1] is not None else ExitCode.ERROR
 
         action_type = (
-            segment_action_types[-1] if segment_action_types
-            and last_exit == ExitCode.SUCCESS
+            segment_action_types[-1]
+            if segment_action_types and last_exit == ExitCode.SUCCESS
             else TerminalAction.NONE
         )
 

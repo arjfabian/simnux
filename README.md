@@ -80,6 +80,20 @@ via the `ScriptRunner`, supporting logical operators (`&&`, `||`),
 pipelines, redirections, and loop constructs (`while ... done`,
 `for ... done`) within scripts.
 
+### History Expansion
+
+Interactive commands support POSIX history expansion tokens before
+tokenization:
+- `!!` — repeat the most recent command
+- `!n` — 1-indexed history number
+- `!-n` — relative past command (n lines back)
+- `!string` — most recent command starting with `string`
+
+Multiple tokens per line are supported. Expanded commands are echoed to
+stdout before execution, matching standard shell behavior. Invalid
+expansion references (e.g. `!!` with empty history) return a clean error
+via stderr.
+
 ### Resource Limits
 
 VFS byte caps and script execution bounds are configurable via
@@ -183,13 +197,17 @@ compatibility.
 - **pytest + pytest-asyncio + httpx** — unit, integration, regression, and
   e2e test suite with 85% coverage threshold; includes resource-limit stress
   tests (infinite-loop halting, script line cap, VFS quota breach via `>>`)
+  and POSIX history expansion tests
 - **Ruff** — linting and formatting
 - **mypy** — static type checking
 
 ### Frontend
 
-- **Vanilla JavaScript** — ~200 LOC, no framework, no build step
+- **Vanilla JavaScript** — ~350 LOC, no framework, no build step
 - **HTML/CSS** — single-page terminal UI with ANSI color rendering
+- **Contenteditable input** — active prompt uses `<span contenteditable>` for native inline text flow and line wrapping
+- **Arrow-key history** — client-side command history with `ArrowUp`/`ArrowDown` navigation
+- **Click-to-focus** — clicking anywhere in the terminal focuses the active input
 
 ### CI/CD
 
@@ -213,8 +231,6 @@ Environment variable `SIMNUX_RELOAD=true` enables uvicorn hot-reload.
 ### Running Tests
 
 ```bash
-cd backend
-. .venv/bin/activate
 pytest                           # all tests
 pytest tests/unit                # unit tests only
 pytest tests/e2e                 # end-to-end shell flows

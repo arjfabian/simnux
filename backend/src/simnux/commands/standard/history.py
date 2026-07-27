@@ -17,7 +17,6 @@ class Command(SNXCommand):
         stdout: AsyncStreamWriter,
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
-
         args = self.args or []
 
         if args:
@@ -46,7 +45,7 @@ class Command(SNXCommand):
             total = len(ctx.session.history)
             n = min(n, total)
             start = total - n + 1
-            entries = ctx.session.history[start - 1:]
+            entries = ctx.session.history[start - 1 :]
         else:
             start = 1
             entries = ctx.session.history

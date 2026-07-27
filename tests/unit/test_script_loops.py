@@ -142,17 +142,9 @@ class TestWhileLoopVariableExpansion:
 
     async def test_while_with_counter(self):
         """while loop with i=1, i=$((i+1)), $i — runs to completion."""
-        runner, ctx = _make_runner(
-            LimitsConfig(script=ScriptLimits(max_loop_iterations=100))
-        )
+        runner, ctx = _make_runner(LimitsConfig(script=ScriptLimits(max_loop_iterations=100)))
         # This script should run 3 iterations and exit cleanly
-        script = (
-            "i=1\n"
-            "while [ $i -le 3 ]\n"
-            "  echo $i\n"
-            "  i=$((i+1))\n"
-            "done"
-        )
+        script = "i=1\nwhile [ $i -le 3 ]\n  echo $i\n  i=$((i+1))\ndone"
         exit_code, stdout, stderr = await _run_script(runner, ctx, script)
 
         assert exit_code == ExitCode.SUCCESS, f"stderr: {stderr}"
@@ -160,15 +152,8 @@ class TestWhileLoopVariableExpansion:
 
     async def test_while_assignment_only_no_crash(self):
         """while loop with only assignments — no crash, no internal error."""
-        runner, ctx = _make_runner(
-            LimitsConfig(script=ScriptLimits(max_loop_iterations=10))
-        )
-        script = (
-            "x=hello\n"
-            "while [ $x = hello ]\n"
-            "  x=goodbye\n"
-            "done"
-        )
+        runner, ctx = _make_runner(LimitsConfig(script=ScriptLimits(max_loop_iterations=10)))
+        script = "x=hello\nwhile [ $x = hello ]\n  x=goodbye\ndone"
         exit_code, _, stderr = await _run_script(runner, ctx, script)
 
         assert exit_code == ExitCode.SUCCESS, f"stderr: {stderr}"
@@ -177,16 +162,8 @@ class TestWhileLoopVariableExpansion:
 
     async def test_while_increment_reaches_zero(self):
         """while loop counting down: i=3; while [ $i -gt 0 ]; i=$((i-1))."""
-        runner, ctx = _make_runner(
-            LimitsConfig(script=ScriptLimits(max_loop_iterations=100))
-        )
-        script = (
-            "i=3\n"
-            "while [ $i -gt 0 ]\n"
-            "  echo $i\n"
-            "  i=$((i-1))\n"
-            "done"
-        )
+        runner, ctx = _make_runner(LimitsConfig(script=ScriptLimits(max_loop_iterations=100)))
+        script = "i=3\nwhile [ $i -gt 0 ]\n  echo $i\n  i=$((i-1))\ndone"
         exit_code, stdout, stderr = await _run_script(runner, ctx, script)
 
         assert exit_code == ExitCode.SUCCESS, f"stderr: {stderr}"
@@ -194,17 +171,9 @@ class TestWhileLoopVariableExpansion:
 
     async def test_while_arithmetic_no_crash(self):
         """Arithmetic in condition doesn't produce internal error."""
-        runner, ctx = _make_runner(
-            LimitsConfig(script=ScriptLimits(max_loop_iterations=100))
-        )
+        runner, ctx = _make_runner(LimitsConfig(script=ScriptLimits(max_loop_iterations=100)))
         # Condition uses arithmetic directly
-        script = (
-            "n=1\n"
-            "while [ $((n)) -le 3 ]\n"
-            "  echo tick\n"
-            "  n=$((n+1))\n"
-            "done"
-        )
+        script = "n=1\nwhile [ $((n)) -le 3 ]\n  echo tick\n  n=$((n+1))\ndone"
         exit_code, stdout, stderr = await _run_script(runner, ctx, script)
 
         assert exit_code == ExitCode.SUCCESS, f"stderr: {stderr}"
@@ -310,22 +279,27 @@ class TestEvalArithmetic:
 
     def test_addition(self):
         from simnux.scripting.runner import ScriptRunner
+
         assert ScriptRunner._eval_arithmetic("2+3", {}) == 5
 
     def test_subtraction(self):
         from simnux.scripting.runner import ScriptRunner
+
         assert ScriptRunner._eval_arithmetic("10-7", {}) == 3
 
     def test_with_var(self):
         from simnux.scripting.runner import ScriptRunner
+
         assert ScriptRunner._eval_arithmetic("x+1", {"x": "4"}) == 5
 
     def test_division_by_zero(self):
         from simnux.scripting.runner import ScriptRunner
+
         assert ScriptRunner._eval_arithmetic("1/0", {}) == 0
 
     def test_invalid_expr_returns_zero(self):
         from simnux.scripting.runner import ScriptRunner
+
         assert ScriptRunner._eval_arithmetic("abc", {}) == 0
 
 
@@ -342,13 +316,7 @@ class TestNestedForLoop:
         runner, ctx = _make_runner()
         # Nested: outer iterates a b, inner iterates x y
         # Total echo calls: 2 outer × 2 inner = 4
-        script = (
-            "for i in a b; do\n"
-            "  for j in x y; do\n"
-            "    echo $i$j\n"
-            "  done\n"
-            "done\n"
-        )
+        script = "for i in a b; do\n  for j in x y; do\n    echo $i$j\n  done\ndone\n"
         exit_code, stdout, _ = await _run_script(runner, ctx, script)
         assert exit_code == ExitCode.SUCCESS
         assert stdout == ["ax", "ay", "bx", "by"]
@@ -356,13 +324,7 @@ class TestNestedForLoop:
     async def test_nested_for_no_done_leak(self):
         """No 'done: command not found' error at the end of a nested for."""
         runner, ctx = _make_runner()
-        script = (
-            "for i in a b; do\n"
-            "  for j in x y; do\n"
-            "    echo $j\n"
-            "  done\n"
-            "done\n"
-        )
+        script = "for i in a b; do\n  for j in x y; do\n    echo $j\n  done\ndone\n"
         exit_code, stdout, stderr = await _run_script(runner, ctx, script)
         assert exit_code == ExitCode.SUCCESS
         assert not any("command not found" in e for e in stderr)
@@ -370,12 +332,7 @@ class TestNestedForLoop:
     async def test_nested_for_with_empty_body(self):
         """Nested for with no commands in inner body."""
         runner, ctx = _make_runner()
-        script = (
-            "for i in a b; do\n"
-            "  for j in x y; do\n"
-            "  done\n"
-            "done\n"
-        )
+        script = "for i in a b; do\n  for j in x y; do\n  done\ndone\n"
         exit_code, _, stderr = await _run_script(runner, ctx, script)
         assert exit_code == ExitCode.SUCCESS
         assert not any("command not found" in e for e in stderr)

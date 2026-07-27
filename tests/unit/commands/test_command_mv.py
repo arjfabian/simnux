@@ -34,9 +34,7 @@ class TestMvCommand:
 
     async def test_mv_file_to_new_file(self, shell_with_commands):
         """Mv moves a file to a new path — target has content, source is gone."""
-        result = await shell_with_commands.execute(
-            "mv /etc/hostname /home/user/moved_hostname"
-        )
+        result = await shell_with_commands.execute("mv /etc/hostname /home/user/moved_hostname")
         assert_success(result)
 
         result = await shell_with_commands.execute("cat /home/user/moved_hostname")
@@ -49,9 +47,7 @@ class TestMvCommand:
 
     async def test_mv_overwrite_existing(self, shell_with_commands):
         """Mv overwrites the target file then deletes the source."""
-        result = await shell_with_commands.execute(
-            "mv /etc/hostname /home/user/notes.txt"
-        )
+        result = await shell_with_commands.execute("mv /etc/hostname /home/user/notes.txt")
         assert_success(result)
 
         result = await shell_with_commands.execute("cat /home/user/notes.txt")
@@ -62,25 +58,19 @@ class TestMvCommand:
 
     async def test_mv_nonexistent_source(self, shell_with_commands):
         """Mv on a nonexistent source returns ERROR with NOT_FOUND."""
-        result = await shell_with_commands.execute(
-            "mv /missing/file /home/user/target"
-        )
+        result = await shell_with_commands.execute("mv /missing/file /home/user/target")
         assert_error(result)
         assert CommandError.NOT_FOUND in stderr_text(result)
 
     async def test_mv_source_is_directory(self, shell_with_commands):
         """Mv with a directory source returns ERROR with IS_A_DIRECTORY."""
-        result = await shell_with_commands.execute(
-            "mv /home /home/user/target"
-        )
+        result = await shell_with_commands.execute("mv /home /home/user/target")
         assert_error(result)
         assert CommandError.IS_A_DIRECTORY in stderr_text(result)
 
     async def test_mv_to_directory_appends_basename(self, shell_with_commands):
         """Mv to a directory implicitly appends the source basename."""
-        result = await shell_with_commands.execute(
-            "mv /etc/hostname /home/user"
-        )
+        result = await shell_with_commands.execute("mv /etc/hostname /home/user")
         assert_success(result)
 
         result = await shell_with_commands.execute("cat /home/user/hostname")
@@ -92,9 +82,7 @@ class TestMvCommand:
 
     async def test_mv_to_directory_with_trailing_slash(self, shell_with_commands):
         """Mv to a directory with trailing slash appends basename."""
-        result = await shell_with_commands.execute(
-            "mv /etc/hostname /home/user/"
-        )
+        result = await shell_with_commands.execute("mv /etc/hostname /home/user/")
         assert_success(result)
 
         result = await shell_with_commands.execute("cat /home/user/hostname")
@@ -108,9 +96,7 @@ class TestMvCommand:
         """Mv to a directory overwrites an existing file at the implied path."""
         await shell_with_commands.execute("touch /home/user/hostname")
 
-        result = await shell_with_commands.execute(
-            "mv /etc/hostname /home/user"
-        )
+        result = await shell_with_commands.execute("mv /etc/hostname /home/user")
         assert_success(result)
 
         result = await shell_with_commands.execute("cat /home/user/hostname")
@@ -123,17 +109,13 @@ class TestMvCommand:
         """Mv to directory errors when the implied path is itself a directory."""
         await shell_with_commands.execute("mkdir /home/user/hostname")
 
-        result = await shell_with_commands.execute(
-            "mv /etc/hostname /home/user"
-        )
+        result = await shell_with_commands.execute("mv /etc/hostname /home/user")
         assert_error(result)
         assert CommandError.IS_A_DIRECTORY in stderr_text(result)
 
     async def test_mv_same_file(self, shell_with_commands):
         """Mv with source == target is a no-op and returns SUCCESS."""
-        result = await shell_with_commands.execute(
-            "mv /etc/hostname /etc/hostname"
-        )
+        result = await shell_with_commands.execute("mv /etc/hostname /etc/hostname")
         assert_success(result)
 
         result = await shell_with_commands.execute("cat /etc/hostname")
@@ -141,9 +123,7 @@ class TestMvCommand:
 
     async def test_mv_same_file_via_directory_appending(self, shell_with_commands):
         """Mv with source basename resolving to itself via dir appending is a no-op."""
-        result = await shell_with_commands.execute(
-            "mv /etc/hostname /etc"
-        )
+        result = await shell_with_commands.execute("mv /etc/hostname /etc")
         assert_success(result)
 
         result = await shell_with_commands.execute("cat /etc/hostname")
@@ -266,7 +246,8 @@ class TestMvAtomicCleanup:
         fs.touch.return_value = MagicMock(exit_code=ExitCode.SUCCESS)
         fs.write.return_value = MagicMock(exit_code=ExitCode.SUCCESS)
         fs.delete_file.return_value = MagicMock(
-            exit_code=ExitCode.ERROR, message="permission denied",
+            exit_code=ExitCode.ERROR,
+            message="permission denied",
         )
 
         mock_ctx = MagicMock(spec=CommandContext)

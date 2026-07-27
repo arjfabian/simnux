@@ -168,7 +168,7 @@ def _parse_short_chain(
             continue
 
         # Value-taking parameter
-        remaining = chars[idx + 1:]
+        remaining = chars[idx + 1 :]
         if remaining:
             result.flags[key] = remaining
             break
@@ -176,7 +176,5 @@ def _parse_short_chain(
         try:
             result.flags[key] = next(args_iter)
         except StopIteration:
-            errors.append(
-                f"{command_name}: option requires an argument -- '{char}'"
-            )
+            errors.append(f"{command_name}: option requires an argument -- '{char}'")
         break

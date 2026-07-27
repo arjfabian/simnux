@@ -55,15 +55,9 @@ class Command(SNXCommand):
             if op in ("-f", "-d", "-e"):
                 path = self.resolve_path(val, ctx)
                 if op == "-f":
-                    return (
-                        ctx.filesystem.exists(path)
-                        and not ctx.filesystem.is_directory(path)
-                    )
+                    return ctx.filesystem.exists(path) and not ctx.filesystem.is_directory(path)
                 if op == "-d":
-                    return (
-                        ctx.filesystem.exists(path)
-                        and ctx.filesystem.is_directory(path)
-                    )
+                    return ctx.filesystem.exists(path) and ctx.filesystem.is_directory(path)
                 return ctx.filesystem.exists(path)
 
             if op == "-z":

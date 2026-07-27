@@ -10,7 +10,6 @@ import asyncio
 
 from simnux.commands.dispatcher import CommandDispatcher
 from simnux.commands.models import CommandContext
-from simnux.commands.streams import QueueStreamReader
 from simnux.commands.streams import QueueStreamWriter
 from simnux.filesystem.vfs import SNXFileSystem
 from simnux.runtime.models import TerminalAction
@@ -53,7 +52,10 @@ async def evaluate(
 
     for trigger in triggers:
         passed = await _evaluate_condition(
-            trigger["condition"], session, filesystem, dispatcher,
+            trigger["condition"],
+            session,
+            filesystem,
+            dispatcher,
             executed_command=executed_command,
         )
         if passed:
@@ -119,8 +121,8 @@ def _legacy_objective_to_trigger(obj: dict) -> dict:
     if obj.get("fail_trigger"):
         return {
             "condition": condition,
-            "action": "win_scenario",
-            "message": win_msg,
+            "action": "fail_scenario",
+            "message": fail_msg,
         }
 
     return {
@@ -147,7 +149,9 @@ async def _evaluate_condition(
     if ctype == "file_state":
         return _check_file_state(condition, filesystem)
     elif ctype == "command_output":
-        return await _check_command_output(condition, session, filesystem, dispatcher, executed_command=executed_command)
+        return await _check_command_output(
+            condition, session, filesystem, dispatcher, executed_command=executed_command
+        )
     elif ctype == "flag_input":
         return _check_flag_input(condition, session)
 
@@ -188,10 +192,7 @@ def _check_file_state(
     content = result.node.content or ""
     if exact and content != exact:
         return False
-    if contains and contains not in content:
-        return False
-
-    return True
+    return not (contains and contains not in content)
 
 
 async def _check_command_output(
@@ -214,7 +215,9 @@ async def _check_command_output(
     target_normalized = target.strip()
     if executed_command is not None:
         cmd_stripped = executed_command.strip()
-        if cmd_stripped != target_normalized and not cmd_stripped.startswith(target_normalized + " "):
+        if cmd_stripped != target_normalized and not cmd_stripped.startswith(
+            target_normalized + " "
+        ):
             return False
 
     expected_exit = condition.get("expected_exit_code", 0)
@@ -231,7 +234,6 @@ async def _check_command_output(
 
     stdout_writer = QueueStreamWriter(stdout_queue)
     stderr_writer = QueueStreamWriter(stderr_queue)
-    stdin_reader = QueueStreamReader(asyncio.Queue())
 
     parts = target.split()
     cmd_name = parts[0]

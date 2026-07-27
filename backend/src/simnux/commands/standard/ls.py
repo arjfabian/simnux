@@ -31,7 +31,6 @@ class Command(SNXCommand):
         stdout: AsyncStreamWriter,
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
-
         pos_args = self.parsed_args.positional if self.parsed_args else (self.args or [])
         if pos_args:
             raw_target = pos_args[0]
@@ -47,19 +46,11 @@ class Command(SNXCommand):
             return ExitCode.ERROR
 
         if not ctx.filesystem.is_directory(target):
-            await stderr.write(
-                f"ls: cannot access '{raw_target}': {CommandError.NOT_A_DIRECTORY}"
-            )
+            await stderr.write(f"ls: cannot access '{raw_target}': {CommandError.NOT_A_DIRECTORY}")
             return ExitCode.ERROR
 
-        show_all = (
-            self.parsed_args
-            and self.parsed_args.flags.get("all", False)
-        )
-        show_almost_all = (
-            self.parsed_args
-            and self.parsed_args.flags.get("almost_all", False)
-        )
+        show_all = self.parsed_args and self.parsed_args.flags.get("all", False)
+        show_almost_all = self.parsed_args and self.parsed_args.flags.get("almost_all", False)
 
         nodes = ctx.filesystem.list_directory(target)
 

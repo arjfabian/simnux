@@ -24,7 +24,6 @@ class Command(SNXCommand):
         stdout: AsyncStreamWriter,
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
-
         args = self.args or []
 
         if len(args) < 2:
@@ -67,15 +66,17 @@ class Command(SNXCommand):
             await stderr.write(err2)
             return ExitCode.ERROR
 
-        diff_lines = list(difflib.unified_diff(
-            content1,
-            content2,
-            fromfile=file1,
-            tofile=file2,
-            fromfiledate="",
-            tofiledate="",
-            lineterm="",
-        ))
+        diff_lines = list(
+            difflib.unified_diff(
+                content1,
+                content2,
+                fromfile=file1,
+                tofile=file2,
+                fromfiledate="",
+                tofiledate="",
+                lineterm="",
+            )
+        )
 
         if not diff_lines:
             return ExitCode.SUCCESS

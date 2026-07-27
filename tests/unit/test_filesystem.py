@@ -628,7 +628,6 @@ class TestRegressionWriteEmptyContent:
 
 class TestCreateDirectory:
     def test_create_directory(self, filesystem):
-
         result = filesystem.create_directory("/home/user/testdir")
 
         assert_success(result)
@@ -639,21 +638,18 @@ class TestCreateDirectory:
         assert node.is_directory is True
 
     def test_create_directory_existing_file_fails(self, filesystem):
-
         result = filesystem.create_directory("/home/user/notes.txt")
 
         assert_not_success(result)
         assert CommandError.FILE_EXISTS in result.message
 
     def test_create_directory_missing_parent_fails(self, filesystem):
-
         result = filesystem.create_directory("/missing/test")
 
         assert_not_success(result)
         assert CommandError.NOT_FOUND in result.message
 
     def test_create_directory_existing_directory_fails(self, filesystem):
-
         result = filesystem.create_directory("/home")
 
         assert_not_success(result)
@@ -662,7 +658,6 @@ class TestCreateDirectory:
 
 class TestCreateFile:
     def test_create_file(self, filesystem):
-
         result = filesystem.create_file("/home/user/test.txt")
 
         assert_success(result)
@@ -674,14 +669,12 @@ class TestCreateFile:
         assert node.content == ""
 
     def test_create_file_existing_directory_fails(self, filesystem):
-
         result = filesystem.create_file("/home")
 
         assert_not_success(result)
         assert CommandError.IS_A_DIRECTORY in result.message
 
     def test_create_file_missing_parent_fails(self, filesystem):
-
         result = filesystem.create_file("/missing/file.txt")
 
         assert_not_success(result)

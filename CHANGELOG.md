@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.4.1] - Unreleased
+
+### Added
+
+* **POSIX History Expansion Engine:** Introduced `CommandHistory` class in `simnux/scripting/history.py` supporting bash-style history tokens: `!!` (repeat last command), `!n` (1-indexed history number), `!-n` (relative past command), and `!string` (most recent command starting with prefix). Expansions are performed before command tokenization. Expands multiple tokens per line and writes the expanded command to stdout before execution (POSIX behavior).
+* **Frontend Arrow-Key History Navigation:** Client-side command history with `ArrowUp`/`ArrowDown` key support. Non-empty commands are recorded on submission; navigating past the end clears the input. History is session-scoped and resets on page reload.
+* **Frontend Global Terminal Focus Capture:** Clicking anywhere inside the `.terminal-container` focuses the active prompt input, unless text is actively selected.
+* **Frontend Word Wrapping:** Terminal output lines now use `white-space: pre-wrap; word-break: break-all;` to wrap long lines cleanly without clipping.
+* **Frontend Contenteditable Input:** Active prompt input is now a `<span contenteditable="true">` instead of `<textarea>`. Typed and pasted text flows inline after the prompt and wraps natively to column 0 on line 2, matching submitted command appearance identically. Includes `moveCaretToEnd()` helper for history navigation.
+
+### Changed
+
+* **`SNXShell` History Expansion Integration:** `SNXShell._execute_impl()` now runs POSIX history expansion before parsing. Expanded commands are echoed to stdout before dispatch. Invalid expansion tokens (e.g. `!!` with empty history) return a clean `ValueError` error message via stderr.
+* **`CommandHistory` Constructor:** Accepts a reference to the session's `history` list directly, avoiding duplication. The class is stateless beyond the shared list reference.
+* **Terminal Prompt Line Layout:** Prompt, active input, and submitted command all share the same block layout (`display: block; white-space: pre-wrap; word-break: break-all`). The prompt, active contenteditable input, and submitted command text are all inline elements. This ensures wrapped lines always return to column 0, whether the user is typing or viewing a submitted command. Active input uses `caret-color: #d1d1d1` for visible cursor.
+* **Ruff Lint Compliance:** Addressed remaining Ruff rules across backend and tests — `B007` (unused loop variable in `vfs.py`), `SIM103` (boolean simplification in `evaluator.py`), `SIM108` (ternary assignments in `history.py`), `SIM102` (compound guard statements in `runner.py`), `F841` (dead variable removal in `evaluator.py` and `parser.py`), `B904` (explicit exception chaining in `parser.py`). Suppressed `SIM113` in `_execute_while` manual iteration counter.
+* **Formatting Pass:** Ran `ruff format` across all backend and test files. Adjusted `pyproject.toml` per-file ignores for `E402` module-level imports in test fixtures.
+
+### Fixed
+
+* **Legacy Objective Fail Trigger:** Fixed `_legacy_objective_to_trigger` in `evaluator.py` where `fail_trigger` was incorrectly returning `action: "win_scenario"` and ignoring `fail_msg`. Now correctly returns `action: "fail_scenario"` with the failure message.
+
+### Tests
+
+* **History Expansion Tests:** Added 25 tests in `tests/unit/test_history.py` across 7 classes:
+  * `TestHistoryBangBang` — `!!` repeats the most recent command; empty history raises.
+  * `TestHistoryBangN` — `!n` index lookup with 1-based numbering; out-of-range raises.
+  * `TestHistoryBangMinusN` — `!-n` relative indexing from end of history.
+  * `TestHistoryBangString` — `!prefix` finds most recent matching command.
+  * `TestHistoryNoExpansion` — commands without `!` pass through unchanged.
+  * `TestHistoryMultiExpansion` — multiple tokens in a single line expand correctly.
+  * `TestHistoryEdgeCases` — suffix expansion, bare `!`, read-only `entries` view.
+
+---
+
 ## [0.4.0] - 2026-07-24
 
 ### Added
@@ -100,6 +135,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   * `TestExpandVars` / `TestEvalArithmetic` — unit tests for `_expand_vars` and `_eval_arithmetic` helpers.
   * `TestNestedForLoop` — nested `for` loops execute inner and outer bodies correctly; unclosed inner loops don't leak into outer scope.
   * `TestKeywordsSkip` — stray shell keywords (`done`, `fi`, `then`, `do`, `in`) at top level are silently skipped.
+
+---
 
 ## [0.3.1] - 2026-07-20
 

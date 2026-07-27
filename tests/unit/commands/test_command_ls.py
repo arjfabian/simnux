@@ -6,12 +6,12 @@ sorting.
 """
 
 import pytest
+
+from simnux.commands.errors import CommandError
 from tests.helpers import assert_error
 from tests.helpers import assert_success
 from tests.helpers import stderr_text
 from tests.helpers import stdout_text
-
-from simnux.commands.errors import CommandError
 
 
 pytestmark = pytest.mark.asyncio

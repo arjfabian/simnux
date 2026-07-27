@@ -72,10 +72,18 @@ class TestVfsTotalByteLimit:
     def test_total_limit_enforced(self):
         """Write exceeding max_total_bytes returns DISK_QUOTA_EXCEEDED."""
         base = {
-            "/": SNXNode(path="/", content="", is_directory=True,
-                         permissions=PermissionPresets.DIRECTORY_DEFAULT),
-            "/a": SNXNode(path="/a", content="aaa", is_directory=False,
-                          permissions=PermissionPresets.FILE_DEFAULT),
+            "/": SNXNode(
+                path="/",
+                content="",
+                is_directory=True,
+                permissions=PermissionPresets.DIRECTORY_DEFAULT,
+            ),
+            "/a": SNXNode(
+                path="/a",
+                content="aaa",
+                is_directory=False,
+                permissions=PermissionPresets.FILE_DEFAULT,
+            ),
         }
         fs = SNXFileSystem(
             base_layer=base,
@@ -91,15 +99,27 @@ class TestVfsTotalByteLimit:
         assert result.exit_code == ExitCode.ERROR
         assert result.message == CommandError.DISK_QUOTA_EXCEEDED
 
-    def test_total_limitTracksAccumulation(self):
+    def test_total_limit_tracks_accumulation(self):
         """Multiple writes accumulate total bytes correctly."""
         base = {
-            "/": SNXNode(path="/", content="", is_directory=True,
-                         permissions=PermissionPresets.DIRECTORY_DEFAULT),
-            "/a": SNXNode(path="/a", content="", is_directory=False,
-                          permissions=PermissionPresets.FILE_DEFAULT),
-            "/b": SNXNode(path="/b", content="", is_directory=False,
-                          permissions=PermissionPresets.FILE_DEFAULT),
+            "/": SNXNode(
+                path="/",
+                content="",
+                is_directory=True,
+                permissions=PermissionPresets.DIRECTORY_DEFAULT,
+            ),
+            "/a": SNXNode(
+                path="/a",
+                content="",
+                is_directory=False,
+                permissions=PermissionPresets.FILE_DEFAULT,
+            ),
+            "/b": SNXNode(
+                path="/b",
+                content="",
+                is_directory=False,
+                permissions=PermissionPresets.FILE_DEFAULT,
+            ),
         }
         fs = SNXFileSystem(
             base_layer=base,
@@ -117,10 +137,18 @@ class TestVfsTotalByteLimit:
     def test_total_limit_zero_disables(self):
         """max_total_bytes=0 disables the total check."""
         base = {
-            "/": SNXNode(path="/", content="", is_directory=True,
-                         permissions=PermissionPresets.DIRECTORY_DEFAULT),
-            "/a": SNXNode(path="/a", content="", is_directory=False,
-                          permissions=PermissionPresets.FILE_DEFAULT),
+            "/": SNXNode(
+                path="/",
+                content="",
+                is_directory=True,
+                permissions=PermissionPresets.DIRECTORY_DEFAULT,
+            ),
+            "/a": SNXNode(
+                path="/a",
+                content="",
+                is_directory=False,
+                permissions=PermissionPresets.FILE_DEFAULT,
+            ),
         }
         fs = SNXFileSystem(
             base_layer=base,
@@ -240,10 +268,12 @@ class TestScriptExecutionTime:
         """A script that would take longer than the limit is rejected."""
         import time as _time
 
-        limits = LimitsConfig(script=ScriptLimits(
-            max_execution_time_seconds=1,
-            max_loop_iterations=1_000_000_000,
-        ))
+        limits = LimitsConfig(
+            script=ScriptLimits(
+                max_execution_time_seconds=1,
+                max_loop_iterations=1_000_000_000,
+            )
+        )
         runner, ctx = _make_runner(limits)
 
         class _SlowCommand:
@@ -378,7 +408,9 @@ class TestVfsQuotaBreachViaLoopAppend:
     """VFS quota enforcement when a script loop appends via >>."""
 
     def _make_real_fs_runner(
-        self, limits: LimitsConfig, base_layer: dict[str, SNXNode],
+        self,
+        limits: LimitsConfig,
+        base_layer: dict[str, SNXNode],
     ) -> tuple[ScriptRunner, CommandContext, SNXFileSystem]:
         """Create a runner wired to a real SNXFileSystem."""
         fs = SNXFileSystem(
@@ -404,15 +436,21 @@ class TestVfsQuotaBreachViaLoopAppend:
         """Loop appending via >> halts when max_total_bytes is reached."""
         base = {
             "/": SNXNode(
-                path="/", content="", is_directory=True,
+                path="/",
+                content="",
+                is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/tmp": SNXNode(
-                path="/tmp", content="", is_directory=True,
+                path="/tmp",
+                content="",
+                is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/data": SNXNode(
-                path="/data", content="hello", is_directory=False,
+                path="/data",
+                content="hello",
+                is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
             ),
         }
@@ -425,9 +463,7 @@ class TestVfsQuotaBreachViaLoopAppend:
 
         node = fs.get_node("/data")
         assert node is not None
-        assert len(node.content) <= 8, (
-            f"File content {node.content!r} exceeds total byte cap"
-        )
+        assert len(node.content) <= 8, f"File content {node.content!r} exceeds total byte cap"
         assert any("disk quota exceeded" in line for line in stderr)
 
     @pytest.mark.asyncio
@@ -435,15 +471,21 @@ class TestVfsQuotaBreachViaLoopAppend:
         """Existing file content is preserved after quota breach."""
         base = {
             "/": SNXNode(
-                path="/", content="", is_directory=True,
+                path="/",
+                content="",
+                is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/tmp": SNXNode(
-                path="/tmp", content="", is_directory=True,
+                path="/tmp",
+                content="",
+                is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/log": SNXNode(
-                path="/log", content="AAA", is_directory=False,
+                path="/log",
+                content="AAA",
+                is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
             ),
         }
@@ -458,9 +500,7 @@ class TestVfsQuotaBreachViaLoopAppend:
 
         node = fs.get_node("/log")
         assert node is not None
-        assert node.content.startswith("AAA"), (
-            f"Original content lost: {node.content!r}"
-        )
+        assert node.content.startswith("AAA"), f"Original content lost: {node.content!r}"
         assert len(node.content.encode("utf-8")) <= 8
 
     @pytest.mark.asyncio
@@ -468,19 +508,27 @@ class TestVfsQuotaBreachViaLoopAppend:
         """VFS _current_total_bytes reflects only successful appends."""
         base = {
             "/": SNXNode(
-                path="/", content="", is_directory=True,
+                path="/",
+                content="",
+                is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/tmp": SNXNode(
-                path="/tmp", content="", is_directory=True,
+                path="/tmp",
+                content="",
+                is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/a": SNXNode(
-                path="/a", content="", is_directory=False,
+                path="/a",
+                content="",
+                is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
             ),
             "/b": SNXNode(
-                path="/b", content="", is_directory=False,
+                path="/b",
+                content="",
+                is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
             ),
         }
@@ -500,13 +548,8 @@ class TestVfsQuotaBreachViaLoopAppend:
         assert node_a is not None
         assert node_b is not None
 
-        total = (
-            len(node_a.content.encode("utf-8"))
-            + len(node_b.content.encode("utf-8"))
-        )
-        assert total <= 10, (
-            f"Total bytes {total} exceeds max_total_bytes=10"
-        )
+        total = len(node_a.content.encode("utf-8")) + len(node_b.content.encode("utf-8"))
+        assert total <= 10, f"Total bytes {total} exceeds max_total_bytes=10"
 
 
 # ── LimitsConfig loader ──────────────────────────────────────────────────
@@ -532,9 +575,7 @@ class TestLimitsConfigLoader:
 
         config_dir = tmp_path / "config"
         config_dir.mkdir()
-        (config_dir / "limits.yaml").write_text(
-            "vfs:\n  max_file_bytes: 500\n"
-        )
+        (config_dir / "limits.yaml").write_text("vfs:\n  max_file_bytes: 500\n")
 
         config = load_limits_config(tmp_path)
         assert config.vfs.max_file_bytes == 500
@@ -578,7 +619,8 @@ class TestFileStreamWriterQuotaError:
                 path="/tmp/test.txt",
                 content="existing data here!!",  # 19 bytes
                 is_directory=False,
-                owner="user", group="user",
+                owner="user",
+                group="user",
                 permissions=PermissionPresets.FILE_DEFAULT,
             ),
         }
@@ -601,7 +643,8 @@ class TestFileStreamWriterQuotaError:
                 path="/tmp/test.txt",
                 content="hi",
                 is_directory=False,
-                owner="user", group="user",
+                owner="user",
+                group="user",
                 permissions=PermissionPresets.FILE_DEFAULT,
             ),
         }
@@ -623,7 +666,8 @@ class TestFileStreamWriterQuotaError:
                 path="/tmp/test.txt",
                 content="",
                 is_directory=False,
-                owner="user", group="user",
+                owner="user",
+                group="user",
                 permissions=PermissionPresets.FILE_DEFAULT,
             ),
         }
@@ -645,7 +689,8 @@ class TestFileStreamWriterQuotaError:
                 path="/tmp/q.txt",
                 content="existing",  # 8 bytes
                 is_directory=False,
-                owner="user", group="user",
+                owner="user",
+                group="user",
                 permissions=PermissionPresets.FILE_DEFAULT,
             ),
         }
@@ -662,10 +707,7 @@ class TestFileStreamWriterQuotaError:
         stdout = QueueStreamWriter(asyncio.Queue())
         stderr = QueueStreamWriter(asyncio.Queue())
         # Two appends: first adds 10 bytes (total 18), second adds 15 (total 33 > 30)
-        script = (
-            'echo "1234567890" >> /tmp/q.txt\n'
-            'echo "123456789012345" >> /tmp/q.txt\n'
-        )
+        script = 'echo "1234567890" >> /tmp/q.txt\necho "123456789012345" >> /tmp/q.txt\n'
         result = await runner.execute(script, ctx, stdin, stdout, stderr)
         # Second append exceeds 30-byte limit → runner should report error
         assert result.exit_code == ExitCode.ERROR

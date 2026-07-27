@@ -27,17 +27,13 @@ def _highlight_today(lines: list[str], year: int, month: int) -> list[str]:
     day = today.day
     cell = f" {day} " if day < 10 else f"{day} "
     day_part = cell.rstrip()
-    trailing = cell[len(day_part):]
+    trailing = cell[len(day_part) :]
     highlighted = ansi.reverse(day_part) + trailing
     result = list(lines)
     for i in range(2, len(result)):
         pos = result[i].find(cell)
         if pos != -1:
-            result[i] = (
-                result[i][:pos]
-                + highlighted
-                + result[i][pos + len(cell):]
-            )
+            result[i] = result[i][:pos] + highlighted + result[i][pos + len(cell) :]
             break
     return result
 
@@ -80,7 +76,11 @@ class Command(SNXCommand):
     name = "cal"
 
     parameters = {
-        "three": {"flags": ["-3"], "type": bool, "help": "display three months centered on current"},
+        "three": {
+            "flags": ["-3"],
+            "type": bool,
+            "help": "display three months centered on current",
+        },
         "year": {"flags": ["-y", "--year"], "type": bool, "help": "display entire current year"},
     }
 
@@ -91,7 +91,6 @@ class Command(SNXCommand):
         stdout: AsyncStreamWriter,
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
-
         flags = self.parsed_args.flags if self.parsed_args else {}
         pos = self.parsed_args.positional if self.parsed_args else (self.args or [])
 

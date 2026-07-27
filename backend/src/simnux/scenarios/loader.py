@@ -38,7 +38,9 @@ class ScenarioLoader:
     @classmethod
     def _get_scenarios_dir(cls) -> Path:
         if cls._scenarios_dir is None:
-            cls._scenarios_dir = Path(__file__).resolve().parent.parent.parent.parent.parent / "scenarios"
+            cls._scenarios_dir = (
+                Path(__file__).resolve().parent.parent.parent.parent.parent / "scenarios"
+            )
         return cls._scenarios_dir
 
     @classmethod
@@ -46,9 +48,7 @@ class ScenarioLoader:
         scenario_path = cls._get_scenarios_dir() / scenario_name / "scenario.yaml"
 
         if not scenario_path.exists():
-            raise ScenarioNotFoundError(
-                f"Scenario '{scenario_name}' not found at {scenario_path}"
-            )
+            raise ScenarioNotFoundError(f"Scenario '{scenario_name}' not found at {scenario_path}")
 
         raw = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
 

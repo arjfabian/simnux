@@ -43,7 +43,12 @@ class Command(SNXCommand):
 
         content = result.node.content or ""
         script_result = await ctx.dispatcher.execute_script(
-            content, ctx, stdin, stdout, stderr, script_args,
+            content,
+            ctx,
+            stdin,
+            stdout,
+            stderr,
+            script_args,
         )
         return script_result.exit_code
 

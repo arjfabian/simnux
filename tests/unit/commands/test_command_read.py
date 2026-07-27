@@ -42,9 +42,7 @@ class TestReadCommand:
     async def test_read_with_prompt_flag(self, shell_with_commands):
         """``read -p "prompt: "`` writes the prompt to stdout before reading."""
         shell_with_commands.session.environment.clear()
-        result = await shell_with_commands.execute(
-            'echo data | read -p "Enter value: " MYVAR'
-        )
+        result = await shell_with_commands.execute('echo data | read -p "Enter value: " MYVAR')
         assert_success(result)
         assert "Enter value: " in stdout_text(result)
         assert shell_with_commands.session.environment.get("MYVAR") == "data"
@@ -75,9 +73,7 @@ class TestReadSuspension:
         shell_with_commands.session.environment.clear()
         session = shell_with_commands.session
 
-        result = await shell_with_commands.execute(
-            'read -p "Enter: " MYVAR'
-        )
+        result = await shell_with_commands.execute('read -p "Enter: " MYVAR')
         assert_success(result)
         assert session.awaiting_input is True
         assert session.pending_var_name == "MYVAR"
@@ -87,9 +83,7 @@ class TestReadSuspension:
         """Suspension writes the prompt string to stdout."""
         shell_with_commands.session.environment.clear()
 
-        result = await shell_with_commands.execute(
-            'read -p "Password: " PASS'
-        )
+        result = await shell_with_commands.execute('read -p "Password: " PASS')
         assert_success(result)
         assert "Password: " in stdout_text(result)
 
@@ -170,6 +164,7 @@ class TestReadCommandStream:
     @pytest.fixture
     def read_command(self):
         from simnux.commands.standard.read import Command
+
         return Command(context=MagicMock())
 
     @pytest.fixture

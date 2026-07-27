@@ -17,11 +17,11 @@ from simnux.init.config import LimitsConfig
 from simnux.observability.snapshots import ShellSnapshot
 from simnux.runtime.models import CommandResult
 from simnux.runtime.models import ExitCode
+from simnux.scripting.history import CommandHistory
 from simnux.sessions.runtime import SNXSession
 
 from .parser import ShellParser
 from .prompt import PromptRenderer
-from .models import LogicalSegment
 
 
 class SNXShell:
@@ -41,7 +41,6 @@ class SNXShell:
         logger: logging.Logger,
         limits: LimitsConfig | None = None,
     ) -> None:
-
         self.session = session
 
         # Exposed for introspection/debugging purposes
@@ -57,6 +56,8 @@ class SNXShell:
             registry=self.registry,
             limits=self.limits,
         )
+
+        self.history_expander = CommandHistory(self.session.history)
 
         self._lock = asyncio.Lock()
 
@@ -89,70 +90,88 @@ class SNXShell:
     def _has_logical_operators(self, raw_input: str) -> bool:
         """Check if input contains && or || operators."""
         # Simple check - presence of && or ||
-        return '&&' in raw_input or '||' in raw_input
+        return "&&" in raw_input or "||" in raw_input
 
     async def _execute_impl(self, raw_input: str) -> CommandResult:
-
         self.logger.info(f"[{self.session.session_id}] Executing: {raw_input}")
+
+        # POSIX history expansion before parsing
+        try:
+            raw_input, was_expanded = self.history_expander.expand(raw_input)
+        except ValueError as e:
+            return CommandResult(
+                stderr=[str(e)],
+                exit_code=ExitCode.ERROR,
+            )
 
         self.session.add_history(raw_input)
 
         # Check for logical operators
         if self._has_logical_operators(raw_input):
-            return await self._execute_logical(raw_input)
+            result = await self._execute_logical(raw_input)
+        else:
+            # Fall back to regular parsing
+            parsed = self.parser.parse(raw_input)
 
-        # Fall back to regular parsing
-        parsed = self.parser.parse(raw_input)
+            if not parsed.segments:
+                return CommandResult()
 
-        if not parsed.segments:
-            return CommandResult()
+            for seg in parsed.segments:
+                if not seg.command:
+                    continue
+                if (
+                    not self.registry.exists(seg.command)
+                    and "/" not in seg.command
+                    and not seg.command.startswith("~")
+                ):
+                    self.logger.warning(
+                        f"[{self.session.session_id}] Unknown command: {seg.command}"
+                    )
+                    return CommandResult(
+                        stderr=[f"{seg.command}: command not found"],
+                        exit_code=ExitCode.ERROR,
+                    )
 
-        for seg in parsed.segments:
-            if not seg.command:
-                continue
-            if not self.registry.exists(seg.command) and "/" not in seg.command and not seg.command.startswith("~"):
-                self.logger.warning(f"[{self.session.session_id}] Unknown command: {seg.command}")
+            try:
+                ctx = CommandContext(
+                    session=self.session,
+                    filesystem=self.filesystem,
+                    dispatcher=self.dispatcher,
+                )
+
+                if len(parsed.segments) == 1:
+                    result = await self.dispatcher.dispatch(
+                        parsed.command,
+                        parsed.args,
+                        ctx,
+                        stdout_redirect=parsed.stdout_redirect,
+                        stdout_append=parsed.stdout_append,
+                    )
+                else:
+                    pipeline_segments = [
+                        (seg.command, seg.args, seg.stdout_redirect, seg.stdout_append)
+                        for seg in parsed.segments
+                    ]
+                    result = await self.dispatcher.dispatch_pipeline(
+                        pipeline_segments,
+                        ctx,
+                    )
+
+            except Exception:
+                self.logger.exception(f"[{self.session.session_id}] Execution error: {raw_input}")
+
                 return CommandResult(
-                    stderr=[f"{seg.command}: command not found"],
+                    stderr=["Internal runtime error"],
                     exit_code=ExitCode.ERROR,
                 )
 
-        try:
-            ctx = CommandContext(
-                session=self.session,
-                filesystem=self.filesystem,
-                dispatcher=self.dispatcher,
-            )
+        # Echo expanded command to stdout (POSIX behavior)
+        if was_expanded:
+            result.stdout.insert(0, raw_input)
 
-            if len(parsed.segments) == 1:
-                result = await self.dispatcher.dispatch(
-                    parsed.command,
-                    parsed.args,
-                    ctx,
-                    stdout_redirect=parsed.stdout_redirect,
-                    stdout_append=parsed.stdout_append,
-                )
-            else:
-                pipeline_segments = [
-                    (seg.command, seg.args, seg.stdout_redirect, seg.stdout_append)
-                    for seg in parsed.segments
-                ]
-                result = await self.dispatcher.dispatch_pipeline(
-                    pipeline_segments,
-                    ctx,
-                )
+        self.logger.info(f"[{self.session.session_id}] Exit code: {result.exit_code}")
 
-            self.logger.info(f"[{self.session.session_id}] Exit code: {result.exit_code}")
-
-            return result
-
-        except Exception:
-            self.logger.exception(f"[{self.session.session_id}] Execution error: {raw_input}")
-
-            return CommandResult(
-                stderr=["Internal runtime error"],
-                exit_code=ExitCode.ERROR,
-            )
+        return result
 
     async def _execute_logical(self, raw_input: str) -> CommandResult:
         """Execute a command line with logical operators (&& and ||).
@@ -171,8 +190,14 @@ class SNXShell:
             for seg in segment.pipeline.segments:
                 if not seg.command:
                     continue
-                if not self.registry.exists(seg.command) and "/" not in seg.command and not seg.command.startswith("~"):
-                    self.logger.warning(f"[{self.session.session_id}] Unknown command: {seg.command}")
+                if (
+                    not self.registry.exists(seg.command)
+                    and "/" not in seg.command
+                    and not seg.command.startswith("~")
+                ):
+                    self.logger.warning(
+                        f"[{self.session.session_id}] Unknown command: {seg.command}"
+                    )
                     return CommandResult(
                         stderr=[f"{seg.command}: command not found"],
                         exit_code=ExitCode.ERROR,

@@ -2,7 +2,10 @@
 
 import pytest
 
-from tests.helpers import assert_success, assert_error, stdout_text, stderr_text
+from tests.helpers import assert_error
+from tests.helpers import assert_success
+from tests.helpers import stdout_text
+
 
 pytestmark = pytest.mark.asyncio
 
@@ -81,7 +84,9 @@ class TestLogicalWithTestCommand:
         assert "YES" in stdout_text(r2)
 
     async def test_bracket_fail_or_echo(self, shell_with_commands):
-        r = await shell_with_commands.execute("[ -f /home/user/missing.txt ] && echo YES || echo NO")
+        r = await shell_with_commands.execute(
+            "[ -f /home/user/missing.txt ] && echo YES || echo NO"
+        )
         assert_success(r)
         assert "NO" in stdout_text(r)
         assert "YES" not in stdout_text(r)

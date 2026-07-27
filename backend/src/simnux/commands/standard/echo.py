@@ -8,9 +8,9 @@ from simnux.runtime.models import ExitCode
 
 
 _ESCAPE_RE = re.compile(
-    r"\\(?:"          
-    r"[abefnrtv\\]"  
-    r"|0[0-7]{1,3}"  
+    r"\\(?:"
+    r"[abefnrtv\\]"
+    r"|0[0-7]{1,3}"
     r"|x[0-9a-fA-F]{1,2}"
     r"|u[0-9a-fA-F]{1,4}"
     r"|U[0-9a-fA-F]{1,8}"
@@ -38,6 +38,7 @@ def _interpret_escapes(s: str) -> str:
     ``\\r``, ``\\t``, ``\\v``, ``\\0nnn`` (octal), ``\\xHH`` (hex),
     ``\\uHHHH`` (unicode), ``\\UHHHHHHHH`` (unicode).
     """
+
     def _replace(m: re.Match) -> str:
         full = m.group(0)
         char = full[1]

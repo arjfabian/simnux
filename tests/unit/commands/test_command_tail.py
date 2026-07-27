@@ -53,9 +53,7 @@ class TestTailCommand:
     async def test_tail_long_option(self, shell_with_commands):
         """``tail --lines=7`` outputs the last 7 lines."""
         await self._write_multi(shell_with_commands)
-        result = await shell_with_commands.execute(
-            "tail --lines=7 /home/user/multi.txt"
-        )
+        result = await shell_with_commands.execute("tail --lines=7 /home/user/multi.txt")
         assert_success(result)
         assert stdout_text(result) == "\n".join(f"line {i}" for i in range(14, 21))
 
@@ -64,19 +62,17 @@ class TestTailCommand:
     async def test_tail_stdin_pipe(self, shell_with_commands):
         """``tail`` with no file reads from stdin."""
         await self._write_multi(shell_with_commands)
-        result = await shell_with_commands.execute(
-            "cat /home/user/multi.txt | tail"
-        )
+        result = await shell_with_commands.execute("cat /home/user/multi.txt | tail")
         assert_success(result)
         assert stdout_text(result) == "\n".join(f"line {i}" for i in range(11, 21))
 
     async def test_tail_stdin_with_n(self, shell_with_commands):
         """``tail -n 3`` reads from stdin with custom count."""
         shell_with_commands.filesystem.touch("/home/user/data.txt")
-        shell_with_commands.filesystem.delta_layer["/home/user/data.txt"].content = "hello\nworld\nfoo\nbar\nbaz"
-        result = await shell_with_commands.execute(
-            "cat /home/user/data.txt | tail -n 3"
-        )
+        shell_with_commands.filesystem.delta_layer[
+            "/home/user/data.txt"
+        ].content = "hello\nworld\nfoo\nbar\nbaz"
+        result = await shell_with_commands.execute("cat /home/user/data.txt | tail -n 3")
         assert_success(result)
         assert stdout_text(result) == "foo\nbar\nbaz"
 
@@ -85,10 +81,10 @@ class TestTailCommand:
     async def test_tail_file_shorter_than_n(self, shell_with_commands):
         """File with fewer lines than N outputs all lines."""
         shell_with_commands.filesystem.touch("/home/user/short.txt")
-        shell_with_commands.filesystem.delta_layer["/home/user/short.txt"].content = "only\nthree\nlines"
-        result = await shell_with_commands.execute(
-            "tail -n 50 /home/user/short.txt"
-        )
+        shell_with_commands.filesystem.delta_layer[
+            "/home/user/short.txt"
+        ].content = "only\nthree\nlines"
+        result = await shell_with_commands.execute("tail -n 50 /home/user/short.txt")
         assert_success(result)
         assert stdout_text(result) == "only\nthree\nlines"
 
@@ -126,9 +122,7 @@ class TestTailCommand:
         """``tail`` with two files outputs ``==> name <==`` banners."""
         await self._write(shell_with_commands, "/home/user/a.txt", "first\n")
         await self._write(shell_with_commands, "/home/user/b.txt", "second\n")
-        result = await shell_with_commands.execute(
-            "tail /home/user/a.txt /home/user/b.txt"
-        )
+        result = await shell_with_commands.execute("tail /home/user/a.txt /home/user/b.txt")
         assert_success(result)
         stdout = stdout_text(result)
         assert "==> /home/user/a.txt <==" in stdout
@@ -139,9 +133,7 @@ class TestTailCommand:
         """A blank line separates the second banner from the first file's output."""
         await self._write(shell_with_commands, "/home/user/a.txt", "first\n")
         await self._write(shell_with_commands, "/home/user/b.txt", "second\n")
-        result = await shell_with_commands.execute(
-            "tail /home/user/a.txt /home/user/b.txt"
-        )
+        result = await shell_with_commands.execute("tail /home/user/a.txt /home/user/b.txt")
         assert_success(result)
         stdout = stdout_text(result)
         assert "\n\n==> /home/user/b.txt <==" in stdout
@@ -158,18 +150,14 @@ class TestTailCommand:
     async def test_tail_stdin_dash(self, shell_with_commands):
         """``tail -`` reads from stdin."""
         await self._write(shell_with_commands, "/home/user/data.txt", "a\nb\nc\n")
-        result = await shell_with_commands.execute(
-            "cat /home/user/data.txt | tail -"
-        )
+        result = await shell_with_commands.execute("cat /home/user/data.txt | tail -")
         assert_success(result)
         assert stdout_text(result) == "a\nb\nc"
 
     async def test_tail_stdin_dash_with_n(self, shell_with_commands):
         """``tail -n 1 -`` reads the last line from stdin."""
         await self._write(shell_with_commands, "/tmp/data.txt", "a\nb\nc\n")
-        result = await shell_with_commands.execute(
-            "cat /tmp/data.txt | tail -n 1 -"
-        )
+        result = await shell_with_commands.execute("cat /tmp/data.txt | tail -n 1 -")
         assert_success(result)
         assert stdout_text(result) == "c"
 
@@ -192,9 +180,7 @@ class TestTailCommand:
     async def test_tail_double_dash_reuses_cache(self, shell_with_commands):
         """``tail - -`` reads stdin once; second ``-`` reuses cached lines."""
         await self._write(shell_with_commands, "/tmp/data.txt", "line1\nline2\nline3\n")
-        result = await shell_with_commands.execute(
-            "cat /tmp/data.txt | tail -n 2 - -"
-        )
+        result = await shell_with_commands.execute("cat /tmp/data.txt | tail -n 2 - -")
         assert_success(result)
         stdout = stdout_text(result)
         assert stdout.count("==> - <==") == 2

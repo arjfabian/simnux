@@ -26,7 +26,7 @@ async def root(request: Request) -> dict[str, Any]:
 
     return {
         "status": "online",
-        "runtime": "SIMNUX v0.4.0",
+        "runtime": "SIMNUX v0.4.1",
         "active_sessions": snapshot.active_sessions,
         "total_sessions": snapshot.total_sessions,
     }

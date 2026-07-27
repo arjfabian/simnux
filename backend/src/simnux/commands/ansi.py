@@ -39,8 +39,10 @@ def reset() -> str:
 
 def __getattr__(name: str):
     if name in _SGR:
+
         def _wrapper(text: str) -> str:
             return f"{_esc(_SGR[name])}{text}{_esc('0')}"
+
         _wrapper.__name__ = name
         _wrapper.__qualname__ = name
         _wrapper.__module__ = __name__

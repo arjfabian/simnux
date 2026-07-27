@@ -41,8 +41,13 @@ body {
 }
 
 .terminal-line {
-  white-space: pre;
-  min-height: 1.4em; /* clave */
+  white-space: pre-wrap;
+  word-break: break-all;
+  min-height: 1.4em;
+}
+
+.terminal-container {
+  cursor: text;
 }
 
 .terminal-output {
@@ -70,24 +75,50 @@ body {
 
 .prompt {
   font-weight: bold;
-  margin-right: 7px;
-  white-space: nowrap;
+  white-space: pre;
 }
 
-/* Dynamic content for each input line (prompt + input) */
+/* Active input container: standard block text flow */
 .input-line {
-  display: flex;
-  align-items: baseline;
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
+.input-line .prompt {
+  display: inline;
+  white-space: pre;
+}
+
+/* Active contenteditable input — flows inline after prompt */
 .terminal-input {
+  display: inline;
   background: transparent;
   border: none;
   color: #d1d1d1;
   font-family: inherit;
   font-weight: inherit;
+  font-size: inherit;
   outline: none;
-  flex: 1;
+  caret-color: #d1d1d1;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.4em;
+  padding: 0;
+  margin: 0;
+  vertical-align: top;
+}
+
+/* Submitted command: block so wrapped lines return to column 0 */
+.command-line {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.command-line .prompt,
+.command-line .command-text {
+  display: inline;
 }
 
 .terminal-output pre {

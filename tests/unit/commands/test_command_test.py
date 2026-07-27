@@ -183,6 +183,7 @@ class TestTestCommandUnit:
     @pytest.fixture
     def test_command(self):
         from simnux.commands.standard.condition import Command
+
         return Command(context=MagicMock())
 
     @pytest.fixture
@@ -222,7 +223,10 @@ class TestTestCommandUnit:
         test_command._invoked_name = "test"
 
         result = await test_command.execute(
-            ctx, None, QueueStreamWriter(asyncio.Queue()), QueueStreamWriter(asyncio.Queue())
+            ctx,
+            None,
+            QueueStreamWriter(asyncio.Queue()),
+            QueueStreamWriter(asyncio.Queue()),
         )
         assert result == ExitCode.ERROR
 

@@ -5,7 +5,6 @@ options (attached and separate), the ``--`` end-of-options sentinel,
 GNU-format error messages, and the no-op empty case.
 """
 
-
 from simnux.commands.argument_parser import parse_arguments
 
 
@@ -162,17 +161,13 @@ class TestMixedUsage:
     """Realistic combinations of flags, options, and positional args."""
 
     def test_flags_and_value_and_positional(self):
-        parsed, errors = parse_arguments(
-            ["-v", "-n", "5", "file.txt"], MIXED_SPEC, "test"
-        )
+        parsed, errors = parse_arguments(["-v", "-n", "5", "file.txt"], MIXED_SPEC, "test")
         assert errors == []
         assert parsed.flags == {"verbose": True, "lines": "5"}
         assert parsed.positional == ["file.txt"]
 
     def test_combined_and_value_and_positional(self):
-        parsed, errors = parse_arguments(
-            ["-vn5", "file.txt"], MIXED_SPEC, "test"
-        )
+        parsed, errors = parse_arguments(["-vn5", "file.txt"], MIXED_SPEC, "test")
         assert errors == []
         assert parsed.flags == {"verbose": True, "lines": "5"}
         assert parsed.positional == ["file.txt"]
@@ -187,9 +182,7 @@ class TestMixedUsage:
 
     def test_trailing_value_after_value_flag(self):
         """-o value must not consume a subsequent flag as value."""
-        parsed, errors = parse_arguments(
-            ["-o", "out.log", "-v"], MIXED_SPEC, "test"
-        )
+        parsed, errors = parse_arguments(["-o", "out.log", "-v"], MIXED_SPEC, "test")
         assert errors == []
         assert parsed.flags == {"output": "out.log", "verbose": True}
         assert parsed.positional == []

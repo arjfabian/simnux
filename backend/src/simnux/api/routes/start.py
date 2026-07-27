@@ -11,7 +11,6 @@ from fastapi import HTTPException
 from fastapi import Request
 
 from simnux.api.models.contracts import ShellResponse
-from simnux.scenarios.loader import ScenarioLoader
 from simnux.scenarios.loader import ScenarioNotFoundError
 
 

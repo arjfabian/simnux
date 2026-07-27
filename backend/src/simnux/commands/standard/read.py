@@ -79,7 +79,8 @@ class Command(SNXCommand):
             ctx.session.awaiting_input = True
             ctx.session.pending_var_name = var_name
             ctx.session.pending_command = self._build_resumable_command(
-                prompt, var_name,
+                prompt,
+                var_name,
             )
             return ExitCode.SUCCESS
 

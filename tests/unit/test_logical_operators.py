@@ -1,10 +1,7 @@
 """Tests for logical operators (&& and ||) in shell parsing and execution."""
 
-import pytest
-
-from simnux.shell.parser import ShellParser
 from simnux.shell.models import LogicalOperator
-from simnux.shell.models import LogicalSegment
+from simnux.shell.parser import ShellParser
 
 
 class TestLogicalParsing:
