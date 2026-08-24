@@ -1,0 +1,33 @@
+name: "Hello SIMNUX"
+difficulty: "Easy"
+username: "user"
+hostname: "simnux"
+starting_dir: "/home/user"
+
+filesystem:
+  "/etc/hostname": "simnux-mission-1"
+  "/etc/motd": |2
+     ______    __    __    __    __   __    __  __    __  __
+    /\  ___\  /\ \  /\ "-./  \  /\ "-.\ \  /\ \/\ \  /\_\_\_\
+    \ \___  \ \ \ \ \ \ \-./\ \ \ \ \-.  \ \ \ \_\ \ \/_/\_\/_
+     \/\_____\ \ \_\ \ \_\ \ \_\ \ \_\\"\_\ \ \_____\  /\_\/\_\
+      \/_____/  \/_/  \/_/  \/_/  \/_/ \/_/  \/_____/  \/_/\/_/
+
+    MISSION 1
+    This is the first fully functional SIMNUX scenario.
+    Check "/home/user/todo.txt" for instructions on how to win.
+  "/home/user/todo.txt": |
+    TO DO:
+    1. Create a file called 'goal.txt' inside the home directory, with the
+       following contents:
+    
+           MISSION 1 DONE
+
+triggers:
+  - name: "goal_txt_created"
+    condition:
+      type: "file_state"
+      path: "/home/user/goal.txt"
+      contains: "MISSION 1 DONE"
+    action: "win_scenario"
+    message: "Mission 1 complete!"

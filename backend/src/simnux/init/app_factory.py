@@ -9,6 +9,7 @@ making dependency flow traceable from one location.
 
 from fastapi import FastAPI
 
+from simnux import __version__
 from simnux.observability.logging import setup_simnux_logger
 from simnux.runtime.runtime import SNXRuntime
 
@@ -33,7 +34,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="SIMNUX Runtime",
-        version="0.4.1",
+        version=__version__,
         lifespan=lifespan,
     )
 

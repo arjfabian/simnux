@@ -8,6 +8,8 @@ from typing import Any
 from fastapi import APIRouter
 from fastapi import Request
 
+from simnux import __version__
+
 
 router = APIRouter()
 
@@ -26,7 +28,7 @@ async def root(request: Request) -> dict[str, Any]:
 
     return {
         "status": "online",
-        "runtime": "SIMNUX v0.4.1",
+        "runtime": f"SIMNUX v{__version__}",  # Read from pyproject.toml
         "active_sessions": snapshot.active_sessions,
         "total_sessions": snapshot.total_sessions,
     }

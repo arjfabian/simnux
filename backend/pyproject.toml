@@ -1,6 +1,7 @@
 [project]
 name = "simnux"
-version = "0.4.1"
+dynamic = ["version"]
+
 description = "Browser-based Linux shell simulator for cybersecurity training and systems simulation."
 authors = [
     { name = "José Fabián", email = "jfabian@datorum.net" }
@@ -29,6 +30,9 @@ simnux = "simnux.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+
+[tool.setuptools.dynamic]
+version = { attr = "simnux.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]

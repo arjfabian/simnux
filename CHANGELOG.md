@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.4.2] - 2026.08.24
+
+### Added
+
+* **Dynamic Package Versioning:** Added dynamic version resolution (`setuptools.dynamic`) tied directly to `simnux.__version__`.
+* **New Mission Scenario:** Added "Mission 1" scenario to demonstrate state-driven VFS completion triggers and victory handling.
+
+### Changed
+
+* **Scenario Reorganization:** Extracted test/demo shell scripts from the "Hello SIMNUX" scenario into a dedicated scenario ("SIMNUX Tests").
+* **MOTD ASCII Alignment:** Applied YAML literal block scalar explicit indentation (`|2`) across scenario MOTDs to preserve ASCII art margins cleanly.
+
+### Fixed
+
+* **Auto-versioning for FastAPI App & Health Endpoint:** OpenAPI schema metadata and system status routes now dynamically consume `__version__` instead of relying on hardcoded strings.
+* **Terminal Prompt Line Spacing:** Added explicit newline padding after stdout stream flushes in the frontend terminal renderer (`main.js`).
+
+---
+
 ## [0.4.1] - 2026.07.27
 
 ### Added

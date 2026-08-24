@@ -350,7 +350,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       clearTerminal();
 
-      if (data.stdout?.length) addLines(data.stdout);
+      if (data.stdout?.length) {
+        addLines(data.stdout);
+        addLine("");
+      }
 
       renderPrompt(data);
     } catch (e) {
