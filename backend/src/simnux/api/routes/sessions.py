@@ -13,8 +13,8 @@ router = APIRouter()
 
 @router.get("/sessions/{session_id}")
 async def session_snapshot(
-    session_id: str,
     request: Request,
+    session_id: str,
 ):
     """Provides the frontend with a flattened view of session internals.
 
