@@ -5,6 +5,7 @@ via a simple GET endpoint.
 """
 
 from fastapi import APIRouter
+from fastapi import Request
 
 from simnux.scenarios.loader import ScenarioLoader
 
@@ -13,6 +14,6 @@ router = APIRouter()
 
 
 @router.get("/api/scenarios")
-async def list_scenarios():
+async def list_scenarios(request: Request):
     """Return all available scenario names."""
     return {"scenarios": ScenarioLoader.list_available()}
