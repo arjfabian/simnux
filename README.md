@@ -63,15 +63,25 @@ Commands can also emit **terminal actions** (clear-screen, scenario win/fail)
 via a `TerminalAction` enum, allowing the evaluator to trigger side effects
 on the frontend.
 
-**22 built-in commands**: `cat`, `cd`, `cal`, `clear`, `cp`, `diff`, `echo`,
-`grep`, `head`, `history`, `ls`, `mkdir`, `mv`, `pwd`, `read`, `rm`, `rmdir`,
-`sh` (alias: `bash`), `tail`, `test` (alias: `[`), `touch`, `whoami`.
+**24 built-in commands**: `cat`, `cd`, `cal`, `clear`, `cp`, `diff`, `echo`,
+`grep`, `head`, `history`, `less`, `ls`, `mkdir`, `more`, `mv`, `pwd`, `read`,
+`rm`, `rmdir`, `sh` (alias: `bash`), `tail`, `test` (alias: `[`), `touch`,
+`whoami`.
 
 ### Interactive Input
 
 The `read` command suspends the shell and returns an `awaiting_input` signal
 to the frontend. The user types input inline; on submit, the shell resumes
 with the captured value stored in a shell variable (or `REPLY` by default).
+
+### Full-Screen Paging
+
+The `less` and `more` commands suspend the shell into pager mode, buffering
+the file in the session and streaming the current viewport to the frontend
+via dedicated response fields. The frontend swaps in a full-screen overlay:
+Space/f pages forward, b pages back (less only), j/k scroll by line,
+g/G jump top/bottom (less), `/pattern` searches (less), and q quits.
+Keystrokes resume the shell directly without entering command history.
 
 ### Script Execution
 
