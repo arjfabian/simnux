@@ -1,0 +1,79 @@
+name: "Hello SIMNUX"
+difficulty: "Easy"
+username: "user"
+hostname: "simnux"
+starting_dir: "/home/user"
+
+filesystem:
+  "/etc/hostname": "simnux-home"
+  "/etc/motd": |2
+     ______    __    __    __    __   __    __  __    __  __
+    /\  ___\  /\ \  /\ "-./  \  /\ "-.\ \  /\ \/\ \  /\_\_\_\
+    \ \___  \ \ \ \ \ \ \-./\ \ \ \ \-.  \ \ \ \_\ \ \/_/\_\/_
+     \/\_____\ \ \_\ \ \_\ \ \_\ \ \_\\"\_\ \ \_____\  /\_\/\_\
+      \/_____/  \/_/  \/_/  \/_/  \/_/ \/_/  \/_____/  \/_/\/_/
+
+    Welcome to SIMNUX!
+    This is the default scenario. It was designed to help you familiarize yourself
+    with the virtual console. There are no goals or time limits.
+  "/home/user/lipsum.txt": |
+    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus faucibus
+    feugiat turpis, quis vulputate massa aliquam sit amet. Integer elementum
+    nisi tincidunt nulla efficitur finibus. Cras rhoncus in enim dictum sodales.
+    Morbi efficitur mi diam, quis ullamcorper nibh eleifend nec. Nam nec rhoncus
+    turpis. Morbi efficitur mauris sit amet nibh posuere, nec consectetur magna
+    gravida. In hendrerit pharetra justo, vitae ultricies nulla egestas pretium.
+    Etiam scelerisque tristique arcu at pharetra. Pellentesque finibus metus in
+    ipsum dictum congue. Fusce tempus dictum faucibus. Mauris eget aliquam leo.
+
+    Morbi sit amet interdum eros, sed laoreet tortor. Quisque lacinia risus
+    orci, eget efficitur dolor tincidunt eget. Vestibulum tincidunt tellus eu
+    eros dignissim porttitor. Ut sed volutpat eros, vitae malesuada magna. Sed
+    vel ante tellus. Donec iaculis ligula augue, non vulputate erat ornare vel.
+    Proin sed rutrum nunc, et gravida lectus. Aenean at dui et nisl maximus
+    lacinia. Aliquam et consequat sapien.
+
+    Maecenas bibendum molestie hendrerit. In pretium facilisis tellus, ornare
+    auctor ante molestie id. Nulla non purus lacus. Fusce venenatis ultrices
+    quam sit amet pellentesque. Integer id lorem nec ex mattis hendrerit. Etiam
+    lectus leo, blandit vitae suscipit ac, vestibulum vitae leo. Suspendisse
+    potenti. Cras lacinia felis iaculis dui tincidunt, a hendrerit felis
+    euismod. Proin quis nisi ullamcorper libero consequat lacinia. Etiam lacinia
+    ullamcorper mi. Donec elit ex, facilisis eget viverra aliquet, vehicula
+    vitae dui. Donec eu urna in sapien fringilla ultricies in quis nunc. Nunc in
+    turpis ultricies, porttitor nisl quis, varius arcu. Sed felis quam,
+    consequat nec tincidunt accumsan, hendrerit eget augue. In non nisl id elit
+    aliquet auctor nec quis odio.
+
+    Praesent non risus ante. Pellentesque egestas mi id est sodales tincidunt.
+    Etiam id imperdiet ante. Praesent aliquam libero ut condimentum convallis.
+    Donec a urna risus. Integer molestie fermentum eros, in fringilla erat
+    viverra ac. Curabitur ut dolor euismod, vulputate massa vel, accumsan leo.
+    Nunc at leo ultricies, fringilla metus vel, rhoncus felis. Phasellus cursus
+    velit lectus, sed finibus lorem cursus in. Donec imperdiet quam nec dolor
+    elementum facilisis. Sed aliquam dolor at nisi faucibus rutrum.
+
+    Morbi vel ipsum venenatis, pretium mi sit amet, volutpat lorem. Proin sit
+    amet turpis sit amet justo blandit volutpat fringilla et lacus. Integer at
+    mi non elit fringilla porta. Donec pretium leo non vulputate sagittis.
+    Aliquam maximus eros a sem suscipit, a mollis quam aliquam. Nulla eros nibh,
+    pretium nec vestibulum quis, blandit in nisi. Nullam egestas ante quis
+    tortor efficitur fermentum. Nullam ac porttitor leo, ut hendrerit tortor.
+    Sed interdum pretium lectus, eget vehicula felis sodales sed.
+
+    Sed nisl mauris, laoreet nec feugiat quis, sodales eu arcu. Etiam tempus
+    lacus id ultrices porta. Donec accumsan urna vitae metus finibus, in
+    venenatis velit tempus. Ut vel iaculis nisi, vitae rhoncus erat. In a
+    volutpat dolor. Donec pretium eros non varius tincidunt. Donec accumsan eget
+    massa lobortis tristique. Suspendisse interdum, mauris in maximus dapibus,
+    dolor odio tempus nisi, et feugiat risus lacus eu massa. Phasellus iaculis,
+    arcu eu tincidunt dignissim, ipsum velit varius enim, non vulputate massa
+    nisl a ante. Cras tincidunt ex ipsum, a fermentum eros ullamcorper sed.
+    Praesent malesuada enim sit amet dolor dignissim pretium.
+
+    ---
+
+    This beautiful piece of literature was created with Lorem Ipsum generator,
+    available at https://www.lipsum.com/.
+  "/home/user/.config/": ""
+  "/tmp/": ""

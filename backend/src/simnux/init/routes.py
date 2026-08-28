@@ -9,10 +9,13 @@ wiring.
 import importlib
 import pkgutil
 
+from fastapi import APIRouter
 from fastapi import FastAPI
-from fastapi.routing import APIRouter
 
 import simnux.api.routes as routes_pkg
+
+
+router = APIRouter()
 
 
 def register_routes(app: FastAPI) -> None:

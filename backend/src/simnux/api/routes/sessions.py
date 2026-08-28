@@ -11,7 +11,7 @@ from fastapi import Request
 router = APIRouter()
 
 
-@router.get("/sessions/{session_id}")
+@router.get("/api/sessions/{session_id}")
 async def session_snapshot(
     request: Request,
     session_id: str,

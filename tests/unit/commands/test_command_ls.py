@@ -70,7 +70,7 @@ class TestLsCommand:
         result = await runtime_shell.execute("ls /home/user")
         stdout = stdout_text(result)
         assert ".config" not in stdout
-        assert "notes.txt" in stdout
+        assert "lipsum.txt" in stdout
 
     async def test_ls_a_shows_dotfiles(self, runtime_shell):
         """``ls -a`` includes hidden files, ``.``, and ``..``."""
@@ -79,7 +79,7 @@ class TestLsCommand:
         assert "." in stdout
         assert ".." in stdout
         assert ".config/" in stdout or ".config" in stdout
-        assert "notes.txt" in stdout
+        assert "lipsum.txt" in stdout
 
     async def test_ls_almost_all_shows_dotfiles_without_dot_entries(self, runtime_shell):
         """``ls -A`` includes hidden files but NOT ``.`` or ``..``."""
@@ -89,7 +89,7 @@ class TestLsCommand:
         assert "." not in entries
         assert ".." not in entries
         assert ".config/" in entries
-        assert "notes.txt" in entries
+        assert "lipsum.txt" in entries
 
     async def test_ls_sorted_output(self, shell_with_commands):
         """Output entries are sorted alphabetically."""

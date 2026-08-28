@@ -29,14 +29,14 @@ class TestFullShellFlow:
         """List files in a directory using the full command path."""
         result = await runtime_shell.execute("ls /home/user")
         assert_success(result)
-        assert "notes.txt" in stdout_text(result)
+        assert "lipsum.txt" in stdout_text(result)
 
     async def test_read_file_after_cd(self, runtime_shell):
         """``cd`` into a directory then ``cat`` a file in it (relative path)."""
         await runtime_shell.execute("cd /home/user")
-        result = await runtime_shell.execute("cat notes.txt")
+        result = await runtime_shell.execute("cat lipsum.txt")
         assert_success(result)
-        assert "TO DO" in stdout_text(result)
+        assert "Lorem ipsum" in stdout_text(result)
 
     async def test_create_file_then_read_it(self, runtime_shell):
         """``touch`` a file then verify it appears in ``ls`` output."""
@@ -105,7 +105,7 @@ class TestFullShellFlow:
         content = (await runtime_shell.execute("echo 'hello world'")).stdout
         assert "hello world" in " ".join(content)
         ls_result = await runtime_shell.execute("ls /home/user")
-        assert "notes.txt" in " ".join(ls_result.stdout)
+        assert "lipsum.txt" in " ".join(ls_result.stdout)
 
     async def test_sessions_are_isolated(self, runtime):
         """Separate sessions have independent filesystems (no cross-session leakage)."""

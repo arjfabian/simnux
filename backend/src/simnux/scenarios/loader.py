@@ -38,9 +38,7 @@ class ScenarioLoader:
     @classmethod
     def _get_scenarios_dir(cls) -> Path:
         if cls._scenarios_dir is None:
-            cls._scenarios_dir = (
-                Path(__file__).resolve().parent.parent.parent.parent.parent / "scenarios"
-            )
+            cls._scenarios_dir = Path(__file__).resolve().parent.parent.parent.parent / "scenarios"
         return cls._scenarios_dir
 
     @classmethod
