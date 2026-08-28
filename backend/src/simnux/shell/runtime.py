@@ -61,38 +61,51 @@ class SNXShell:
 
         self._lock = asyncio.Lock()
 
-    async def execute(self, raw_input: str) -> CommandResult:
+    async def execute(
+        self,
+        raw_input: str,
+        viewport_height: int | None = None,
+    ) -> CommandResult:
         """Full command lifecycle: (1) parse raw input via shlex,
         (2) validate command exists in registry, (3) dispatch to command's
         ``execute()``, (4) catch and wrap runtime exceptions.
+
+        ``viewport_height`` carries optional terminal geometry (text lines)
+        from the frontend for dynamic full-screen pager viewports.
 
         Returns ``CommandResult`` with structured output, never raises.
         """
 
         async with self._lock:
-            return await self._execute_impl(raw_input)
+            return await self._execute_impl(raw_input, viewport_height)
 
     async def execute_resume(
         self,
         pending_command: str,
         stdin: AsyncStreamReader,
+        viewport_height: int | None = None,
     ) -> CommandResult:
         """Re-dispatch a suspended command with fresh stdin.
 
         Used by the REST input bridge to resume a ``read`` (or similar)
         command that previously suspended and marked the session as
-        ``awaiting_input``.
+        ``awaiting_input``. ``viewport_height`` refreshes suspended pager
+        viewports against current terminal geometry.
         """
 
         async with self._lock:
-            return await self._resume_impl(pending_command, stdin)
+            return await self._resume_impl(pending_command, stdin, viewport_height)
 
     def _has_logical_operators(self, raw_input: str) -> bool:
         """Check if input contains && or || operators."""
         # Simple check - presence of && or ||
         return "&&" in raw_input or "||" in raw_input
 
-    async def _execute_impl(self, raw_input: str) -> CommandResult:
+    async def _execute_impl(
+        self,
+        raw_input: str,
+        viewport_height: int | None = None,
+    ) -> CommandResult:
         self.logger.info(f"[{self.session.session_id}] Executing: {raw_input}")
 
         # POSIX history expansion before parsing
@@ -108,7 +121,7 @@ class SNXShell:
 
         # Check for logical operators
         if self._has_logical_operators(raw_input):
-            result = await self._execute_logical(raw_input)
+            result = await self._execute_logical(raw_input, viewport_height)
         else:
             # Fall back to regular parsing
             parsed = self.parser.parse(raw_input)
@@ -137,6 +150,7 @@ class SNXShell:
                     session=self.session,
                     filesystem=self.filesystem,
                     dispatcher=self.dispatcher,
+                    viewport_height=viewport_height,
                 )
 
                 if len(parsed.segments) == 1:
@@ -173,7 +187,11 @@ class SNXShell:
 
         return result
 
-    async def _execute_logical(self, raw_input: str) -> CommandResult:
+    async def _execute_logical(
+        self,
+        raw_input: str,
+        viewport_height: int | None = None,
+    ) -> CommandResult:
         """Execute a command line with logical operators (&& and ||).
 
         Implements short-circuit evaluation:
@@ -208,6 +226,7 @@ class SNXShell:
                 session=self.session,
                 filesystem=self.filesystem,
                 dispatcher=self.dispatcher,
+                viewport_height=viewport_height,
             )
 
             last_exit = ExitCode.SUCCESS
@@ -270,6 +289,7 @@ class SNXShell:
         self,
         pending_command: str,
         stdin: AsyncStreamReader,
+        viewport_height: int | None = None,
     ) -> CommandResult:
         """Implementation of execute_resume — dispatches with custom stdin."""
 
@@ -277,7 +297,10 @@ class SNXShell:
             f"[{self.session.session_id}] Resuming: {pending_command}",
         )
 
-        self.session.add_history(pending_command)
+        # Suspended-state resumes (e.g. full-screen pager keystrokes) are
+        # interactive turns, not new user commands — do not record history.
+        if self.session.pending_state is None:
+            self.session.add_history(pending_command)
 
         parsed = self.parser.parse(pending_command)
 
@@ -289,6 +312,7 @@ class SNXShell:
                 session=self.session,
                 filesystem=self.filesystem,
                 dispatcher=self.dispatcher,
+                viewport_height=viewport_height,
             )
 
             if len(parsed.segments) == 1:

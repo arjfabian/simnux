@@ -7,6 +7,7 @@ Transport models remain isolated from internal runtime structures.
 from typing import Literal
 
 from pydantic import BaseModel
+from pydantic import Field
 
 
 class CommandRequest(BaseModel):
@@ -14,6 +15,10 @@ class CommandRequest(BaseModel):
 
     command: str
     session_id: str
+
+    # Terminal geometry reported by the frontend (lines visible in the
+    # output pane). Drives dynamic full-screen pager viewports.
+    viewport_height: int | None = Field(default=None, ge=1, le=200)
 
 
 class ShellResponse(BaseModel):
@@ -33,6 +38,23 @@ class ShellResponse(BaseModel):
 
     # Interactive input bridge.
     awaiting_input: bool = False
+
+    # Full-screen pager projection (populated when pending_state is PagerState —
+    # legacy suspended ``more`` protocol).
+    pager_lines: list[str] | None = None
+    pager_position: int | None = None
+    pager_total: int | None = None
+    pager_eof: bool | None = None
+    pager_filename: str | None = None
+    # Preformatted status bar (e.g. more's "--More--(42%)"); the frontend
+    # composes its own interactive status when this is absent.
+    pager_status: str | None = None
+
+    # Client-side pager signal (non-suspended ``less``): when ``is_pager`` is
+    # True, ``pager_content`` carries the full file lines so the frontend can
+    # page locally without further execute_command roundtrips.
+    is_pager: bool = False
+    pager_content: list[str] | None = None
 
     # Transport-level execution state.
     status: Literal["ok", "error"] = "ok"

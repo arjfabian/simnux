@@ -116,6 +116,25 @@ body {
   word-break: break-all;
 }
 
+/* Full-screen pager status bar (less / more) */
+.pager-status {
+  position: sticky;
+  bottom: 0;
+  background: #1a1a1a;
+  border-top: 1px solid #444444;
+  padding: 2px 8px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #d1d1d1;
+  z-index: 10;
+}
+
+.pager-status.pager-error {
+  background: #2a1515;
+  border-top-color: #cd3131;
+  color: #f14c4c;
+}
+
 .command-line .prompt,
 .command-line .command-text {
   display: inline;

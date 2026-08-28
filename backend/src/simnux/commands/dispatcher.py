@@ -154,6 +154,7 @@ class CommandDispatcher:
             stderr=stderr_lines,
             exit_code=exit_code,
             action_type=action_type,
+            pager_payload=getattr(command, "_pager_payload", None),
         )
 
     async def dispatch_pipeline(
@@ -277,4 +278,5 @@ class CommandDispatcher:
             stderr=merged_stderr,
             exit_code=last_exit,
             action_type=action_type,
+            pager_payload=getattr(self.registry.get(segments[-1][0]), "_pager_payload", None),
         )

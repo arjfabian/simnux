@@ -5,6 +5,7 @@ from __future__ import annotations
 import difflib
 
 from simnux.commands.errors import CommandError
+from simnux.commands.models import MAX_PAGER_FILE_SIZE
 from simnux.commands.models import CommandContext
 from simnux.commands.runtime import SNXCommand
 from simnux.commands.streams import AsyncStreamReader
@@ -54,7 +55,10 @@ class Command(SNXCommand):
             result = ctx.filesystem.read(path)
             if result.exit_code != ExitCode.SUCCESS:
                 return None, f"diff: {arg}: {result.message}"
-            return (result.node.content or "").splitlines(), None
+            content = result.node.content or ""
+            if len(content.encode("utf-8")) > MAX_PAGER_FILE_SIZE:
+                return None, f"diff: {arg}: file too large (max 1MB)"
+            return content.splitlines(), None
 
         content1, err1 = await _lines(file1)
         if err1:

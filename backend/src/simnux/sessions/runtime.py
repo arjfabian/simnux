@@ -28,6 +28,7 @@ class SNXSession:
     awaiting_input: bool = False
     pending_var_name: str | None = None
     pending_command: str | None = None
+    pending_state: Any | None = None
 
     @property
     def motd(self) -> str:

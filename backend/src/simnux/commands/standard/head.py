@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+from simnux.commands.models import MAX_PAGER_FILE_SIZE
 from simnux.commands.models import CommandContext
 from simnux.commands.runtime import SNXCommand
 from simnux.commands.streams import AsyncStreamReader
@@ -39,7 +40,6 @@ class Command(SNXCommand):
         stdout: AsyncStreamWriter,
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
-
         n = 10
         if self.parsed_args and "lines" in self.parsed_args.flags:
             raw = self.parsed_args.flags["lines"]
@@ -83,6 +83,9 @@ class Command(SNXCommand):
                     return result.exit_code
 
                 content = result.node.content or ""
+                if len(content.encode("utf-8")) > MAX_PAGER_FILE_SIZE:
+                    await stderr.write(f"head: {file_arg}: file too large (max 1MB)\n")
+                    return ExitCode.ERROR
                 lines = content.splitlines()
                 for line in lines[:n]:
                     await stdout.write(f"{line}\n")

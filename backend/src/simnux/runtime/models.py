@@ -22,12 +22,14 @@ class TerminalAction(IntEnum):
     ``CLEAR_SCREEN`` — the terminal display should be cleared.
     ``WIN``          — the scenario objective has been satisfied.
     ``FAIL``         — the scenario's failure condition has triggered.
+    ``PAGER``        — a full-screen pager (less/more) is rendering output.
     """
 
     NONE = 0
     CLEAR_SCREEN = 1
     WIN = 2
     FAIL = 3
+    PAGER = 4
 
 
 @dataclass
@@ -39,3 +41,6 @@ class CommandResult:
     exit_code: ExitCode = ExitCode.SUCCESS
     action_type: TerminalAction = TerminalAction.NONE
     action_message: str | None = None
+    # Structured payload for client-side paging (see the non-suspended
+    # ``less`` command). Populated by the dispatcher from the command.
+    pager_payload: dict | None = None

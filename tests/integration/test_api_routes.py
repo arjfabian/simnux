@@ -36,6 +36,18 @@ async def execute(client, session_id: str, command: str):
     )
 
 
+async def client_post_viewport(client, session_id: str, command: str, viewport_height: int):
+    """Helper: execute with explicit terminal geometry (viewport_height)."""
+    return await client.post(
+        "/execute_command",
+        json={
+            "command": command,
+            "session_id": session_id,
+            "viewport_height": viewport_height,
+        },
+    )
+
+
 def json_of(response) -> dict:
     """Helper: extract JSON dict from an HTTP response."""
     return response.json()
@@ -435,3 +447,134 @@ class TestValidationErrors:
             json={"session_id": "abc"},
         )
         assert_validation_error(resp)
+
+
+class TestPagerProjection:
+    """Full-screen pager (less/more) contract projection over HTTP."""
+
+    async def test_less_invocation_projects_client_pager(self, api_client):
+        """``less`` returns action_type=4 with is_pager + full content.
+
+        ``less`` is a client-side pager: it returns the entire file so the
+        frontend can page locally; no backend suspension occurs.
+        """
+        session_id = await create_session(api_client)
+
+        resp = await execute(api_client, session_id, "less lipsum.txt")
+        assert_ok_response(resp)
+
+        data = resp.json()
+        assert data["action_type"] == 4
+        assert data["is_pager"] is True
+        assert data["awaiting_input"] is False
+        # The client-side pager does not suspend the backend, so a prompt is
+        # still rendered (the frontend hides it while the local pager is open).
+        assert data["prompt"] != ""
+        # Full file returned (not a viewport slice).
+        assert len(data["pager_content"]) > 24
+        assert data["pager_content"][0]
+        assert data["pager_filename"] == "lipsum.txt"
+        # No legacy suspended-pager projection for the client-side protocol.
+        assert data["pager_lines"] is None
+
+    async def test_less_ignores_viewport_for_content(self, api_client):
+        """``less`` returns the full file regardless of viewport_height."""
+        session_id = await create_session(api_client)
+
+        resp = await client_post_viewport(
+            api_client,
+            session_id,
+            "less /etc/motd",
+            viewport_height=5,
+        )
+        data = resp.json()
+        assert data["action_type"] == 4
+        assert data["is_pager"] is True
+        # All 9 lines are handed to the client, not a 5-line slice.
+        assert len(data["pager_content"]) == 9
+        assert data["pager_filename"] == "/etc/motd"
+
+    async def test_less_size_limit_over_http(self, api_client):
+        """``less`` rejects a file larger than MAX_PAGER_FILE_SIZE."""
+        from simnux.commands.models import MAX_PAGER_FILE_SIZE
+
+        session_id = await create_session(api_client)
+        await execute(api_client, session_id, "touch big.txt")
+        await execute(
+            api_client,
+            session_id,
+            f"echo {'x' * (MAX_PAGER_FILE_SIZE + 1)} > big.txt",
+        )
+
+        resp = await execute(api_client, session_id, "less big.txt")
+        data = resp.json()
+        assert data["action_type"] == 0
+        assert data["is_pager"] is False
+        assert any("file too large (max 1MB)" in line for line in data["stderr"])
+
+    async def test_more_projects_posix_status_indicator(self, api_client):
+        """``more`` carries a preformatted --More--(NN%) status string."""
+        session_id = await create_session(api_client)
+
+        resp = await client_post_viewport(
+            api_client,
+            session_id,
+            "more /etc/motd",
+            viewport_height=5,
+        )
+        data = resp.json()
+        assert data["action_type"] == 4
+        # 5 of 9 lines shown -> round(5 * 100 / 9) = 56.
+        assert data["pager_status"] == "--More--(56%)"
+
+    async def test_more_auto_exits_at_eof_over_http(self, api_client):
+        """Advancing past the last page returns to the normal prompt."""
+        session_id = await create_session(api_client)
+        await execute(api_client, session_id, "more lipsum.txt")
+
+        # Default 24-line viewport: first Space shows lines 25-48, second
+        # reaches EOF and exits automatically.
+        resp = await execute(api_client, session_id, "")
+        assert resp.json()["action_type"] == 4
+
+        resp = await execute(api_client, session_id, "")
+        data = resp.json()
+        assert data["action_type"] == 0
+        assert data["awaiting_input"] is False
+        assert data["pager_lines"] is None
+        assert data["prompt"] != ""
+
+    async def test_pager_navigation_updates_projection(self, api_client):
+        """Keystroke payloads resume the ``more`` pager with refreshed fields."""
+        session_id = await create_session(api_client)
+        await execute(api_client, session_id, "more lipsum.txt")
+
+        # Advance: Space on a multi-page file stays in the pager and moves.
+        resp = await execute(api_client, session_id, "")
+        data = resp.json()
+        assert data["action_type"] == 4
+        assert data["pager_position"] == 24  # default 24-line viewport
+
+        # Quit returns to normal prompt.
+        resp = await execute(api_client, session_id, "q")
+        data = resp.json()
+        assert data["action_type"] == 0
+        assert data["pager_lines"] is None
+
+    async def test_quit_restores_normal_prompt(self, api_client):
+        """After ``q`` the ``more`` pager exits back to a normal prompt."""
+        session_id = await create_session(api_client)
+        await execute(api_client, session_id, "more lipsum.txt")
+
+        resp = await execute(api_client, session_id, "q")
+        data = resp.json()
+        assert data["action_type"] == 0
+        assert data["awaiting_input"] is False
+        assert data["pager_lines"] is None
+        assert data["prompt"] != ""
+
+        # Session usable normally afterwards.
+        resp = await execute(api_client, session_id, "pwd")
+        data = resp.json()
+        assert_ok_response(resp)
+        assert data["stdout"] == ["/home/user"]
