@@ -6,7 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.4.2] - 2026.08.24
+## [0.4.5] - 2026-08-27
+
+### Added
+
+* **Full-Screen Pager (`less`):** New `less [-N] FILE` command providing a full-screen file viewer with buffered navigation. Supports Space/f (next page), b (previous page), j/k or ArrowDown/ArrowUp (single-line scroll), g/G (top/bottom), numeric `<N>G` line jumps, and regex search (`/pattern`, `n` next match, `N` previous match). `-N` prepends width-padded right-aligned line numbers. Unknown keys are silently ignored; `q` quits. Piped input (`echo x | less`) dumps stdin without entering pager mode.
+* **Forward-Only Pager (`more`):** New `more FILE` command mirroring classic forward-only paging: Space/f advance a page, j scrolls one line, backward navigation (`b`, `k`) writes `more: cannot go backward` to stderr while staying open, and unsupported operations (`g`, `G`, `/`) write `more: unsupported operation`. Rejects all options. Matches POSIX auto-exit semantics: an advance that reaches (or passes) the end of file — including Space/Enter pressed while already showing the last page — terminates the pager automatically and returns to the shell prompt.
+* **`PagerState` Session Model:** New dataclass in `simnux.commands.models` encapsulating the complete pager viewport state — buffered content, filename, scroll position, viewport height (24 lines), and search bookkeeping (`search_pattern`, `search_positions`, `search_index`). Provides clamped position mutation (`advance`/`rewind`/`jump_top`/`jump_bottom`), forward/backward regex search with wrap-around indexing, and viewport projection helpers (`current_page()`, `at_bottom()`, `percent_shown()`).
+* **Generic Suspension Slot:** `SNXSession` gains a single generic `pending_state: Any | None` field for any command that suspends mid-execution. Pager commands store their `PagerState` here on suspend and clear it (together with `awaiting_input`/`pending_command`) on exit — no pager-specific attributes leak into the session model.
+* **`TerminalAction.PAGER`:** New action type value (4) signalling the frontend that the response carries a full-screen pager overlay instead of streamed terminal output.
+* **Pager Program Discriminator & Status Projection:** `PagerState` records its owning program (`program: "less" | "more"`). The API projects a preformatted `pager_status` field for `more` — the POSIX `--More--(NN%)` indicator computed via `percent_shown()` — while `less` leaves it absent so the frontend composes its interactive `filename lines X-Y/Z (END)` status bar requiring `q` to quit. `renderPager()` prefers the backend-provided string when present.
+* **Dynamic Terminal Viewport:** `CommandRequest` gains an optional `viewport_height` field (1–200 lines) reported by the frontend on every execution and pager-resume turn. It flows through `SNXShell.execute()`/`execute_resume()` into a new generic `CommandContext.viewport_height` field. Pager commands initialize `PagerState.viewport` from it (fallback: 24) and re-clamp the scroll position against fresh geometry before slicing each resume turn, so resizing the browser window immediately reshapes the pager view.
+* **`MAX_PAGER_FILE_SIZE` Read Limit:** New `MAX_PAGER_FILE_SIZE` constant (1MB) in `simnux.commands.models` guarding file-reading commands (`less`, `cat`, `head`, `tail`, `grep`, `diff`). Files exceeding the cap are rejected with an explicit stderr error (`<cmd>: <file>: file too large (max 1MB)`) before any content is processed, preventing oversized files from being buffered into memory or handed to the frontend. `cat` additionally returns a proper "not found" error when a node has no content.
+* **Configurable Backend URL & CORS Policy:** The frontend's `BACKEND_URL` is now read at runtime from `window.SIMNUX_CONFIG` (populated by a `config.js` script loaded from `index.html`) instead of being hardcoded, so a single build can target any backend. The backend no longer hardcodes its CORS allow-list to localhost; it now reads the comma-separated `ALLOWED_ORIGINS` environment variable (defaulting to the local dev origins) at startup. This decouples the backend and frontend endpoint addresses from the codebase, letting each be deployed and pointed independently.
+* **API Rate Limiting:** The backend now applies per-client-IP request rate limiting (30 requests/minute by default) via `slowapi`. Added `ProxyHeadersMiddleware` (trusting Fly's proxy headers) so client IPs resolve correctly behind a reverse proxy, and a `slowapi` runtime dependency. Because client-side paging no longer issues per-keystroke `POST /execute_command` calls, interactive paging preserves rate-limit headroom for real command execution.
+
+### Changed
+
+* **Pager HTTP Contract Projection:** `/execute_command` projects suspended `PagerState` onto `ShellResponse` via optional fields — `pager_lines` (current viewport slice), `pager_position`, `pager_total`, `pager_eof`, `pager_filename`. Projection only occurs when `session.pending_state` is a `PagerState`; scenario evaluation is suppressed during active paging so keystrokes cannot accidentally trigger objective evaluation.
+* **Resume Path History Isolation:** `SNXShell._resume_impl()` skips `add_history` when `session.pending_state` is set, keeping pager keystrokes (Space, j/k, `/pattern`) out of command history.
+* **Frontend Dumb-Terminal Pager Protocol:** The frontend maps keys to minimal resume payloads — Space/f → `""`, b → `"b"`, Up/Down → `"k"`/`"j"`, g/G/n/N/q/Q/Escape pass through, and `/` opens a native prompt whose input resumes as `"/<pattern>"`. Responses with `action_type == 4` swap in a full-screen pager view with a sticky status bar (`filename lines X-Y/Z (END)` / percentage); any non-pager response exits the overlay and restores normal terminal flow. Keystrokes are captured globally while the pager is active; click-to-focus is suppressed.
+* **Frontend Viewport Measurement:** Every `/execute_command` payload now carries a dynamically computed `viewport_height` — terminal line capacity derived from the outer `.terminal-container` height (falling back to `window.innerHeight`) divided by the computed line height, minus chrome padding (minimum 5 lines). Applies uniformly to normal command execution and pager keystroke resumes; calculation steps are traced via `console.debug("[SIMNUX]", ...)`. While a pager is active, prompt lines are hidden and restored on exit so only the pager view is visible.
+* **Client-Side `less` Pager Protocol:** `less` was refactored from the suspended, backend-buffered pager into a client-side (non-suspended) viewer. On execution it returns the full file once through new `is_pager`/`pager_content` response fields; the frontend stores the lines locally and performs all navigation (Space/f page-forward, b page-back, j/k line scroll, g/G top/bottom, `/pattern` search, q quit) with zero further backend round trips. Piped input (`echo x | less`) still dumps stdin without entering pager mode. This replaces the per-keystroke resume flow for `less` described above, and keeps pager traffic out of the request rate limiter. `more` retains its suspended, backend-driven paging behavior.
+* **Scenario & Session Route Paths:** Public route prefixes were normalized — `GET /scenarios` (was `/api/scenarios`) and resumed sessions at `GET /api/sessions/{session_id}` (was `/sessions/{session_id}`).
+* **Removed Debug Router:** Deleted the `simnux.api.routes.debug` module (and its `/debug/runtime` raw runtime introspection endpoint), leaving only the stable public API surface exposed.
+
+### Fixed
+
+* **Local Pager Key Bleed:** Turning off the client-side `less` pager with `q`/`Q`/`Escape` (and other intercepted pager keys) no longer leaks the keystroke into the terminal's input buffer. All captured pager keys are `preventDefault()`ed (with the input buffer cleared on exit), so quitting a file never leaves a stray character queued for the next command.
+
+---
+
+## [0.4.2] - 2026-08-24
 
 ### Added
 
@@ -25,7 +56,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.4.1] - 2026.07.27
+## [0.4.1] - 2026-07-27
 
 ### Added
 
