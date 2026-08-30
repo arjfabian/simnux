@@ -12,7 +12,7 @@ def main() -> None:
     """Start the FastAPI server using uvicorn."""
 
     uvicorn.run(
-        "simnux.init.app_factory:create_app",
+        "simnux.boot.app_factory:create_app",
         host="0.0.0.0",
         port=8000,
         factory=True,

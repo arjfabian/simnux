@@ -38,4 +38,4 @@ USER simnux
 
 EXPOSE 8001
 
-CMD ["uvicorn", "simnux.init.app_factory:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["uvicorn", "simnux.boot.app_factory:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001"]
