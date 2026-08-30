@@ -6,7 +6,7 @@ mutations, and rejecting unexpected arguments.
 
 import pytest
 
-from simnux.commands.errors import CommandError
+from simnux.core.commands.errors import CommandError
 from tests.helpers import assert_invalid_args
 from tests.helpers import assert_success
 from tests.helpers import stderr_text

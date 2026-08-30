@@ -7,10 +7,10 @@ and overlay integrity guarantees (base-layer immutability).
 
 import pytest
 
-from simnux.commands.errors import CommandError
-from simnux.filesystem.models import PermissionPresets
-from simnux.filesystem.models import SNXNode
-from simnux.runtime.models import ExitCode
+from simnux.core.commands.errors import CommandError
+from simnux.core.filesystem.models import PermissionPresets
+from simnux.core.filesystem.models import SNXNode
+from simnux.core.runtime.models import ExitCode
 from tests.helpers import assert_not_success
 from tests.helpers import assert_success
 

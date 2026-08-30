@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from simnux.commands.errors import CommandError
+from simnux.core.commands.errors import CommandError
 from tests.helpers import assert_error
 from tests.helpers import assert_invalid_args
 from tests.helpers import assert_success

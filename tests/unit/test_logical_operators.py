@@ -1,7 +1,7 @@
 """Tests for logical operators (&& and ||) in shell parsing and execution."""
 
-from simnux.shell.models import LogicalOperator
-from simnux.shell.parser import ShellParser
+from simnux.core.shell.models import LogicalOperator
+from simnux.core.shell.parser import ShellParser
 
 
 class TestLogicalParsing:

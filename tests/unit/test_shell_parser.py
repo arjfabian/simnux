@@ -7,7 +7,7 @@ trailing backslash).
 
 import pytest
 
-from simnux.shell.parser import ShellParser
+from simnux.core.shell.parser import ShellParser
 
 
 class TestShellParser:

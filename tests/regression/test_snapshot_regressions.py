@@ -4,7 +4,7 @@ Ensures snapshot session IDs match the source session and that filesystem
 mutations are reflected in snapshots.
 """
 
-from simnux.filesystem.vfs import SNXFileSystem
+from simnux.core.filesystem.vfs import SNXFileSystem
 from tests.helpers import make_shell
 
 

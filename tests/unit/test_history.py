@@ -2,7 +2,7 @@
 
 import pytest
 
-from simnux.scripting.history import CommandHistory
+from simnux.core.scripting.history import CommandHistory
 
 
 class TestHistoryBangBang:

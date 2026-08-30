@@ -84,9 +84,7 @@ echo second
     async def test_script_redirected_to_file(self, shell_with_commands):
         """``./script.sh > output.txt`` writes to file."""
         await self._write_script(shell_with_commands)
-        result = await shell_with_commands.execute(
-            "./script.sh > /home/user/output.txt"
-        )
+        result = await shell_with_commands.execute("./script.sh > /home/user/output.txt")
         assert_success(result)
 
         read_result = shell_with_commands.filesystem.read("/home/user/output.txt")

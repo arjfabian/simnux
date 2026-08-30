@@ -4,9 +4,9 @@ import asyncio
 
 import pytest
 
-from simnux.commands.models import PagerState
-from simnux.commands.streams import QueueStreamReader
-from simnux.runtime.models import TerminalAction
+from simnux.core.commands.models import PagerState
+from simnux.core.commands.streams import QueueStreamReader
+from simnux.core.runtime.models import TerminalAction
 from tests.helpers import assert_error
 from tests.helpers import assert_invalid_args
 from tests.helpers import assert_success

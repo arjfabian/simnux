@@ -3,13 +3,13 @@
 import asyncio
 import logging
 
-from simnux.commands.loader import CommandLoader
-from simnux.commands.models import CommandContext
-from simnux.commands.registry import CommandRegistry
-from simnux.filesystem.vfs import SNXFileSystem
-from simnux.runtime.models import ExitCode
-from simnux.sessions.runtime import SNXSession
-from simnux.shell.runtime import SNXShell
+from simnux.core.commands.loader import CommandLoader
+from simnux.core.commands.models import CommandContext
+from simnux.core.commands.registry import CommandRegistry
+from simnux.core.filesystem.vfs import SNXFileSystem
+from simnux.core.runtime.models import ExitCode
+from simnux.core.sessions.runtime import SNXSession
+from simnux.core.shell.runtime import SNXShell
 
 
 def make_shell(session, filesystem, logger, registry=None):

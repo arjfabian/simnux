@@ -7,8 +7,8 @@ for nonexistent paths, directories, and missing operands.
 
 import pytest
 
-from simnux.commands.errors import CommandError
-from simnux.runtime.models import ExitCode
+from simnux.core.commands.errors import CommandError
+from simnux.core.runtime.models import ExitCode
 from tests.helpers import assert_error
 from tests.helpers import assert_success
 from tests.helpers import stderr_text

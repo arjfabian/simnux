@@ -5,9 +5,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from simnux.commands.models import CommandContext
-from simnux.commands.streams import QueueStreamWriter
-from simnux.runtime.models import ExitCode
+from simnux.core.commands.models import CommandContext
+from simnux.core.commands.streams import QueueStreamWriter
+from simnux.core.runtime.models import ExitCode
 from tests.helpers import assert_error
 from tests.helpers import assert_success
 
@@ -182,7 +182,7 @@ class TestTestCommandUnit:
 
     @pytest.fixture
     def test_command(self):
-        from simnux.commands.standard.condition import Command
+        from simnux.core.commands.standard.condition import Command
 
         return Command(context=MagicMock())
 

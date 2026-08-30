@@ -11,10 +11,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from simnux.commands.errors import CommandError
-from simnux.commands.models import CommandContext
-from simnux.commands.streams import QueueStreamWriter
-from simnux.runtime.models import ExitCode
+from simnux.core.commands.errors import CommandError
+from simnux.core.commands.models import CommandContext
+from simnux.core.commands.streams import QueueStreamWriter
+from simnux.core.runtime.models import ExitCode
 from tests.helpers import assert_error
 from tests.helpers import assert_success
 from tests.helpers import stderr_text
@@ -152,8 +152,8 @@ class TestMvAtomicCleanup:
 
     async def test_mv_cleanup_on_delete_failure(self):
         """If ``delete_file`` fails after target write, the target is cleaned up."""
-        from simnux.commands.standard.mv import Command
-        from simnux.filesystem.vfs import SNXFileSystem
+        from simnux.core.commands.standard.mv import Command
+        from simnux.core.filesystem.vfs import SNXFileSystem
 
         cmd = Command(context=MagicMock())
         cmd.args = ["/source", "/target"]
@@ -193,8 +193,8 @@ class TestMvAtomicCleanup:
 
     async def test_mv_cleanup_not_called_on_success(self):
         """When ``delete_file`` succeeds, no extra cleanup call is made."""
-        from simnux.commands.standard.mv import Command
-        from simnux.filesystem.vfs import SNXFileSystem
+        from simnux.core.commands.standard.mv import Command
+        from simnux.core.filesystem.vfs import SNXFileSystem
 
         cmd = Command(context=MagicMock())
         cmd.args = ["/source", "/target"]
@@ -229,8 +229,8 @@ class TestMvAtomicCleanup:
 
     async def test_mv_failed_source_delete_preserves_pre_existing_target(self):
         """If ``delete_file`` fails and the target pre-existed, the target is not deleted."""
-        from simnux.commands.standard.mv import Command
-        from simnux.filesystem.vfs import SNXFileSystem
+        from simnux.core.commands.standard.mv import Command
+        from simnux.core.filesystem.vfs import SNXFileSystem
 
         cmd = Command(context=MagicMock())
         cmd.args = ["/source", "/target"]

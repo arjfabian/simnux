@@ -5,8 +5,8 @@ never mutate ``base_layer``. Also validates delta-layer shadowing,
 tombstone semantics (idempotency, recreation), and cross-session isolation.
 """
 
-from simnux.commands.errors import CommandError
-from simnux.filesystem.vfs import SNXFileSystem
+from simnux.core.commands.errors import CommandError
+from simnux.core.filesystem.vfs import SNXFileSystem
 from tests.helpers import assert_not_success
 
 

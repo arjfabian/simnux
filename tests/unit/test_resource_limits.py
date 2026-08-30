@@ -5,18 +5,18 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from simnux.commands.errors import CommandError
-from simnux.commands.models import CommandContext
-from simnux.commands.registry import CommandRegistry
-from simnux.commands.streams import QueueStreamWriter
-from simnux.filesystem.models import PermissionPresets
-from simnux.filesystem.models import SNXNode
-from simnux.filesystem.vfs import SNXFileSystem
-from simnux.init.config import LimitsConfig
-from simnux.init.config import ScriptLimits
-from simnux.init.config import VfsLimits
-from simnux.runtime.models import ExitCode
-from simnux.scripting.runner import ScriptRunner
+from simnux.boot.config import LimitsConfig
+from simnux.boot.config import ScriptLimits
+from simnux.boot.config import VfsLimits
+from simnux.core.commands.errors import CommandError
+from simnux.core.commands.models import CommandContext
+from simnux.core.commands.registry import CommandRegistry
+from simnux.core.commands.streams import QueueStreamWriter
+from simnux.core.filesystem.models import PermissionPresets
+from simnux.core.filesystem.models import SNXNode
+from simnux.core.filesystem.vfs import SNXFileSystem
+from simnux.core.runtime.models import ExitCode
+from simnux.core.scripting.runner import ScriptRunner
 
 
 # ── VFS byte caps ────────────────────────────────────────────────────────
@@ -379,7 +379,7 @@ class TestInfiniteWhileLoopWithTestCmd:
 
     async def test_while_true_eq_1_loop_halts(self):
         """while [ 1 -eq 1 ] halts when max_loop_iterations is exceeded."""
-        from simnux.commands.standard.condition import Command as TestCmd
+        from simnux.core.commands.standard.condition import Command as TestCmd
 
         limits = LimitsConfig(script=ScriptLimits(max_loop_iterations=5))
         registry = CommandRegistry()
@@ -560,7 +560,7 @@ class TestLimitsConfigLoader:
 
     def test_missing_file_returns_defaults(self, tmp_path):
         """When config/limits.yaml doesn't exist, defaults are returned."""
-        from simnux.init.config import load_limits_config
+        from simnux.boot.config import load_limits_config
 
         config = load_limits_config(tmp_path)
         assert config.vfs.max_file_bytes == 1_048_576
@@ -571,7 +571,7 @@ class TestLimitsConfigLoader:
 
     def test_partial_file_fills_defaults(self, tmp_path):
         """A partial YAML file fills in missing keys with defaults."""
-        from simnux.init.config import load_limits_config
+        from simnux.boot.config import load_limits_config
 
         config_dir = tmp_path / "config"
         config_dir.mkdir()
@@ -584,7 +584,7 @@ class TestLimitsConfigLoader:
 
     def test_invalid_yaml_returns_defaults(self, tmp_path):
         """Malformed YAML returns defaults without crashing."""
-        from simnux.init.config import load_limits_config
+        from simnux.boot.config import load_limits_config
 
         config_dir = tmp_path / "config"
         config_dir.mkdir()
@@ -595,7 +595,7 @@ class TestLimitsConfigLoader:
 
     def test_default_path_finds_project_config(self):
         """load_limits_config() without project_root resolves to the actual project root."""
-        from simnux.init.config import load_limits_config
+        from simnux.boot.config import load_limits_config
 
         config = load_limits_config()
         assert config.vfs.max_file_bytes == 1_048_576
@@ -612,7 +612,7 @@ class TestFileStreamWriterQuotaError:
 
     async def test_append_quota_error_captured(self):
         """FileStreamWriter.last_error is set when append exceeds quota."""
-        from simnux.commands.streams import FileStreamWriter
+        from simnux.core.commands.streams import FileStreamWriter
 
         base_layer = {
             "/tmp/test.txt": SNXNode(
@@ -636,7 +636,7 @@ class TestFileStreamWriterQuotaError:
 
     async def test_write_quota_error_captured(self):
         """FileStreamWriter.last_error is set when write exceeds quota."""
-        from simnux.commands.streams import FileStreamWriter
+        from simnux.core.commands.streams import FileStreamWriter
 
         base_layer = {
             "/tmp/test.txt": SNXNode(
@@ -659,7 +659,7 @@ class TestFileStreamWriterQuotaError:
 
     async def test_successful_write_no_error(self):
         """FileStreamWriter.last_error is None on successful write."""
-        from simnux.commands.streams import FileStreamWriter
+        from simnux.core.commands.streams import FileStreamWriter
 
         base_layer = {
             "/tmp/test.txt": SNXNode(

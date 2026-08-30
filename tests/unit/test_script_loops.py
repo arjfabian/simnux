@@ -5,14 +5,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from simnux.commands.models import CommandContext
-from simnux.commands.registry import CommandRegistry
-from simnux.commands.standard.condition import Command as TestCmd
-from simnux.commands.streams import QueueStreamWriter
-from simnux.init.config import LimitsConfig
-from simnux.init.config import ScriptLimits
-from simnux.runtime.models import ExitCode
-from simnux.scripting.runner import ScriptRunner
+from simnux.boot.config import LimitsConfig
+from simnux.boot.config import ScriptLimits
+from simnux.core.commands.models import CommandContext
+from simnux.core.commands.registry import CommandRegistry
+from simnux.core.commands.standard.condition import Command as TestCmd
+from simnux.core.commands.streams import QueueStreamWriter
+from simnux.core.runtime.models import ExitCode
+from simnux.core.scripting.runner import ScriptRunner
 
 
 class _EchoCommand:
@@ -278,27 +278,27 @@ class TestEvalArithmetic:
     """Direct tests for the _eval_arithmetic helper."""
 
     def test_addition(self):
-        from simnux.scripting.runner import ScriptRunner
+        from simnux.core.scripting.runner import ScriptRunner
 
         assert ScriptRunner._eval_arithmetic("2+3", {}) == 5
 
     def test_subtraction(self):
-        from simnux.scripting.runner import ScriptRunner
+        from simnux.core.scripting.runner import ScriptRunner
 
         assert ScriptRunner._eval_arithmetic("10-7", {}) == 3
 
     def test_with_var(self):
-        from simnux.scripting.runner import ScriptRunner
+        from simnux.core.scripting.runner import ScriptRunner
 
         assert ScriptRunner._eval_arithmetic("x+1", {"x": "4"}) == 5
 
     def test_division_by_zero(self):
-        from simnux.scripting.runner import ScriptRunner
+        from simnux.core.scripting.runner import ScriptRunner
 
         assert ScriptRunner._eval_arithmetic("1/0", {}) == 0
 
     def test_invalid_expr_returns_zero(self):
-        from simnux.scripting.runner import ScriptRunner
+        from simnux.core.scripting.runner import ScriptRunner
 
         assert ScriptRunner._eval_arithmetic("abc", {}) == 0
 

@@ -5,11 +5,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from simnux.commands.errors import CommandError
-from simnux.commands.models import CommandContext
-from simnux.commands.streams import QueueStreamReader
-from simnux.commands.streams import QueueStreamWriter
-from simnux.runtime.models import ExitCode
+from simnux.core.commands.errors import CommandError
+from simnux.core.commands.models import CommandContext
+from simnux.core.commands.streams import QueueStreamReader
+from simnux.core.commands.streams import QueueStreamWriter
+from simnux.core.runtime.models import ExitCode
 from tests.helpers import assert_error
 from tests.helpers import assert_success
 from tests.helpers import drain_queue
@@ -66,9 +66,7 @@ class TestCatCommand:
 
     async def test_cat_multiple_files(self, shell_with_commands):
         """Cat with multiple file arguments concatenates their content."""
-        result = await shell_with_commands.execute(
-            "cat /etc/hostname /home/user/notes.txt"
-        )
+        result = await shell_with_commands.execute("cat /etc/hostname /home/user/notes.txt")
         assert_success(result)
         stdout = stdout_text(result)
         assert "simnux-edge" in stdout
@@ -96,7 +94,7 @@ class TestCatCommandStream:
 
     @pytest.fixture
     def cat_command(self):
-        from simnux.commands.standard.cat import Command
+        from simnux.core.commands.standard.cat import Command
 
         return Command(context=MagicMock())
 
@@ -155,9 +153,9 @@ class TestCatCommandStream:
 
     async def test_cat_dash_between_files(self):
         """``cat file -`` interleaves file content with stdin."""
-        from simnux.commands.standard.cat import Command
-        from simnux.filesystem.models import SNXNode
-        from simnux.filesystem.vfs import SNXFileSystem
+        from simnux.core.commands.standard.cat import Command
+        from simnux.core.filesystem.models import SNXNode
+        from simnux.core.filesystem.vfs import SNXFileSystem
 
         cmd = Command(context=MagicMock())
         cmd.args = ["/etc/hostname", "-"]

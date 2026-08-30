@@ -4,7 +4,7 @@ Ensures tilde abbreviation works correctly for home, nested subpaths,
 and paths completely outside the home directory.
 """
 
-from simnux.shell.prompt import PromptRenderer
+from simnux.core.shell.prompt import PromptRenderer
 
 
 class TestRegressionPromptHomeMismatch:

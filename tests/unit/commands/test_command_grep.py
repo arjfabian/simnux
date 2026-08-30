@@ -9,11 +9,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from simnux.commands.errors import CommandError
-from simnux.commands.models import CommandContext
-from simnux.commands.streams import QueueStreamReader
-from simnux.commands.streams import QueueStreamWriter
-from simnux.runtime.models import ExitCode
+from simnux.core.commands.errors import CommandError
+from simnux.core.commands.models import CommandContext
+from simnux.core.commands.streams import QueueStreamReader
+from simnux.core.commands.streams import QueueStreamWriter
+from simnux.core.runtime.models import ExitCode
 from tests.helpers import assert_error
 from tests.helpers import assert_success
 from tests.helpers import drain_queue
@@ -110,7 +110,7 @@ class TestGrepCommandStream:
 
     @pytest.fixture
     def grep_command(self):
-        from simnux.commands.standard.grep import Command
+        from simnux.core.commands.standard.grep import Command
 
         return Command(context=MagicMock())
 
@@ -171,9 +171,9 @@ class TestGrepCommandStream:
 
     async def test_grep_file_then_dash(self):
         """``grep pattern file -`` searches file then stdin."""
-        from simnux.commands.standard.grep import Command
-        from simnux.filesystem.models import SNXNode
-        from simnux.filesystem.vfs import SNXFileSystem
+        from simnux.core.commands.standard.grep import Command
+        from simnux.core.filesystem.models import SNXNode
+        from simnux.core.filesystem.vfs import SNXFileSystem
 
         cmd = Command(context=MagicMock())
         cmd.args = ["edge", "/etc/hostname", "-"]

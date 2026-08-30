@@ -8,8 +8,8 @@ roundtrips.
 
 import pytest
 
-from simnux.commands.models import MAX_PAGER_FILE_SIZE
-from simnux.runtime.models import TerminalAction
+from simnux.core.commands.models import MAX_PAGER_FILE_SIZE
+from simnux.core.runtime.models import TerminalAction
 from tests.helpers import assert_error
 from tests.helpers import assert_invalid_args
 from tests.helpers import assert_success

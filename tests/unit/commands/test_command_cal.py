@@ -10,10 +10,10 @@ import datetime
 
 import pytest
 
-from simnux.commands.standard.cal import _highlight_today
-from simnux.commands.standard.cal import _month_lines
-from simnux.commands.standard.cal import _three_month_lines
-from simnux.commands.standard.cal import _year_lines
+from simnux.core.commands.standard.cal import _highlight_today
+from simnux.core.commands.standard.cal import _month_lines
+from simnux.core.commands.standard.cal import _three_month_lines
+from simnux.core.commands.standard.cal import _year_lines
 from tests.helpers import assert_invalid_args
 from tests.helpers import assert_success
 from tests.helpers import stderr_text

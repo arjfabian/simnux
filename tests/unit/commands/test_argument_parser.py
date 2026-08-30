@@ -5,7 +5,7 @@ options (attached and separate), the ``--`` end-of-options sentinel,
 GNU-format error messages, and the no-op empty case.
 """
 
-from simnux.commands.argument_parser import parse_arguments
+from simnux.core.commands.argument_parser import parse_arguments
 
 
 BOOL_SPEC = {

@@ -65,13 +65,13 @@ class TestFullShellFlow:
     async def test_session_state_persistence(self, runtime):
         """Session state (CWD, filesystem) persists across multiple commands and retrievals."""
         shell = runtime.create_session(scenario_name="hello", session_id="e2e-7")
-        await shell.execute("cd /var/log")
+        await shell.execute("cd /tmp")
         await shell.execute("touch test.log")
         await shell.execute("cd /")
 
         s = runtime.get_session("e2e-7")
         assert s.session.current_directory == "/"
-        assert s.filesystem.exists("/var/log/test.log")
+        assert s.filesystem.exists("/tmp/test.log")
 
     async def test_snapshot_consistency_after_mutations(self, runtime):
         """Snapshot reflects all state changes (CWD, new files, session ID, scenario name)."""

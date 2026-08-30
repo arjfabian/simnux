@@ -7,18 +7,18 @@ registry isolation.
 
 import pytest
 
-from simnux.commands.dispatcher import CommandDispatcher
-from simnux.commands.models import CommandContext
-from simnux.commands.registry import CommandRegistry
-from simnux.commands.runtime import SNXCommand
-from simnux.commands.streams import AsyncStreamReader
-from simnux.commands.streams import AsyncStreamWriter
-from simnux.filesystem.models import PermissionPresets
-from simnux.filesystem.models import SNXNode
-from simnux.filesystem.vfs import SNXFileSystem
-from simnux.runtime.models import ExitCode
-from simnux.scenarios.models import SNXScenario
-from simnux.sessions.runtime import SNXSession
+from simnux.core.commands.dispatcher import CommandDispatcher
+from simnux.core.commands.models import CommandContext
+from simnux.core.commands.registry import CommandRegistry
+from simnux.core.commands.runtime import SNXCommand
+from simnux.core.commands.streams import AsyncStreamReader
+from simnux.core.commands.streams import AsyncStreamWriter
+from simnux.core.filesystem.models import PermissionPresets
+from simnux.core.filesystem.models import SNXNode
+from simnux.core.filesystem.vfs import SNXFileSystem
+from simnux.core.runtime.models import ExitCode
+from simnux.core.scenarios.models import SNXScenario
+from simnux.core.sessions.runtime import SNXSession
 
 
 pytestmark = pytest.mark.asyncio

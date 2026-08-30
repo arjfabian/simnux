@@ -5,11 +5,11 @@ tilde abbreviation for the home directory, ``$`` vs ``#`` for root,
 and correct hostname/username display.
 """
 
-from simnux.filesystem.models import PermissionPresets
-from simnux.filesystem.models import SNXNode
-from simnux.scenarios.models import SNXScenario
-from simnux.sessions.runtime import SNXSession
-from simnux.shell.prompt import PromptRenderer
+from simnux.core.filesystem.models import PermissionPresets
+from simnux.core.filesystem.models import SNXNode
+from simnux.core.scenarios.models import SNXScenario
+from simnux.core.sessions.runtime import SNXSession
+from simnux.core.shell.prompt import PromptRenderer
 
 
 def _make_session(

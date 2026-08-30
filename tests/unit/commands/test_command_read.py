@@ -5,10 +5,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from simnux.commands.models import CommandContext
-from simnux.commands.streams import QueueStreamReader
-from simnux.commands.streams import QueueStreamWriter
-from simnux.runtime.models import ExitCode
+from simnux.core.commands.models import CommandContext
+from simnux.core.commands.streams import QueueStreamReader
+from simnux.core.commands.streams import QueueStreamWriter
+from simnux.core.runtime.models import ExitCode
 from tests.helpers import assert_error
 from tests.helpers import assert_success
 from tests.helpers import drain_queue
@@ -163,7 +163,7 @@ class TestReadCommandStream:
 
     @pytest.fixture
     def read_command(self):
-        from simnux.commands.standard.read import Command
+        from simnux.core.commands.standard.read import Command
 
         return Command(context=MagicMock())
 

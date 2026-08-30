@@ -4,7 +4,7 @@ Ensures that ShellResponse and CommandResult maintain their expected
 field types and structural invariants (e.g., stdout is always a list).
 """
 
-from simnux.runtime.models import CommandResult
+from simnux.core.runtime.models import CommandResult
 
 
 class TestRegressionResponseContracts:
@@ -16,7 +16,7 @@ class TestRegressionResponseContracts:
 
     def test_execute_response_has_all_fields(self):
         """ShellResponse initializes with all expected fields and default values."""
-        from simnux.api.models.contracts import ShellResponse
+        from simnux.infrastructure.api.models.contracts import ShellResponse
 
         resp = ShellResponse(session_id="test")
         assert resp.session_id == "test"
@@ -27,7 +27,7 @@ class TestRegressionResponseContracts:
 
     def test_command_result_defaults(self):
         """CommandResult defaults to empty lists for stdout/stderr."""
-        from simnux.runtime.models import ExitCode
+        from simnux.core.runtime.models import ExitCode
 
         r = CommandResult()
         assert isinstance(r.stdout, list)

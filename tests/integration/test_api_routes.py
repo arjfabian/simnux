@@ -1,8 +1,8 @@
 """Integration tests for SIMNUX FastAPI HTTP API routes.
 
 Covers all endpoints: ``/`` (root status), ``/start`` (session creation),
-``/execute_command`` (command execution), ``/sessions/{id}`` (snapshot
-retrieval), and ``/debug/runtime``. Validates response schemas, HTTP
+``/execute_command`` (command execution), and ``/api/sessions/{id}``
+(snapshot retrieval). Validates response schemas, HTTP
 status codes, session isolation, and state persistence across commands.
 
 All tests use the ``api_client`` fixture (httpx.AsyncClient) and are
@@ -289,11 +289,11 @@ class TestExecuteCommandEndpoint:
 
 
 class TestSessionEndpoint:
-    """``GET /sessions/{session_id}`` — session snapshot retrieval."""
+    """``GET /api/sessions/{session_id}`` — session snapshot retrieval."""
 
     async def test_get_session_not_found(self, api_client):
         """Requesting a nonexistent session returns HTTP 404."""
-        resp = await api_client.get("/sessions/nonexistent")
+        resp = await api_client.get("/api/sessions/nonexistent")
 
         assert resp.status_code == 404
 
@@ -301,7 +301,7 @@ class TestSessionEndpoint:
         """An existing session returns its snapshot with filesystem and commands."""
         sid = await create_session(api_client)
 
-        resp = await api_client.get(f"/sessions/{sid}")
+        resp = await api_client.get(f"/api/sessions/{sid}")
 
         assert_ok_response(resp)
 
@@ -324,7 +324,7 @@ class TestSessionEndpoint:
             "touch /tmp/isolated-file",
         )
 
-        snapshot = await api_client.get(f"/sessions/{sid2}")
+        snapshot = await api_client.get(f"/api/sessions/{sid2}")
 
         data = snapshot.json()
 
@@ -369,24 +369,6 @@ class TestDestroySessionEndpoint:
         resp = await api_client.get(f"/start?session_id={sid2}")
         assert resp.status_code == 200
         assert json_of(resp)["session_id"] == sid2
-
-
-class TestDebugRuntimeEndpoint:
-    """``GET /debug/runtime`` — runtime diagnostic endpoint."""
-
-    async def test_debug_runtime(self, api_client):
-        """Debug endpoint returns active sessions and session count."""
-        await create_session(api_client)
-
-        resp = await api_client.get("/debug/runtime")
-
-        assert_ok_response(resp)
-
-        data = json_of(resp)
-
-        assert "active_sessions" in data
-        assert "total_sessions" in data
-        assert data["total_sessions"] >= 1
 
 
 class TestResponseContract:
@@ -496,7 +478,7 @@ class TestPagerProjection:
 
     async def test_less_size_limit_over_http(self, api_client):
         """``less`` rejects a file larger than MAX_PAGER_FILE_SIZE."""
-        from simnux.commands.models import MAX_PAGER_FILE_SIZE
+        from simnux.core.commands.models import MAX_PAGER_FILE_SIZE
 
         session_id = await create_session(api_client)
         await execute(api_client, session_id, "touch big.txt")

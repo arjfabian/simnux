@@ -18,6 +18,19 @@ from httpx import AsyncClient
 import pytest
 import pytest_asyncio
 
+from simnux.boot.app_factory import create_app
+from simnux.boot.config import RuntimeConfig
+from simnux.core.commands.dispatcher import CommandDispatcher
+from simnux.core.commands.loader import CommandLoader
+from simnux.core.commands.models import CommandContext
+from simnux.core.commands.registry import CommandRegistry
+from simnux.core.filesystem.models import PermissionPresets
+from simnux.core.filesystem.models import SNXNode
+from simnux.core.filesystem.vfs import SNXFileSystem
+from simnux.core.runtime.runtime import SNXRuntime
+from simnux.core.scenarios.models import SNXScenario
+from simnux.core.sessions.runtime import SNXSession
+
 
 def pytest_configure(config):
     """Suppress PytestCollectionWarning for production Command class in condition.py."""
@@ -27,18 +40,18 @@ def pytest_configure(config):
     )
 
 
-from simnux.commands.dispatcher import CommandDispatcher
-from simnux.commands.loader import CommandLoader
-from simnux.commands.models import CommandContext
-from simnux.commands.registry import CommandRegistry
-from simnux.filesystem.models import PermissionPresets
-from simnux.filesystem.models import SNXNode
-from simnux.filesystem.vfs import SNXFileSystem
-from simnux.init.app_factory import create_app
-from simnux.init.config import RuntimeConfig
-from simnux.runtime.runtime import SNXRuntime
-from simnux.scenarios.models import SNXScenario
-from simnux.sessions.runtime import SNXSession
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    """Reset the module-level slowapi limiter before each test.
+
+    The ``Limiter`` in ``simnux.boot.middleware`` is a process-wide singleton,
+    so its 30/min per-IP quota is shared across every test that hits the ASGI
+    app. Without a reset, the aggregate requests in the API/integration suite
+    exhaust the quota and later tests spuriously fail with HTTP 429.
+    """
+    from simnux.boot.middleware import limiter
+
+    limiter.reset()
 
 
 @pytest.fixture

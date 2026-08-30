@@ -6,12 +6,12 @@ types, including failure cases.
 
 import pytest
 
-from simnux.commands.dispatcher import CommandDispatcher
-from simnux.runtime.models import TerminalAction
-from simnux.scenarios.evaluator import _check_file_state
-from simnux.scenarios.evaluator import _check_flag_input
-from simnux.scenarios.evaluator import evaluate
-from simnux.scenarios.models import SNXScenario
+from simnux.core.commands.dispatcher import CommandDispatcher
+from simnux.core.runtime.models import TerminalAction
+from simnux.core.scenarios.evaluator import _check_file_state
+from simnux.core.scenarios.evaluator import _check_flag_input
+from simnux.core.scenarios.evaluator import evaluate
+from simnux.core.scenarios.models import SNXScenario
 
 
 pytestmark = pytest.mark.asyncio

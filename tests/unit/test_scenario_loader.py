@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from simnux.filesystem.models import PermissionPresets
-from simnux.scenarios.loader import ScenarioLoader
-from simnux.scenarios.loader import ScenarioNotFoundError
+from simnux.core.filesystem.models import PermissionPresets
+from simnux.core.scenarios.loader import ScenarioLoader
+from simnux.core.scenarios.loader import ScenarioNotFoundError
 
 
 SCENARIO_YAML = """\
