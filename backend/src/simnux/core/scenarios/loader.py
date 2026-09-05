@@ -68,6 +68,18 @@ class ScenarioLoader:
 
         return users["root"], groups["root"]
 
+    @staticmethod
+    def _build_group_file(users: dict[str, SNXUser]) -> str:
+        entries = ["root:x:0:root"]
+
+        for user in users.values():
+            if user.identifier == "root":
+                continue
+
+            entries.append(f"{user.identifier}:x:{user.user_id}:{user.identifier}")
+
+        return "\n".join(entries) + "\n"
+
     @classmethod
     def load(cls, scenario_name: str) -> SNXScenario:
         scenario_path = cls._get_scenarios_dir() / scenario_name / "scenario.yaml"
@@ -80,6 +92,8 @@ class ScenarioLoader:
         # Initialize groups and users.
         groups = {"root": SNXGroup(0, "root")}
         users = {"root": SNXUser(0, "root")}
+        # Prepare contents of file "/etc/group".
+        group_entries = ["root:x:0:root"]
 
         for user_data in raw.get("users", []):
             user = SNXUser(
@@ -94,6 +108,7 @@ class ScenarioLoader:
 
             users[user.identifier] = user
             groups[group.identifier] = group
+            group_entries.append(f"{user.identifier}:x:{user.user_id}:{user.identifier}")
 
         # Initialize filesystem.
         filesystem: dict[str, SNXNode] = {}
@@ -105,6 +120,7 @@ class ScenarioLoader:
         starting_dir = raw.get("starting_dir", "/home/user")
 
         bootstrap_paths = set(raw_filesystem.keys())
+        bootstrap_paths.add("/etc/group")
         bootstrap_paths.add(starting_dir.rstrip("/") + "/")
 
         for raw_path in bootstrap_paths:
@@ -156,6 +172,15 @@ class ScenarioLoader:
                 is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
             )
+
+        filesystem["/etc/group"] = SNXNode(
+            path="/etc/group",
+            owner=users["root"],
+            group=groups["root"],
+            content=cls._build_group_file(users),
+            is_directory=False,
+            permissions=PermissionPresets.FILE_DEFAULT,
+        )
 
         objective = raw.get("objective")
 
