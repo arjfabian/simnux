@@ -80,9 +80,8 @@ SNXScenario 1 ─── 1 SNXShell ─── N ─── 1 SNXSession
 
 ## Current-state note
 
-Today the active `SNXUser` is passed into the `SNXSession` dataclass from the
-scenario in `SNXRuntime.create_session` (`core/runtime/runtime.py`), which
-selects the first non-`root` user by `identifier`. `scenario.username` has been
-removed. This is consistent with this contract's target; the remaining drift is
-that the selected user currently travels with the session object rather than
-the shell.
+The active `SNXUser` is selected in `SNXRuntime.create_session`
+(`core/runtime/runtime.py`) — the first non-`root` user by `identifier` — and
+passed into `SNXShell`. `scenario.username` has been removed. The selected user
+is carried by the shell's interaction state (per this contract), not the
+app-level `SNXSession`.

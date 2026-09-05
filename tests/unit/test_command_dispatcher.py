@@ -5,6 +5,8 @@ command instances works correctly, including error propagation and
 registry isolation.
 """
 
+import logging
+
 import pytest
 
 from simnux.core.commands.dispatcher import CommandDispatcher
@@ -18,7 +20,9 @@ from simnux.core.filesystem.models import SNXNode
 from simnux.core.filesystem.vfs import SNXFileSystem
 from simnux.core.runtime.models import ExitCode
 from simnux.core.scenarios.models import SNXScenario
-from simnux.core.sessions.runtime import SNXSession
+from simnux.core.shell.runtime import SNXShell
+from simnux.security.groups.models import SNXGroup
+from simnux.security.users.models import SNXUser
 
 
 pytestmark = pytest.mark.asyncio
@@ -65,21 +69,38 @@ def ctx():
     scenario = SNXScenario(
         name="test",
         difficulty="easy",
-        username="user",
         hostname="host",
+        users={
+            "root": SNXUser(0, "root"),
+            "user": SNXUser(1001, "user"),
+        },
+        groups={
+            "root": SNXGroup(0, "root"),
+            "user": SNXGroup(1001, "user"),
+        },
         starting_dir="/",
         filesystem={
             "/": SNXNode(
                 path="/",
+                owner=SNXUser(0, "root"),
+                group=SNXGroup(0, "root"),
                 content="",
                 is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
         },
     )
-    session = SNXSession(session_id="test", scenario=scenario, current_directory="/")
     filesystem = SNXFileSystem(base_layer={})
-    return CommandContext(session=session, filesystem=filesystem)
+    shell = SNXShell(
+        scenario=scenario,
+        user=scenario.users["user"],
+        current_directory="/",
+        filesystem=filesystem,
+        registry=CommandRegistry(),
+        logger=logging.getLogger("test_dispatcher"),
+        identifier="test",
+    )
+    return CommandContext(shell=shell, filesystem=filesystem)
 
 
 @pytest.fixture

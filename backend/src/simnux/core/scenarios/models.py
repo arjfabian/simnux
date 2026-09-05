@@ -5,6 +5,8 @@ from typing import Any
 from pydantic import BaseModel
 
 from simnux.core.filesystem.models import SNXNode
+from simnux.security.groups.models import SNXGroup
+from simnux.security.users.models import SNXUser
 
 
 class SNXScenario(BaseModel):
@@ -17,10 +19,12 @@ class SNXScenario(BaseModel):
     name: str
     difficulty: str
 
-    username: str
     hostname: str
-    starting_dir: str
 
+    groups: dict[str, SNXGroup]
+    users: dict[str, SNXUser]
+
+    starting_dir: str
     filesystem: dict[str, SNXNode]
 
     objective: dict[str, Any] | None = None

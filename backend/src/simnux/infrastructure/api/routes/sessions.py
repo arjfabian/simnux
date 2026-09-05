@@ -23,21 +23,22 @@ async def session_snapshot(
     """
 
     runtime = request.app.state.runtime
+    session = runtime.get_session(session_id)
 
-    if not runtime.exists(session_id):
+    if session is None or not session.shells:
         raise HTTPException(
             status_code=404,
             detail="Session not found",
         )
 
-    shell = runtime.get_session(session_id)
+    shell = session.active_shells[0]
 
     return {
-        "session_id": shell.session.session_id,
-        "scenario_name": shell.session.scenario.name,
+        "session_id": session.session_id,
+        "scenario_name": shell.scenario.name,
         "loaded_commands": shell.registry.list_commands(),
         "filesystem": shell.filesystem.list_paths(),
-        "current_path": shell.session.current_directory,
+        "current_path": shell.current_directory,
     }
 
 

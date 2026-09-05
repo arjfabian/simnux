@@ -41,20 +41,20 @@ class Command(SNXCommand):
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
         # ── Resume path ──────────────────────────────────────────────
-        if ctx.session.awaiting_input:
-            var_name = ctx.session.pending_var_name or "REPLY"
+        if ctx.shell.awaiting_input:
+            var_name = ctx.shell.pending_var_name or "REPLY"
             line = await stdin.readline()
             if line is None:
                 await stderr.write("read: unexpected EOF\n")
-                ctx.session.awaiting_input = False
-                ctx.session.pending_var_name = None
-                ctx.session.pending_command = None
+                ctx.shell.awaiting_input = False
+                ctx.shell.pending_var_name = None
+                ctx.shell.pending_command = None
                 return ExitCode.ERROR
 
-            ctx.session.environment[var_name] = line.rstrip("\n")
-            ctx.session.awaiting_input = False
-            ctx.session.pending_var_name = None
-            ctx.session.pending_command = None
+            ctx.shell.environment[var_name] = line.rstrip("\n")
+            ctx.shell.awaiting_input = False
+            ctx.shell.pending_var_name = None
+            ctx.shell.pending_command = None
             return ExitCode.SUCCESS
 
         # ── First invocation — parse arguments ───────────────────────
@@ -76,9 +76,9 @@ class Command(SNXCommand):
             if prompt:
                 await stdout.write(prompt)
 
-            ctx.session.awaiting_input = True
-            ctx.session.pending_var_name = var_name
-            ctx.session.pending_command = self._build_resumable_command(
+            ctx.shell.awaiting_input = True
+            ctx.shell.pending_var_name = var_name
+            ctx.shell.pending_command = self._build_resumable_command(
                 prompt,
                 var_name,
             )
@@ -93,7 +93,7 @@ class Command(SNXCommand):
             await stderr.write("read: unexpected EOF\n")
             return ExitCode.ERROR
 
-        ctx.session.environment[var_name] = line.rstrip("\n")
+        ctx.shell.environment[var_name] = line.rstrip("\n")
         return ExitCode.SUCCESS
 
     @staticmethod

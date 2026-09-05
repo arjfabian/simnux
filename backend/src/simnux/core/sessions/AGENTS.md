@@ -84,10 +84,16 @@ SNXSession 1 ─── N SNXShell ─── 1 SNXScenario
 
 ## Current-state note
 
-Today the `SNXSession` dataclass still stores scenario-bound interaction state
-(`scenario`, `user`, `current_directory`, `history`, `environment`, pending
-state), and `SNXRuntime` (`core/runtime/runtime.py`) keys live shells by a
-per-scenario identifier. This is recognized mid-migration drift. The target is
-this contract: `SNXSession 1 -> N SNXShell`, with interaction state on
-`SNXShell`. Keep behaviour working while recabling; do not rename classes or
-add `SNXScenarioRun`.
+The rewiring has landed: `SNXSession` is a pure shell router (`session_id` +
+`shells` dict keyed by shell identifier via `add_shell`/`get_shell`/`remove_shell`/
+`active_shells`) and carries no scenario-bound interaction state. `SNXShell`
+owns all interaction state (user, cwd, env, history, pending input, progress),
+and `CommandContext.shell` is the source of interaction state for commands and
+prompt rendering. `SNXRuntime` (`core/runtime/runtime.py`) still keys its
+session index by a single `session_id` (the app-level session) and attaches one
+shell per scenario identifier to it; reusing `session_id` with a different
+scenario attaches a second shell so both survive. The API still routes by
+`session_id` alone (scenario selection is a documented, not-yet-implemented
+concern), so a request targets the shell the runtime/API last resolved —
+multi-scenario routing is available internally but not yet exposed. Do not
+regress to storing interaction state on `SNXSession` or rename classes.

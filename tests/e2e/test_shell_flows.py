@@ -69,8 +69,8 @@ class TestFullShellFlow:
         await shell.execute("touch test.log")
         await shell.execute("cd /")
 
-        s = runtime.get_session("e2e-7")
-        assert s.session.current_directory == "/"
+        s = runtime.get_shell("e2e-7", "hello")
+        assert s.current_directory == "/"
         assert s.filesystem.exists("/tmp/test.log")
 
     async def test_snapshot_consistency_after_mutations(self, runtime):
@@ -80,7 +80,7 @@ class TestFullShellFlow:
         await shell.execute("touch /etc/new.conf")
         await shell.execute("cd /")
 
-        snap = shell.get_snapshot()
+        snap = shell.get_snapshot("e2e-snap")
         assert snap.current_path == "/"
         assert "/etc/new.conf" in snap.filesystem
         assert snap.session_id == "e2e-snap"
@@ -89,7 +89,7 @@ class TestFullShellFlow:
     async def test_filesystem_mutations_visible_in_snapshot(self, runtime_shell):
         """New files created via ``touch`` appear in the shell snapshot."""
         await runtime_shell.execute("touch /tmp/testfile")
-        snapshot = runtime_shell.get_snapshot()
+        snapshot = runtime_shell.get_snapshot("53494d4e-5558-4202-a13d-204c494e5558")
         assert "/tmp/testfile" in snapshot.filesystem
 
     async def test_prompt_cwd_coherence(self, runtime_shell):
@@ -125,7 +125,7 @@ class TestFullShellFlow:
 
         assert_not_success(result)
 
-        assert runtime_shell.session.current_directory == "/etc"
+        assert runtime_shell.current_directory == "/etc"
         assert "/etc" in runtime_shell.render_prompt()
 
 

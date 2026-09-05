@@ -1,25 +1,12 @@
-"""Runtime and session snapshot models for SIMNUX observability."""
+"""Runtime and session snapshot models for SIMNUX observability.
 
-from dataclasses import dataclass
+Re-exports the snapshot value types defined in core so that the
+observability boundary stays in infrastructure while core can produce
+snapshots without depending on it.
+"""
 
-
-@dataclass
-class ShellSnapshot:
-    """Read-only view of a running shell session."""
-
-    session_id: str
-    scenario_name: str
-    loaded_commands: list[str]
-    filesystem: list[str]
-    filesystem_nodes: int
-    current_path: str
-    recent_history: list[str]
-    history_count: int
+from simnux.core.runtime.observability import RuntimeSnapshot
+from simnux.core.runtime.observability import ShellSnapshot
 
 
-@dataclass
-class RuntimeSnapshot:
-    """Aggregated view of all active runtime sessions."""
-
-    active_sessions: list[ShellSnapshot]
-    total_sessions: int
+__all__ = ["RuntimeSnapshot", "ShellSnapshot"]

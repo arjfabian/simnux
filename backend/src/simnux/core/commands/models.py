@@ -1,7 +1,8 @@
 """
 Shared execution context injected into all SIMNUX commands.
 
-Provides controlled access to session state and the virtual filesystem.
+Provides controlled access to shell interaction state and the virtual
+filesystem.
 """
 
 from __future__ import annotations
@@ -12,22 +13,22 @@ import re
 from typing import TYPE_CHECKING
 
 from simnux.core.filesystem.vfs import SNXFileSystem
-from simnux.core.sessions.runtime import SNXSession
 
 
 if TYPE_CHECKING:
     from simnux.core.commands.dispatcher import CommandDispatcher
+    from simnux.core.shell.runtime import SNXShell
 
 
 @dataclass
 class CommandContext:
-    """Per-session injection container for command execution.
+    """Per-shell injection container for command execution.
 
-    Contains references to the mutable session state and filesystem;
-    commands share the same context object for their lifetime.
+    Contains references to the owning shell's interaction state and the
+    filesystem; commands share the same context object for their lifetime.
     """
 
-    session: SNXSession
+    shell: SNXShell
     filesystem: SNXFileSystem
     dispatcher: CommandDispatcher | None = None
 
@@ -48,7 +49,7 @@ MAX_PAGER_FILE_SIZE = 1_000_000  # bytes (~1MB)
 class PagerState:
     """Full-screen pager state owned by ``less``/``more`` command instances.
 
-    Stored on ``session.pending_state`` while a pager is suspended.
+    Stored on ``shell.pending_state`` while a pager is suspended.
     Encapsulates all viewport slicing, navigation clamping, and regex
     search bookkeeping so commands stay thin and the API layer can
     project fields without knowing pager internals.

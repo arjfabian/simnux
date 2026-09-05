@@ -12,6 +12,8 @@ from simnux.core.scenarios.evaluator import _check_file_state
 from simnux.core.scenarios.evaluator import _check_flag_input
 from simnux.core.scenarios.evaluator import evaluate
 from simnux.core.scenarios.models import SNXScenario
+from simnux.security.groups.models import SNXGroup
+from simnux.security.users.models import SNXUser
 
 
 pytestmark = pytest.mark.asyncio
@@ -21,8 +23,15 @@ def _make_scenario(objective: dict) -> SNXScenario:
     return SNXScenario(
         name="Test",
         difficulty="Easy",
-        username="user",
         hostname="simnux",
+        users={
+            "root": SNXUser(0, "root"),
+            "user": SNXUser(1001, "user"),
+        },
+        groups={
+            "root": SNXGroup(0, "root"),
+            "user": SNXGroup(1001, "user"),
+        },
         starting_dir="/home/user",
         filesystem={},
         objective=objective,

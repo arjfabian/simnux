@@ -27,39 +27,39 @@ class TestReadCommand:
 
     async def test_read_default_reply_variable(self, shell_with_commands):
         """``read`` stores input in REPLY when no variable name given."""
-        shell_with_commands.session.environment.clear()
+        shell_with_commands.environment.clear()
         result = await shell_with_commands.execute("echo hello | read")
         assert_success(result)
-        assert shell_with_commands.session.environment.get("REPLY") == "hello"
+        assert shell_with_commands.environment.get("REPLY") == "hello"
 
     async def test_read_custom_variable(self, shell_with_commands):
         """``read NAME`` stores input in the named variable."""
-        shell_with_commands.session.environment.clear()
+        shell_with_commands.environment.clear()
         result = await shell_with_commands.execute("echo world | read NAME")
         assert_success(result)
-        assert shell_with_commands.session.environment.get("NAME") == "world"
+        assert shell_with_commands.environment.get("NAME") == "world"
 
     async def test_read_with_prompt_flag(self, shell_with_commands):
         """``read -p "prompt: "`` writes the prompt to stdout before reading."""
-        shell_with_commands.session.environment.clear()
+        shell_with_commands.environment.clear()
         result = await shell_with_commands.execute('echo data | read -p "Enter value: " MYVAR')
         assert_success(result)
         assert "Enter value: " in stdout_text(result)
-        assert shell_with_commands.session.environment.get("MYVAR") == "data"
+        assert shell_with_commands.environment.get("MYVAR") == "data"
 
     async def test_read_eof_returns_error(self, shell_with_commands):
         """``read`` with no pipe suspends (interactive mode)."""
-        shell_with_commands.session.environment.clear()
+        shell_with_commands.environment.clear()
         result = await shell_with_commands.execute("read")
         assert_success(result)
-        assert shell_with_commands.session.awaiting_input is True
+        assert shell_with_commands.awaiting_input is True
 
     async def test_read_strips_trailing_newline(self, shell_with_commands):
         """Read input is stripped of trailing newline."""
-        shell_with_commands.session.environment.clear()
+        shell_with_commands.environment.clear()
         result = await shell_with_commands.execute("echo 'hello world' | read MSG")
         assert_success(result)
-        assert shell_with_commands.session.environment.get("MSG") == "hello world"
+        assert shell_with_commands.environment.get("MSG") == "hello world"
 
 
 # ── Suspension / resumption tests ────────────────────────────────────────
@@ -70,8 +70,8 @@ class TestReadSuspension:
 
     async def test_read_suspends_when_stdin_empty(self, shell_with_commands):
         """``read`` with no pipe suspends and sets awaiting_input."""
-        shell_with_commands.session.environment.clear()
-        session = shell_with_commands.session
+        shell_with_commands.environment.clear()
+        session = shell_with_commands
 
         result = await shell_with_commands.execute('read -p "Enter: " MYVAR')
         assert_success(result)
@@ -81,7 +81,7 @@ class TestReadSuspension:
 
     async def test_read_suspension_writes_prompt(self, shell_with_commands):
         """Suspension writes the prompt string to stdout."""
-        shell_with_commands.session.environment.clear()
+        shell_with_commands.environment.clear()
 
         result = await shell_with_commands.execute('read -p "Password: " PASS')
         assert_success(result)
@@ -89,8 +89,8 @@ class TestReadSuspension:
 
     async def test_read_resume_assigns_variable(self, shell_with_commands):
         """After suspension, re-dispatch with stdin assigns the variable."""
-        shell_with_commands.session.environment.clear()
-        session = shell_with_commands.session
+        shell_with_commands.environment.clear()
+        session = shell_with_commands
 
         # Turn 1: suspend
         await shell_with_commands.execute('read -p "Name: " NAME')
@@ -114,8 +114,8 @@ class TestReadSuspension:
 
     async def test_read_resume_default_reply(self, shell_with_commands):
         """Suspension without a variable name resumes into REPLY."""
-        shell_with_commands.session.environment.clear()
-        session = shell_with_commands.session
+        shell_with_commands.environment.clear()
+        session = shell_with_commands
 
         await shell_with_commands.execute("read")
         assert session.awaiting_input is True
@@ -135,8 +135,8 @@ class TestReadSuspension:
 
     async def test_read_resume_eof_errors(self, shell_with_commands):
         """Resume with EOF (empty stdin) returns ERROR and clears state."""
-        shell_with_commands.session.environment.clear()
-        session = shell_with_commands.session
+        shell_with_commands.environment.clear()
+        session = shell_with_commands
 
         await shell_with_commands.execute('read -p "Val: " V')
         assert session.awaiting_input is True
@@ -175,7 +175,7 @@ class TestReadCommandStream:
         session.pending_var_name = None
         session.pending_command = None
         ctx = MagicMock(spec=CommandContext)
-        ctx.session = session
+        ctx.shell = session
         return ctx
 
     async def test_read_default_reply(self, read_command, ctx):
@@ -199,7 +199,7 @@ class TestReadCommandStream:
         )
 
         assert result == ExitCode.SUCCESS
-        assert ctx.session.environment["REPLY"] == "test line"
+        assert ctx.shell.environment["REPLY"] == "test line"
 
     async def test_read_custom_var(self, read_command, ctx):
         """Read with a variable name stores in that variable."""
@@ -224,7 +224,7 @@ class TestReadCommandStream:
         )
 
         assert result == ExitCode.SUCCESS
-        assert ctx.session.environment["MYVAR"] == "custom value"
+        assert ctx.shell.environment["MYVAR"] == "custom value"
 
     async def test_read_with_prompt(self, read_command, ctx):
         """Read with -p flag writes prompt to stdout."""
@@ -252,7 +252,7 @@ class TestReadCommandStream:
 
         assert result == ExitCode.SUCCESS
         assert drain_queue(stdout_queue) == ["prompt: "]
-        assert ctx.session.environment["VAR"] == "input"
+        assert ctx.shell.environment["VAR"] == "input"
 
     async def test_read_eof(self, read_command, ctx):
         """Read suspends when stdin has no data (interactive mode)."""
@@ -275,7 +275,7 @@ class TestReadCommandStream:
         )
 
         assert result == ExitCode.SUCCESS
-        assert ctx.session.awaiting_input is True
+        assert ctx.shell.awaiting_input is True
 
     async def test_read_suspends_on_empty_stdin(self, read_command, ctx):
         """Read suspends when stdin has no data (interactive mode)."""
@@ -301,15 +301,15 @@ class TestReadCommandStream:
         stdout_writer.close()
 
         assert result == ExitCode.SUCCESS
-        assert ctx.session.awaiting_input is True
-        assert ctx.session.pending_var_name == "MYVAR"
-        assert ctx.session.pending_command is not None
+        assert ctx.shell.awaiting_input is True
+        assert ctx.shell.pending_var_name == "MYVAR"
+        assert ctx.shell.pending_command is not None
         assert drain_queue(stdout_queue) == ["enter: "]
 
     async def test_read_resume_path(self, read_command, ctx):
         """Read resumes from awaiting_input state."""
-        ctx.session.awaiting_input = True
-        ctx.session.pending_var_name = "ANSWER"
+        ctx.shell.awaiting_input = True
+        ctx.shell.pending_var_name = "ANSWER"
 
         read_command.args = None
         read_command.parsed_args = None
@@ -330,7 +330,7 @@ class TestReadCommandStream:
         )
 
         assert result == ExitCode.SUCCESS
-        assert ctx.session.environment["ANSWER"] == "42"
-        assert ctx.session.awaiting_input is False
-        assert ctx.session.pending_var_name is None
-        assert ctx.session.pending_command is None
+        assert ctx.shell.environment["ANSWER"] == "42"
+        assert ctx.shell.awaiting_input is False
+        assert ctx.shell.pending_var_name is None
+        assert ctx.shell.pending_command is None

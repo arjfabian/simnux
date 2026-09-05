@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.4.6] - 2026.09.05
+
+### Added
+
+* **`SNXSession` Shell Router:** `SNXSession` (`core/sessions/runtime.py`) is now a pure application-level session: it owns only the session token and the set of attached `SNXShell` instances (`shells`, `add_shell`/`get_shell`/`remove_shell`/`active_shells`) and carries no simulated-world interaction state. The structure `SNXSession 1 -> N SNXShell 1 -> 1 SNXScenario` is now realised internally.
+* **`CommandRequest.scenario_name` Selector:** The execute-command contract gains an optional `scenario_name` field so a request can target a specific shell in a multi-shell session. When absent, the session's first/default shell is used. The public routing still keys a request by `session_id`; scenario/shell selection is now an explicit, opt-in field rather than an implicit coupling.
+
+### Changed
+
+* **Interaction State Moved to `SNXShell`:** All mutable per-scenario interaction state — current Linux user, current working directory, environment, command history, pending/suspended input, and task progress — now lives on `SNXShell` (`core/shell/runtime.py`). `CommandContext` now carries a `shell` reference (replacing the session reference that previously leaked interaction state), and commands/prompt rendering read `ctx.shell.user`/`ctx.shell.current_directory` instead of session-bound state (e.g. `whoami`, `pwd`, `cd`, `history`, `read`, `sh`, `ls`, `more`).
+* **Runtime Session Semantics:** `SNXRuntime.create_session(scenario_name, session_id)` now returns the `SNXShell` and attaches it to the app-level `SNXSession` identified by `session_id`. Reusing `session_id` with a **different** scenario adds a second shell, preserving the first (both remain routable via `runtime.get_shell(session_id, scenario_name)`); reusing the same `session_id` **and** scenario replaces that scenario's shell (last-wins). `GET /api/sessions/{session_id}` and `GET /start` resume resolve the session's shell by `scenario_name` (falling back to the first shell), keeping the public API response contract unchanged.
+* **Snapshot & Config Models Moved to `core`:** `ShellSnapshot`/`RuntimeSnapshot` now live in `core/runtime/observability.py` (produced by `SNXShell.get_snapshot()`/`SNXRuntime.get_snapshot()`) and `RuntimeConfig`/`LimitsConfig` in `core/runtime/config.py`. `infrastructure/observability/snapshots.py` and `boot/config.py` re-export them at their boundaries so no import-level behavior changes.
+* **Package Reorganization:** Reorganized the SIMNUX backend under `backend/src/simnux/` into layered namespaces for clearer separation of concerns: `boot/` (application startup & composition — previously `init/`), `core/` (commands, filesystem, runtime, scenarios, sessions, shell, scripting), and `infrastructure/` (api, observability). This is a purely mechanical package reorganization; behavior is unchanged. Key namespace changes:
+  * `simnux.init.*` → `simnux.boot.*` (e.g., `simnux.init.app_factory` → `simnux.boot.app_factory`)
+  * `simnux.api.*` → `simnux.infrastructure.api.*`
+  * `simnux.observability.*` → `simnux.infrastructure.observability.*`
+  * `simnux.commands.*`, `simnux.filesystem.*`, `simnux.runtime.*`, `simnux.scenarios.*`, `simnux.sessions.*`, `simnux.shell.*`, `simnux.scripting.*` → `simnux.core.<package>.*`
+* **Updated Entrypoints & Discovery:** Updated the uvicorn factory strings in `backend/src/simnux/cli.py` and `backend/Dockerfile` (now `simnux.boot.app_factory:create_app`), and updated the metadata-driven loaders (`core/commands/loader.py`, `boot/routes.py`) to discover modules from their new namespaces. The `simnux` console script (`simnux.cli:main`) is unchanged.
+
+### Fixed
+
+* **Session Snapshot Tests (`GET /api/sessions/{session_id}`):** `TestSessionEndpoint` was still hitting the pre-0.4.5 path `/sessions/{id}`, which only exposes a `DELETE` handler — GET returned `405 Method Not Allowed`. Updated the tests to use the relocated `/api/sessions/{id}` public route.
+* **Removed Stale Debug Endpoint Test:** Deleted `TestDebugRuntimeEndpoint`, which asserted on `GET /debug/runtime` after that router was intentionally removed in 0.4.5.
+* **API Performance/Integration Test Rate-Limit Flakiness:** The process-wide `slowapi` limiter (30/min per IP) is shared across the whole pytest run, so the aggregate requests in the API integration suite exhausted the quota and later tests spuriously failed with HTTP 429. Added an autouse conftest fixture that resets the limiter before each test — production rate limiting is unchanged.
+* **`test_session_state_persistence` Scenario Expectation:** The e2e test issued `cd /var/log` and asserted on `/var/log/test.log`, but the `hello` scenario filesystem has no `/var/log`. Switched the test to `/tmp`, which the scenario defines.
+
+### Tests
+
+* **Session/Shell Routing & Isolation:** Added a session-ownership boundary test (an `SNXSession` exposes no scenario, acting-user, `current_directory`, `history`, or `environment` fields), runtime tests covering `session_id` reuse across two scenarios preserving both shells and their independent interaction state, per-shell snapshot generation for a multi-scenario session, and shell-isolation tests (independent cwd, history, environment, pending input, and task progress per shell in one session).
+
+---
+
 ## [0.4.5] - 2026-08-27
 
 ### Added

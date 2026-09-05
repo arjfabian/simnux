@@ -33,7 +33,7 @@ class TestCdCommand:
         """Cd to an existing directory updates the session's CWD."""
         result = await shell_with_commands.execute("cd /etc")
         assert_success(result)
-        assert shell_with_commands.session.current_directory == "/etc"
+        assert shell_with_commands.current_directory == "/etc"
 
     async def test_cd_to_nonexistent(self, shell_with_commands):
         """Cd to a nonexistent path returns ERROR with NO_SUCH_FILE_OR_DIR."""
@@ -49,17 +49,17 @@ class TestCdCommand:
 
     async def test_cd_with_no_args_goes_home(self, shell_with_commands):
         """Cd with no arguments returns to the user's home directory."""
-        shell_with_commands.session.set_cwd("/etc")
+        shell_with_commands.set_cwd("/etc")
         result = await shell_with_commands.execute("cd")
         assert_success(result)
-        assert shell_with_commands.session.current_directory == TEST_HOME
+        assert shell_with_commands.current_directory == TEST_HOME
 
     async def test_cd_with_tilde(self, shell_with_commands):
         """``cd ~`` resolves to the home directory."""
-        shell_with_commands.session.set_cwd("/tmp")
+        shell_with_commands.set_cwd("/tmp")
         result = await shell_with_commands.execute("cd ~")
         assert_success(result)
-        assert shell_with_commands.session.current_directory == TEST_HOME
+        assert shell_with_commands.current_directory == TEST_HOME
 
     async def test_cd_too_many_args(self, shell_with_commands):
         """Cd with more than one argument returns INVALID_ARGUMENT."""

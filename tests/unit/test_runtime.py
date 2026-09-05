@@ -23,15 +23,15 @@ class TestSNXRuntime:
             session_id="session-1",
         )
         assert shell is not None
-        assert shell.session.session_id == "session-1"
+        assert runtime.get_shell("session-1", "hello") is shell
         assert runtime.exists("session-1")
 
     def test_session_retrieval(self, runtime):
         """Created sessions can be retrieved by ID via ``get_session()``."""
         runtime.create_session(scenario_name="hello", session_id="session-2")
-        shell = runtime.get_session("session-2")
-        assert shell is not None
-        assert shell.session.session_id == "session-2"
+        session = runtime.get_session("session-2")
+        assert session is not None
+        assert runtime.get_shell("session-2", "hello") is session.shells.get("hello")
 
     def test_get_nonexistent_session(self, runtime):
         """Retrieving a nonexistent session ID returns ``None``."""
@@ -43,8 +43,36 @@ class TestSNXRuntime:
         shell1 = runtime.create_session(scenario_name="hello", session_id="dup")
         shell2 = runtime.create_session(scenario_name="hello", session_id="dup")
         assert shell1 is not shell2
-        assert runtime.get_session("dup") is shell2
+        assert runtime.get_shell("dup", "hello") is shell2
         assert runtime.exists("dup")
+
+    def test_second_scenario_shell_preserves_first(self, runtime):
+        """Reusing session_id with a different scenario keeps both shells under one session."""
+        shell1 = runtime.create_session(scenario_name="hello", session_id="sess")
+        shell2 = runtime.create_session(scenario_name="mission-1", session_id="sess")
+
+        assert shell1 is not shell2
+        session = runtime.get_session("sess")
+        assert session is not None
+
+        assert runtime.get_shell("sess", "hello") is shell1
+        assert runtime.get_shell("sess", "mission-1") is shell2
+        assert len(session.shells) == 2
+
+    def test_different_scenario_shells_keep_independent_state(self, runtime):
+        """Two scenario shells under the same session do not share interaction state."""
+        hello = runtime.create_session(scenario_name="hello", session_id="sess")
+        mission = runtime.create_session(scenario_name="mission-1", session_id="sess")
+
+        hello.set_cwd("/etc")
+        hello.add_history("echo hi")
+        hello.tasks_completed = 1
+
+        assert hello.current_directory == "/etc"
+        assert mission.current_directory != "/etc"
+        assert mission.history == []
+        assert mission.tasks_completed == 0
+        assert mission.current_directory == mission.scenario.starting_dir
 
     def test_session_not_exists(self, runtime):
         """An unregistered session ID returns ``False`` from ``exists()``."""
@@ -70,6 +98,18 @@ class TestSNXRuntime:
         snapshot = runtime.get_snapshot()
         shell_snap = snapshot.active_sessions[0]
         assert shell_snap.scenario_name == "Hello SIMNUX"
+
+    def test_multi_scenario_session_produces_per_shell_snapshots(self, runtime):
+        """A session with two scenario shells yields one snapshot per shell."""
+        runtime.create_session(scenario_name="hello", session_id="sess")
+        mission = runtime.create_session(scenario_name="mission-1", session_id="sess")
+        mission.set_cwd("/etc")
+        snapshot = runtime.get_snapshot()
+
+        assert snapshot.total_sessions == 1
+        assert len(snapshot.active_sessions) == 2
+        assert {s.session_id for s in snapshot.active_sessions} == {"sess"}
+        assert {s.current_path for s in snapshot.active_sessions} == {"/home/user", "/etc"}
 
     def test_session_commands_loaded(self, runtime):
         """Sessions come with standard commands (ls, cd, cat, touch, pwd, echo) pre-loaded."""
@@ -120,7 +160,7 @@ class TestSNXRuntime:
     def test_session_current_directory_set(self, runtime):
         """New sessions start in the scenario's configured starting directory."""
         shell = runtime.create_session(scenario_name="hello", session_id="cwd-test")
-        assert shell.session.current_directory == "/home/user"
+        assert shell.current_directory == "/home/user"
 
     def test_destroy_session(self, runtime):
         """``destroy_session`` removes the session and returns True."""

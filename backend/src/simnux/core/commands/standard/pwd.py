@@ -16,9 +16,9 @@ class Command(SNXCommand):
         stdout: AsyncStreamWriter,
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
-        """Print the session's current working directory.
+        """Print the shell's current working directory.
 
-        Reads from ``session.current_directory``, not from any real OS
+        Reads from ``ctx.shell.current_directory``, not from any real OS
         state. Rejects arguments (matching POSIX behavior).
         """
 
@@ -27,5 +27,5 @@ class Command(SNXCommand):
             await stderr.write(f"pwd: {CommandError.TOO_MANY_ARGUMENTS}")
             return ExitCode.INVALID_ARGUMENT
 
-        await stdout.write(ctx.session.current_directory)
+        await stdout.write(ctx.shell.current_directory)
         return ExitCode.SUCCESS

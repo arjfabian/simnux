@@ -7,6 +7,8 @@ from dataclasses import field
 from enum import Enum
 
 from simnux.core.runtime.models import ExitCode
+from simnux.security.groups.models import SNXGroup
+from simnux.security.users.models import SNXUser
 
 
 @dataclass
@@ -64,13 +66,14 @@ class SNXNode:
     """File or directory node. Path must be absolute and normalized."""
 
     path: str
+
+    owner: SNXUser
+    group: SNXGroup
+
     content: str | None = None
 
     is_directory: bool = False
     deleted: bool = False
-
-    owner: str = "root"
-    group: str = "root"
 
     permissions: SNXPermissions = field(default_factory=SNXPermissions)
 

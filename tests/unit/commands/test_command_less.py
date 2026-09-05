@@ -40,7 +40,7 @@ def pager_lines(result):
 class TestLessBasicInvocation:
     async def test_less_does_not_suspend_session(self, shell_with_commands):
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         result = await shell_with_commands.execute("less big.txt")
         assert_success(result)

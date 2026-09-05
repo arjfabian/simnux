@@ -1,43 +1,31 @@
-"""Central configuration for SIMNUX runtime."""
+"""Central configuration for SIMNUX runtime.
+
+The configuration value types live in ``core/runtime/config.py``; this module
+owns the *loading* logic (reading ``config/limits.yaml``) and re-exports the
+models for callers that traditionally imported them from ``boot.config``.
+"""
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
 
-from pydantic import BaseModel
+from simnux.core.runtime.config import LimitsConfig
+from simnux.core.runtime.config import RuntimeConfig
+from simnux.core.runtime.config import ScriptLimits
+from simnux.core.runtime.config import VfsLimits
+
+
+__all__ = [
+    "LimitsConfig",
+    "RuntimeConfig",
+    "ScriptLimits",
+    "VfsLimits",
+    "load_limits_config",
+]
 
 
 logger = logging.getLogger("simnux.config")
-
-
-# ── Limits configuration ─────────────────────────────────────────────────
-
-
-class VfsLimits(BaseModel):
-    """Per-session VFS byte caps."""
-
-    max_file_bytes: int = 1_048_576  # 1 MB
-    max_total_bytes: int = 10_485_760  # 10 MB
-
-
-class ScriptLimits(BaseModel):
-    """Bounds for script execution."""
-
-    max_loop_iterations: int = 10_000
-    max_execution_time_seconds: int = 30
-    max_lines: int = 5_000
-
-
-class LimitsConfig(BaseModel):
-    """Resource limits for the SIMNUX runtime.
-
-    Loaded from ``config/limits.yaml`` with safe defaults for every field.
-    If the file is missing or partially filled, the defaults apply.
-    """
-
-    vfs: VfsLimits = VfsLimits()
-    script: ScriptLimits = ScriptLimits()
 
 
 def load_limits_config(project_root: Path | None = None) -> LimitsConfig:
@@ -47,7 +35,7 @@ def load_limits_config(project_root: Path | None = None) -> LimitsConfig:
     contains invalid YAML.
     """
     if project_root is None:
-        # Walk up from this file: boot/config.py -> boot -> simnux -> src -> backend -> project_root
+        # Walk up from boot/config.py -> boot -> simnux -> src -> backend -> project_root
         project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
 
     config_path = project_root / "config" / "limits.yaml"
@@ -65,17 +53,3 @@ def load_limits_config(project_root: Path | None = None) -> LimitsConfig:
         return LimitsConfig()
 
     return LimitsConfig.model_validate(raw)
-
-
-# ── Runtime configuration ────────────────────────────────────────────────
-
-
-class RuntimeConfig(BaseModel):
-    """Runtime configuration for logging path and debug mode.
-
-    Intentionally small — most behavioral variation comes from scenario
-    definitions, not runtime config.
-    """
-
-    log_path: str = "/tmp/simnux.log"
-    debug: bool = False

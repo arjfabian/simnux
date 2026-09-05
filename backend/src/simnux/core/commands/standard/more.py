@@ -4,7 +4,7 @@ The historical predecessor of ``less``: pages forward through a file with
 no backward scrolling and no search.  Interactive suspension over REST
 mirrors ``read``: on first invocation with no piped stdin, the command
 buffers the target file into a ``PagerState``, stores it on
-``session.pending_state``, marks the session as ``awaiting_input``, and
+``shell.pending_state``, marks the shell as ``awaiting_input``, and
 returns the first viewport.  Each subsequent HTTP turn feeds one keystroke
 as stdin until ``q`` exits pager mode.
 """
@@ -42,7 +42,7 @@ class Command(SNXCommand):
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
         # ── Resume path (pager active) ───────────────────────────────
-        if isinstance(ctx.session.pending_state, PagerState):
+        if isinstance(ctx.shell.pending_state, PagerState):
             return await self._resume(ctx, stdin, stderr)
 
         # ── First invocation — validate arguments ────────────────────
@@ -82,14 +82,14 @@ class Command(SNXCommand):
             lines[-1] += "\n"
 
         # ── Enter pager mode ─────────────────────────────────────────
-        ctx.session.pending_state = PagerState(
+        ctx.shell.pending_state = PagerState(
             content=lines,
             filename=path,
             viewport=ctx.viewport_height or _DEFAULT_PAGER_VIEWPORT,
             program="more",
         )
-        ctx.session.awaiting_input = True
-        ctx.session.pending_command = f"more {path}"
+        ctx.shell.awaiting_input = True
+        ctx.shell.pending_command = f"more {path}"
 
         self.action_type = TerminalAction.PAGER
         return ExitCode.SUCCESS
@@ -101,7 +101,7 @@ class Command(SNXCommand):
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
         """Process one navigation keystroke and refresh the viewport."""
-        ps = ctx.session.pending_state
+        ps = ctx.shell.pending_state
         if not isinstance(ps, PagerState):
             return ExitCode.ERROR
 
@@ -136,7 +136,7 @@ class Command(SNXCommand):
             exit_pager = True
 
         if exit_pager:
-            self._clear_pager(ctx.session)
+            self._clear_pager(ctx.shell)
             self.action_type = TerminalAction.NONE
             return ExitCode.SUCCESS
 
@@ -144,11 +144,11 @@ class Command(SNXCommand):
         return ExitCode.SUCCESS
 
     @staticmethod
-    def _clear_pager(ctx_session) -> None:
+    def _clear_pager(shell) -> None:
         """Release all suspended pager state."""
-        ctx_session.awaiting_input = False
-        ctx_session.pending_command = None
-        ctx_session.pending_state = None
+        shell.awaiting_input = False
+        shell.pending_command = None
+        shell.pending_state = None
 
     @property
     def help_text(self) -> str:

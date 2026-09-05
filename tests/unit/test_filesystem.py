@@ -11,8 +11,14 @@ from simnux.core.commands.errors import CommandError
 from simnux.core.filesystem.models import PermissionPresets
 from simnux.core.filesystem.models import SNXNode
 from simnux.core.runtime.models import ExitCode
+from simnux.security.groups.models import SNXGroup
+from simnux.security.users.models import SNXUser
 from tests.helpers import assert_not_success
 from tests.helpers import assert_success
+
+
+_ROOT_USER = SNXUser(0, "root")
+_ROOT_GROUP = SNXGroup(0, "root")
 
 
 class TestNormalizePath:
@@ -162,7 +168,11 @@ class TestGetNode:
     def test_delta_overrides_base(self, filesystem):
         """Delta layer values shadow base_layer values on read."""
         filesystem.delta_layer["/etc/hostname"] = SNXNode(
-            path="/etc/hostname", content="overridden", is_directory=False
+            path="/etc/hostname",
+            owner=_ROOT_USER,
+            group=_ROOT_GROUP,
+            content="overridden",
+            is_directory=False,
         )
         node = filesystem.get_node("/etc/hostname")
         assert node is not None
@@ -172,11 +182,15 @@ class TestGetNode:
         """Delta layer nodes shadow base-layer nodes even when effectively empty."""
         filesystem.base_layer["/test.txt"] = SNXNode(
             path="/test.txt",
+            owner=_ROOT_USER,
+            group=_ROOT_GROUP,
             content="base",
         )
 
         filesystem.delta_layer["/test.txt"] = SNXNode(
             path="/test.txt",
+            owner=_ROOT_USER,
+            group=_ROOT_GROUP,
             content="",
             is_directory=False,
         )
@@ -188,7 +202,12 @@ class TestGetNode:
 
     def test_deleted_node_not_visible(self, filesystem):
         """Nodes marked ``deleted=True`` in delta are hidden from get_node()."""
-        filesystem.delta_layer["/etc/hostname"] = SNXNode(path="/etc/hostname", deleted=True)
+        filesystem.delta_layer["/etc/hostname"] = SNXNode(
+            path="/etc/hostname",
+            owner=_ROOT_USER,
+            group=_ROOT_GROUP,
+            deleted=True,
+        )
         assert filesystem.get_node("/etc/hostname") is None
 
 
@@ -454,6 +473,8 @@ class TestListDirectory:
         """Only direct children are included; grandchildren are not listed."""
         filesystem.delta_layer["/home/user/sub"] = SNXNode(
             path="/home/user/sub",
+            owner=_ROOT_USER,
+            group=_ROOT_GROUP,
             content="",
             is_directory=True,
             permissions=PermissionPresets.DIRECTORY_DEFAULT,

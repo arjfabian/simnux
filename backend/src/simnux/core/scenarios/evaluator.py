@@ -1,19 +1,23 @@
 """Objective evaluation engine for scenario completion detection.
 
 Evaluates scenario completion objectives defined in scenario YAML
-against live session state after command execution.
+against live shell interaction state after command execution.
 """
 
 from __future__ import annotations
 
 import asyncio
+from typing import TYPE_CHECKING
 
 from simnux.core.commands.dispatcher import CommandDispatcher
 from simnux.core.commands.models import CommandContext
 from simnux.core.commands.streams import QueueStreamWriter
 from simnux.core.filesystem.vfs import SNXFileSystem
 from simnux.core.runtime.models import TerminalAction
-from simnux.core.sessions.runtime import SNXSession
+
+
+if TYPE_CHECKING:
+    from simnux.core.shell.runtime import SNXShell
 
 
 # ── Trigger action mapping ──────────────────────────────────────────────
@@ -28,13 +32,13 @@ _TRIGGER_ACTION_MAP: dict[str, TerminalAction] = {
 
 
 async def evaluate(
-    session: SNXSession,
+    shell: SNXShell,
     filesystem: SNXFileSystem,
     dispatcher: CommandDispatcher | None,
     *,
     executed_command: str | None = None,
 ) -> tuple[TerminalAction, str | None]:
-    """Evaluate the session's triggers (or legacy objective) against state.
+    """Evaluate the shell's scenario triggers against its interaction state.
 
     When *executed_command* is provided (raw user input), ``command_output``
     conditions only run their check if the command matches the condition's
@@ -43,17 +47,17 @@ async def evaluate(
     Returns ``(action_type, action_message)``.  Returns ``(NONE, None)``
     if the scenario has no triggers / objective or is already complete.
     """
-    if session.tasks_completed > 0:
+    if shell.tasks_completed > 0:
         return TerminalAction.NONE, None
 
-    triggers = _collect_triggers(session.scenario)
+    triggers = _collect_triggers(shell.scenario)
     if not triggers:
         return TerminalAction.NONE, None
 
     for trigger in triggers:
         passed = await _evaluate_condition(
             trigger["condition"],
-            session,
+            shell,
             filesystem,
             dispatcher,
             executed_command=executed_command,
@@ -137,7 +141,7 @@ def _legacy_objective_to_trigger(obj: dict) -> dict:
 
 async def _evaluate_condition(
     condition: dict,
-    session: SNXSession,
+    shell: SNXShell,
     filesystem: SNXFileSystem,
     dispatcher: CommandDispatcher | None,
     *,
@@ -150,10 +154,10 @@ async def _evaluate_condition(
         return _check_file_state(condition, filesystem)
     elif ctype == "command_output":
         return await _check_command_output(
-            condition, session, filesystem, dispatcher, executed_command=executed_command
+            condition, shell, filesystem, dispatcher, executed_command=executed_command
         )
     elif ctype == "flag_input":
-        return _check_flag_input(condition, session)
+        return _check_flag_input(condition, shell)
 
     return False
 
@@ -197,7 +201,7 @@ def _check_file_state(
 
 async def _check_command_output(
     condition: dict,
-    session: SNXSession,
+    shell: SNXShell,
     filesystem: SNXFileSystem,
     dispatcher: CommandDispatcher | None,
     *,
@@ -227,7 +231,7 @@ async def _check_command_output(
         or condition.get("contains")
     )
 
-    ctx = CommandContext(session=session, filesystem=filesystem, dispatcher=dispatcher)
+    ctx = CommandContext(shell=shell, filesystem=filesystem, dispatcher=dispatcher)
 
     stdout_queue: asyncio.Queue[str | None] = asyncio.Queue()
     stderr_queue: asyncio.Queue[str | None] = asyncio.Queue()
@@ -263,10 +267,10 @@ async def _check_command_output(
 
 def _check_flag_input(
     condition: dict,
-    session: SNXSession,
+    shell: SNXShell,
 ) -> bool:
     """Check whether the user submitted the correct flag via ``submit``."""
-    submitted = session.metadata.get("submitted_flag")
+    submitted = shell.metadata.get("submitted_flag")
     expected = condition.get("flag")
     return submitted is not None and submitted == expected
 

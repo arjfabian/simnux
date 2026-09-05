@@ -37,7 +37,7 @@ class Command(SNXCommand):
             target = self.resolve_path(raw_target, ctx)
         else:
             raw_target = "."
-            target = ctx.session.current_directory
+            target = ctx.shell.current_directory
 
         if not ctx.filesystem.exists(target):
             await stderr.write(

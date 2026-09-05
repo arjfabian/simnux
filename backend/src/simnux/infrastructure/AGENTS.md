@@ -74,8 +74,9 @@ external responses.
 
 ## Current-state note
 
-The API today addresses one "session" id that `SNXRuntime` treats as a
-per-scenario shell key; GET `/api/sessions/{id}` and DELETE `/sessions/{id}`
-currently mirror this single-shell reality. This is mid-migration. The target
-contract is `SNXSession 1 -> N SNXShell`; do not change routing or response
+The rewiring has landed: `SNXRuntime` maintains an app-level `SNXSession`
+(`session_id`) that holds one `SNXShell` per scenario identifier. The API today
+still addresses that `session_id` directly, so GET `/api/sessions/{id}` and
+DELETE `/sessions/{id}` reach a single shell for now. This is acceptable while
+scenario selection remains unimplemented; do not change routing or response
 behavior until explicitly tasked.

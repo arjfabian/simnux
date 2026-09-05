@@ -97,18 +97,21 @@ behavior or session routing.
 
 ## Known current-state drift
 
-The codebase is mid-migration toward this contract. Recognized deviations:
+The session/shell/scenario rewiring has landed. `SNXSession`
+(`core/sessions/runtime.py`) is a shell router (`session_id` + `shells` dict)
+owning no interaction state; `SNXShell` owns all interaction state (user, cwd,
+env, history, pending input/progress); `CommandContext.shell` is the source of
+interaction state for commands and prompt rendering. Recognition of drift that
+remains:
 
-* The `SNXSession` dataclass (`core/sessions/runtime.py`) still carries
-  scenario-bound interaction state (`scenario`, `user`, `current_directory`,
-  `history`, `environment`, pending state). The intended home for that state is
-  `SNXShell`.
-* `SNXRuntime` (`core/runtime/runtime.py`) currently keys live shells by a
-  per-scenario identifier, i.e. today one inspected "session" equals one
-  scenario run. The target is `SNXSession 1 -> N SNXShell`.
-* Commands currently reach the current Linux user through the session object
-  (`whoami`, prompt rendering). They must keep working during the migration;
-  the eventual source of truth is `SNXShell` interaction state.
+* `SNXRuntime` (`core/runtime/runtime.py`) keys its app-level session index by
+  `session_id` and attaches one shell per scenario identifier to it. Reusing
+  `session_id` with a different scenario keeps both shells under the same
+  session. The target `SNXSession 1 -> N SNXShell` structure is in place
+  internally.
+* The API and public routing still address a single `session_id` (scenario
+  selection is documented but NOT implemented), so externally one shell per
+  session is reached today. Do not change API behavior or session routing yet.
 
 ## Migration rules
 

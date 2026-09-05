@@ -16,6 +16,11 @@ class CommandRequest(BaseModel):
     command: str
     session_id: str
 
+    # Optional shell selector: when the session hosts multiple shells, the
+    # request may target one by its identifier (scenario name). When absent,
+    # the session's first (default) shell is used.
+    scenario_name: str | None = None
+
     # Terminal geometry reported by the frontend (lines visible in the
     # output pane). Drives dynamic full-screen pager viewports.
     viewport_height: int | None = Field(default=None, ge=1, le=200)

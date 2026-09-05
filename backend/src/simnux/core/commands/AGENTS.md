@@ -70,7 +70,7 @@ context from the shell and produces `CommandResult`s.
 
 ## Current-state note
 
-Commands currently receive a `CommandContext` whose `session` reference still
-carries the acting user and cwd (mid-migration). `whoami` and prompt rendering
-read `session.user.identifier`. Keep behaviour working today; the future source
-of truth is `SNXShell` interaction state. Do not redesign the pipeline.
+Commands receive a `CommandContext` whose `shell` is the source of
+interaction state: `whoami` and prompt rendering read `ctx.shell.user` /
+`ctx.shell.current_directory`. This matches the target contract; keep it. Do
+not reach for session-bound state or redesign the pipeline.

@@ -1,7 +1,6 @@
 import asyncio
 import logging
 
-from simnux.boot.config import LimitsConfig
 from simnux.core.commands.argument_parser import parse_arguments
 from simnux.core.commands.models import CommandContext
 from simnux.core.commands.streams import AsyncStreamReader
@@ -9,6 +8,7 @@ from simnux.core.commands.streams import AsyncStreamWriter
 from simnux.core.commands.streams import FileStreamWriter
 from simnux.core.commands.streams import QueueStreamReader
 from simnux.core.commands.streams import QueueStreamWriter
+from simnux.core.runtime.config import LimitsConfig
 from simnux.core.runtime.models import CommandResult
 from simnux.core.runtime.models import ExitCode
 from simnux.core.runtime.models import TerminalAction
@@ -90,9 +90,9 @@ class CommandDispatcher:
 
         if stdout_redirect is not None:
             resolved = ctx.filesystem.resolve_path(
-                current_directory=ctx.session.current_directory,
+                current_directory=ctx.shell.current_directory,
                 target_path=stdout_redirect,
-                home_directory=ctx.session.home_directory,
+                home_directory=ctx.shell.home_directory,
             )
             out_writer = FileStreamWriter(ctx.filesystem, resolved, append=stdout_append)
         else:
@@ -185,9 +185,9 @@ class CommandDispatcher:
             if idx == n - 1:
                 if redirect is not None:
                     resolved = ctx.filesystem.resolve_path(
-                        current_directory=ctx.session.current_directory,
+                        current_directory=ctx.shell.current_directory,
                         target_path=redirect,
-                        home_directory=ctx.session.home_directory,
+                        home_directory=ctx.shell.home_directory,
                     )
                     out_writer = FileStreamWriter(ctx.filesystem, resolved, append=append)
                 else:

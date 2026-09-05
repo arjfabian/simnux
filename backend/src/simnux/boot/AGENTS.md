@@ -66,7 +66,9 @@ fuses session and shell state.
 ## Current-state note
 
 `core/runtime/runtime.py` (via `SNXRuntime.create_session`) currently serves as
-the effective composition point for a per-scenario shell run, selecting the
-initial non-root user and building session + VFS + registry + shell. Its
-one-session-per-scenario shape is the drift documented in the root contract.
-`boot/` should not encourage new shortcuts that deepen that drift.
+the effective composition point: it selects the initial non-root user, builds
+VFS + registry + shell, and attaches one shell per scenario identifier to an
+app-level `SNXSession` keyed by `session_id`. Reusing `session_id` with another
+scenario keeps both shells alive. The API still routes on `session_id` alone;
+`boot/` should not introduce shortcuts that bypass the documented ownership
+matrix or deepen that one-shell-per-session external view.

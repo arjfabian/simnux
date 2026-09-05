@@ -16,11 +16,11 @@ class Command(SNXCommand):
         stdout: AsyncStreamWriter,
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
-        """Change the current working directory within the session.
+        """Change the current working directory within the shell.
 
         Accepts relative, absolute, and ~-prefixed paths.
         Defaults to home (~) when no argument is given.
-        Mutates ``session.current_directory`` only if the resolved target
+        Mutates ``ctx.shell.current_directory`` only if the resolved target
         exists and is a directory.
         """
 
@@ -39,6 +39,6 @@ class Command(SNXCommand):
             await stderr.write(f"cd: {target}: {result.message}")
             return result.exit_code
 
-        ctx.session.set_cwd(resolved_path)
+        ctx.shell.set_cwd(resolved_path)
 
         return ExitCode.SUCCESS

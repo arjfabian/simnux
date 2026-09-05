@@ -8,12 +8,12 @@ import re
 import time
 from typing import TYPE_CHECKING
 
-from simnux.boot.config import LimitsConfig
 from simnux.core.commands.argument_parser import parse_arguments
 from simnux.core.commands.models import CommandContext
 from simnux.core.commands.streams import AsyncStreamReader
 from simnux.core.commands.streams import AsyncStreamWriter
 from simnux.core.commands.streams import FileStreamWriter
+from simnux.core.runtime.config import LimitsConfig
 from simnux.core.runtime.models import CommandResult
 from simnux.core.runtime.models import ExitCode
 
@@ -64,9 +64,9 @@ class ScriptRunner:
         on failure.
         """
         abs_path = ctx.filesystem.resolve_path(
-            current_directory=ctx.session.current_directory,
+            current_directory=ctx.shell.current_directory,
             target_path=cmd_name,
-            home_directory=ctx.session.home_directory,
+            home_directory=ctx.shell.home_directory,
         )
         result = ctx.filesystem.read(abs_path)
         if result.exit_code != ExitCode.SUCCESS:
@@ -122,7 +122,7 @@ class ScriptRunner:
                 continue
 
             # ── variable assignment ──
-            if self._try_assignment(stripped, ctx.session.environment):
+            if self._try_assignment(stripped, ctx.shell.environment):
                 continue
 
             # ── while loop ──
@@ -168,7 +168,7 @@ class ScriptRunner:
             # ── logical operators ──
             if "&&" in stripped or "||" in stripped:
                 try:
-                    expanded = self._expand_vars(stripped, ctx.session.environment)
+                    expanded = self._expand_vars(stripped, ctx.shell.environment)
                     result = await self._execute_logical_line(
                         expanded,
                         ctx,
@@ -186,7 +186,7 @@ class ScriptRunner:
                 continue
 
             # ── regular command ──
-            expanded = self._expand_vars(stripped, ctx.session.environment)
+            expanded = self._expand_vars(stripped, ctx.shell.environment)
             try:
                 parsed = parser.parse(expanded)
             except ValueError as e:
@@ -213,7 +213,7 @@ class ScriptRunner:
 
             seg = parsed.segments[0]
             cmd_name = seg.command
-            cmd_args = self._expand_args(seg.args, ctx.session.environment)
+            cmd_args = self._expand_args(seg.args, ctx.shell.environment)
 
             command = self.registry.get(cmd_name)
             if command is None:
@@ -240,9 +240,9 @@ class ScriptRunner:
             cmd_stdout = stdout
             if seg.stdout_redirect:
                 resolved = ctx.filesystem.resolve_path(
-                    current_directory=ctx.session.current_directory,
+                    current_directory=ctx.shell.current_directory,
                     target_path=seg.stdout_redirect,
-                    home_directory=ctx.session.home_directory,
+                    home_directory=ctx.shell.home_directory,
                 )
                 cmd_stdout = FileStreamWriter(
                     ctx.filesystem,
@@ -355,7 +355,7 @@ class ScriptRunner:
                 r._next_line_idx = body_end  # type: ignore[attr-defined]
                 return r
 
-            ctx.session.environment[var_name] = word
+            ctx.shell.environment[var_name] = word
             last_exit = await self._execute_body(
                 body,
                 ctx,
@@ -549,7 +549,7 @@ class ScriptRunner:
         parser = ShellParser()
 
         # Expand variables and arithmetic in the condition string
-        condition = self._expand_vars(condition, ctx.session.environment)
+        condition = self._expand_vars(condition, ctx.shell.environment)
 
         # Handle simple builtins
         if condition == "true":
@@ -587,7 +587,7 @@ class ScriptRunner:
             if command is None:
                 return False
 
-            seg_args = self._expand_args(seg.args, ctx.session.environment)
+            seg_args = self._expand_args(seg.args, ctx.shell.environment)
             command.args = seg_args
             command._invoked_name = seg.command
             if command.parameters:
@@ -630,7 +630,7 @@ class ScriptRunner:
 
         parser = ShellParser()
         last_exit = ExitCode.SUCCESS
-        env = ctx.session.environment
+        env = ctx.shell.environment
         idx = 0
 
         while idx < len(body):
@@ -767,9 +767,9 @@ class ScriptRunner:
             cmd_stdout = stdout
             if seg.stdout_redirect:
                 resolved = ctx.filesystem.resolve_path(
-                    current_directory=ctx.session.current_directory,
+                    current_directory=ctx.shell.current_directory,
                     target_path=seg.stdout_redirect,
-                    home_directory=ctx.session.home_directory,
+                    home_directory=ctx.shell.home_directory,
                 )
                 cmd_stdout = FileStreamWriter(
                     ctx.filesystem,
@@ -831,7 +831,7 @@ class ScriptRunner:
             else:
                 seg = pipeline.segments[0]
                 cmd_name = seg.command
-                cmd_args = self._expand_args(seg.args, ctx.session.environment)
+                cmd_args = self._expand_args(seg.args, ctx.shell.environment)
 
                 command = self.registry.get(cmd_name)
                 if command is None:
@@ -858,9 +858,9 @@ class ScriptRunner:
             cmd_stdout = stdout
             if seg.stdout_redirect:
                 resolved = ctx.filesystem.resolve_path(
-                    current_directory=ctx.session.current_directory,
+                    current_directory=ctx.shell.current_directory,
                     target_path=seg.stdout_redirect,
-                    home_directory=ctx.session.home_directory,
+                    home_directory=ctx.shell.home_directory,
                 )
                 cmd_stdout = FileStreamWriter(
                     ctx.filesystem,
@@ -901,7 +901,7 @@ class ScriptRunner:
 
         async def run_segment(idx: int) -> None:
             cmd_name, args, redirect, append = segments[idx]
-            expanded_args = self._expand_args(args, ctx.session.environment)
+            expanded_args = self._expand_args(args, ctx.shell.environment)
             command = self.registry.get(cmd_name)
 
             err_queue: asyncio.Queue = asyncio.Queue()
@@ -918,9 +918,9 @@ class ScriptRunner:
             if idx == n - 1:
                 if redirect is not None:
                     resolved = ctx.filesystem.resolve_path(
-                        current_directory=ctx.session.current_directory,
+                        current_directory=ctx.shell.current_directory,
                         target_path=redirect,
-                        home_directory=ctx.session.home_directory,
+                        home_directory=ctx.shell.home_directory,
                     )
                     out_writer = FileStreamWriter(ctx.filesystem, resolved, append=append)
                 else:

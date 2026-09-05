@@ -1,6 +1,12 @@
 """Prompt rendering utilities for SIMNUX shell UI."""
 
-from simnux.core.sessions.runtime import SNXSession
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from simnux.core.shell.runtime import SNXShell
 
 
 class PromptRenderer:
@@ -11,21 +17,21 @@ class PromptRenderer:
     """
 
     @staticmethod
-    def render(session: SNXSession) -> str:
-        """Build CLI prompt from current session context."""
+    def render(shell: SNXShell) -> str:
+        """Build CLI prompt from current shell interaction state."""
 
-        path = session.current_directory
-        home_prefix = session.home_directory.rstrip("/") + "/"
+        path = shell.current_directory
+        home_prefix = shell.home_directory.rstrip("/") + "/"
 
-        if path == session.home_directory:
+        if path == shell.home_directory:
             path = "~"
 
         elif home_prefix == "/" and path != "/":
             path = "~" + path
 
         elif path.startswith(home_prefix):
-            path = path.replace(session.home_directory, "~", 1)
+            path = path.replace(shell.home_directory, "~", 1)
 
-        tail = "#" if session.username == "root" else "$"
+        tail = "#" if shell.user.identifier == "root" else "$"
 
-        return f"{session.username}@{session.hostname}:{path}{tail} "
+        return f"{shell.user.identifier}@{shell.hostname}:{path}{tail} "

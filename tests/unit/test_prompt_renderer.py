@@ -5,11 +5,17 @@ tilde abbreviation for the home directory, ``$`` vs ``#`` for root,
 and correct hostname/username display.
 """
 
+import logging
+
+from simnux.core.commands.registry import CommandRegistry
 from simnux.core.filesystem.models import PermissionPresets
 from simnux.core.filesystem.models import SNXNode
+from simnux.core.filesystem.vfs import SNXFileSystem
 from simnux.core.scenarios.models import SNXScenario
-from simnux.core.sessions.runtime import SNXSession
 from simnux.core.shell.prompt import PromptRenderer
+from simnux.core.shell.runtime import SNXShell
+from simnux.security.groups.models import SNXGroup
+from simnux.security.users.models import SNXUser
 
 
 def _make_session(
@@ -18,33 +24,46 @@ def _make_session(
     starting_dir="/home/user",
     current_directory=None,
 ):
-    """Create a minimal SNXSession for prompt-rendering tests.
+    """Create a minimal SNXShell for prompt-rendering tests.
 
-    Builds a scratch scenario with a single root node so the session
-    constructor is satisfied, then returns a session ready for render.
+    Builds a scratch scenario with a single root node so the shell
+    constructor is satisfied, then returns a shell ready for render.
 
     Returns:
-        SNXSession: Session with the given username/hostname/paths.
+        SNXShell: Shell with the given username/hostname/paths.
     """
     scenario = SNXScenario(
         name="Test",
         difficulty="Easy",
-        username=username,
         hostname=hostname,
+        users={
+            "root": SNXUser(0, "root"),
+            username: SNXUser(1001, username),
+        },
+        groups={
+            "root": SNXGroup(0, "root"),
+            username: SNXGroup(1001, username),
+        },
         starting_dir=starting_dir,
         filesystem={
             "/": SNXNode(
                 path="/",
+                owner=SNXUser(0, "root"),
+                group=SNXGroup(0, "root"),
                 content="",
                 is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             )
         },
     )
-    return SNXSession(
-        session_id="test",
+    return SNXShell(
         scenario=scenario,
+        user=scenario.users[username],
         current_directory=current_directory or starting_dir,
+        filesystem=SNXFileSystem(base_layer={}),
+        registry=CommandRegistry(),
+        logger=logging.getLogger("test_prompt_renderer"),
+        identifier="Test",
     )
 
 

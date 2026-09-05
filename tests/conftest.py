@@ -29,7 +29,15 @@ from simnux.core.filesystem.models import SNXNode
 from simnux.core.filesystem.vfs import SNXFileSystem
 from simnux.core.runtime.runtime import SNXRuntime
 from simnux.core.scenarios.models import SNXScenario
-from simnux.core.sessions.runtime import SNXSession
+from simnux.core.shell.runtime import SNXShell
+from simnux.security.groups.models import SNXGroup
+from simnux.security.users.models import SNXUser
+
+
+ROOT_USER = SNXUser(0, "root")
+ROOT_GROUP = SNXGroup(0, "root")
+USER_OWNER = SNXUser(1001, "user")
+USER_GROUP = SNXGroup(1001, "user")
 
 
 def pytest_configure(config):
@@ -78,30 +86,45 @@ def create_scenario():
         return SNXScenario(
             name="Regression",
             difficulty="Easy",
-            username="user",
             hostname="simnux",
+            users={
+                "root": SNXUser(0, "root"),
+                "user": SNXUser(1001, "user"),
+            },
+            groups={
+                "root": SNXGroup(0, "root"),
+                "user": SNXGroup(1001, "user"),
+            },
             starting_dir=starting_dir,
             filesystem={
                 "/": SNXNode(
                     path="/",
+                    owner=ROOT_USER,
+                    group=ROOT_GROUP,
                     content="",
                     is_directory=True,
                     permissions=PermissionPresets.DIRECTORY_DEFAULT,
                 ),
                 "/home": SNXNode(
                     path="/home",
+                    owner=ROOT_USER,
+                    group=ROOT_GROUP,
                     content="",
                     is_directory=True,
                     permissions=PermissionPresets.DIRECTORY_DEFAULT,
                 ),
                 "/home/user": SNXNode(
                     path="/home/user",
+                    owner=USER_OWNER,
+                    group=USER_GROUP,
                     content="",
                     is_directory=True,
                     permissions=PermissionPresets.DIRECTORY_DEFAULT,
                 ),
                 "/root": SNXNode(
                     path="/root",
+                    owner=ROOT_USER,
+                    group=ROOT_GROUP,
                     content="",
                     is_directory=True,
                     permissions=PermissionPresets.DIRECTORY_DEFAULT,
@@ -113,29 +136,27 @@ def create_scenario():
 
 
 @pytest.fixture
-def create_session(create_scenario):
-    """Factory fixture for creating customizable SNXSession instances.
+def create_session(create_scenario, test_logger):
+    """Factory fixture for creating customizable SNXShell instances.
 
-    Returns a factory function that creates sessions using create_scenario
-    as the scenario provider. Supports custom session_id, cwd, and task counts.
+    Returns a factory function that creates shells using create_scenario
+    as the scenario provider. Supports custom cwd and task counts.
 
-    Use this when testing session persistence, snapshots, or when you need
-    multiple sessions with different IDs for isolation testing.
+    Use this when testing interaction state, snapshots, or when you need
+    multiple shells with different scenarios for isolation testing.
 
     Args via factory:
-        session_id: Custom session identifier (default: "reg-test")
         cwd: Starting current directory (default: "/home/user")
         starting_dir: Scenario starting dir (passed to create_scenario)
-        tasks_total: Total tasks in scenario (default: 0)
-        tasks_completed: Completed tasks (default: 0)
+        identifier: Shell identifier (default: "reg-test")
 
     Returns:
-        A factory function that creates SNXSession instances.
+        A factory function that creates SNXShell instances.
 
     Example:
-        def test_session_isolation(create_session):
-            session_a = create_session(session_id="a")
-            session_b = create_session(session_id="b")
+        def test_shell_isolation(create_session):
+            shell_a = create_session(identifier="a")
+            shell_b = create_session(identifier="b")
             ...
     """
 
@@ -147,23 +168,21 @@ def create_session(create_scenario):
             )
         )
 
-        return SNXSession(
-            session_id=kw.get(
-                "session_id",
-                "reg-test",
-            ),
+        filesystem = SNXFileSystem(base_layer=dict(scenario.filesystem))
+
+        return SNXShell(
             scenario=scenario,
+            user=scenario.users["user"],
             current_directory=kw.get(
                 "cwd",
                 "/home/user",
             ),
-            tasks_total=kw.get(
-                "tasks_total",
-                0,
-            ),
-            tasks_completed=kw.get(
-                "tasks_completed",
-                0,
+            filesystem=filesystem,
+            registry=CommandRegistry(),
+            logger=test_logger,
+            identifier=kw.get(
+                "identifier",
+                "reg-test",
             ),
         )
 
@@ -214,6 +233,8 @@ def fs_root_only():
     return {
         "/": SNXNode(
             path="/",
+            owner=ROOT_USER,
+            group=ROOT_GROUP,
             content="",
             is_directory=True,
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
@@ -253,18 +274,24 @@ def fs_with_home():
     return {
         "/": SNXNode(
             path="/",
+            owner=ROOT_USER,
+            group=ROOT_GROUP,
             content="",
             is_directory=True,
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
         ),
         "/home": SNXNode(
             path="/home",
+            owner=ROOT_USER,
+            group=ROOT_GROUP,
             content="",
             is_directory=True,
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
         ),
         "/home/user": SNXNode(
             path="/home/user",
+            owner=USER_OWNER,
+            group=USER_GROUP,
             content="",
             is_directory=True,
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
@@ -295,48 +322,64 @@ def base_layer():
     return {
         "/": SNXNode(
             path="/",
+            owner=ROOT_USER,
+            group=ROOT_GROUP,
             content="",
             is_directory=True,
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
         ),
         "/home": SNXNode(
             path="/home",
+            owner=ROOT_USER,
+            group=ROOT_GROUP,
             content="",
             is_directory=True,
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
         ),
         "/home/user": SNXNode(
             path="/home/user",
+            owner=USER_OWNER,
+            group=USER_GROUP,
             content="",
             is_directory=True,
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
         ),
         "/home/user/notes.txt": SNXNode(
             path="/home/user/notes.txt",
+            owner=USER_OWNER,
+            group=USER_GROUP,
             content="hello world",
             is_directory=False,
             permissions=PermissionPresets.FILE_DEFAULT,
         ),
         "/etc": SNXNode(
             path="/etc",
+            owner=ROOT_USER,
+            group=ROOT_GROUP,
             content="",
             is_directory=True,
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
         ),
         "/etc/hostname": SNXNode(
             path="/etc/hostname",
+            owner=ROOT_USER,
+            group=ROOT_GROUP,
             content="simnux-edge",
             is_directory=False,
             permissions=PermissionPresets.FILE_DEFAULT,
         ),
         "/var": SNXNode(
             path="/var",
+            owner=ROOT_USER,
+            group=ROOT_GROUP,
             content="",
             is_directory=True,
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
         ),
         "/var/log": SNXNode(
             path="/var/log",
+            owner=ROOT_USER,
+            group=ROOT_GROUP,
             content="",
             is_directory=True,
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
@@ -431,18 +474,24 @@ def base_layer_rich(base_layer):
         **base_layer,
         "/etc/passwd": SNXNode(
             path="/etc/passwd",
+            owner=ROOT_USER,
+            group=ROOT_GROUP,
             content="root:x:0:0:root:/root:/bin/bash",
             is_directory=False,
             permissions=PermissionPresets.FILE_DEFAULT,
         ),
         "/etc/shadow": SNXNode(
             path="/etc/shadow",
+            owner=ROOT_USER,
+            group=ROOT_GROUP,
             content="root:!:20000:0:99999:7:::",
             is_directory=False,
             permissions=PermissionPresets.FILE_DEFAULT,
         ),
         "/home/user/secret.txt": SNXNode(
             path="/home/user/secret.txt",
+            owner=USER_OWNER,
+            group=USER_GROUP,
             content="FLAG{hidden}",
             is_directory=False,
             permissions=PermissionPresets.FILE_DEFAULT,
@@ -513,7 +562,7 @@ def base_scenario(base_layer):
     Scenario details:
         - name: "TestScenario"
         - difficulty: "Easy"
-        - username: "testuser"
+        - user: "user"
         - hostname: "testhost"
         - starting_dir: "/home/user"
 
@@ -523,33 +572,44 @@ def base_scenario(base_layer):
     return SNXScenario(
         name="TestScenario",
         difficulty="Easy",
-        username="testuser",
         hostname="testhost",
+        users={
+            "root": SNXUser(0, "root"),
+            "user": SNXUser(1001, "user"),
+        },
+        groups={
+            "root": SNXGroup(0, "root"),
+            "user": SNXGroup(1001, "user"),
+        },
         starting_dir="/home/user",
         filesystem=dict(base_layer),
     )
 
 
 @pytest.fixture
-def session(base_scenario):
-    """Standard test session using base_scenario.
+def session(base_scenario, filesystem, test_logger):
+    """Standard test shell using base_scenario and the filesystem fixture.
 
-    Creates an SNXSession with a fixed session_id and base_scenario
-    as the scenario. Use this for tests that need a ready-made session
-    without special configuration.
+    Creates an SNXShell with a fixed identifier and base_scenario as the
+    scenario, sharing the ``filesystem`` fixture instance. Use this for
+    tests that need a ready-made interaction-state owner (the shell).
 
-    Session details:
-        - session_id: "test-session-id"
+    Shell details:
+        - identifier: "TestScenario"
         - scenario: base_scenario
         - current_directory: "/home/user"
 
     Returns:
-        SNXSession: A configured session instance.
+        SNXShell: A configured shell instance.
     """
-    return SNXSession(
-        session_id="test-session-id",
+    return SNXShell(
         scenario=base_scenario,
+        user=base_scenario.users["user"],
         current_directory=base_scenario.starting_dir,
+        filesystem=filesystem,
+        registry=CommandRegistry(),
+        logger=test_logger,
+        identifier=base_scenario.name,
     )
 
 
@@ -576,14 +636,14 @@ def runtime_shell(runtime):
 def command_context(session, filesystem):
     """CommandContext for executing commands without a full shell.
 
-    Creates a CommandContext instance that combines session and filesystem
-    for direct command execution. Use this when testing individual commands
-    without the full shell infrastructure.
+    Creates a CommandContext instance that combines shell interaction state
+    and filesystem for direct command execution. Use this when testing
+    individual commands without the full shell infrastructure.
 
     Returns:
         CommandContext: Context for command execution.
     """
-    return CommandContext(session=session, filesystem=filesystem)
+    return CommandContext(shell=session, filesystem=filesystem)
 
 
 @pytest.fixture
@@ -629,7 +689,7 @@ def populated_registry(session, filesystem, test_logger):
     registry = CommandRegistry()
 
     context = CommandContext(
-        session=session,
+        shell=session,
         filesystem=filesystem,
     )
 

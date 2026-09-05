@@ -63,7 +63,7 @@ class TestMkdirCommand:
 
     async def test_mkdir_relative_path(self, shell_with_commands):
         """Mkdir with a relative path resolves against the session CWD."""
-        shell_with_commands.session.set_cwd("/etc")
+        shell_with_commands.set_cwd("/etc")
         result = await shell_with_commands.execute("mkdir newdir")
         assert_success(result)
         assert shell_with_commands.filesystem.get_node("/etc/newdir").is_directory

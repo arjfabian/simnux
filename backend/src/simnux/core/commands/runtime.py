@@ -44,7 +44,7 @@ class SNXCommand(ABC):
 
         The dispatcher provides live streams — write output to stdout,
         errors to stderr, return an ExitCode. Side effects limited to
-        ctx.session and ctx.filesystem.delta_layer.
+        ctx.shell and ctx.filesystem.delta_layer.
         """
         raise NotImplementedError
 
@@ -61,12 +61,12 @@ class SNXCommand(ABC):
         return args
 
     def resolve_path(self, target: str, ctx: CommandContext | None = None) -> str:
-        """Resolve a user path to an absolute VFS path using session CWD."""
+        """Resolve a user path to an absolute VFS path using shell CWD."""
         ctx = ctx or self.context
-        session = ctx.session
+        shell = ctx.shell
 
         return ctx.filesystem.resolve_path(
-            current_directory=session.current_directory,
+            current_directory=shell.current_directory,
             target_path=target,
-            home_directory=session.home_directory,
+            home_directory=shell.home_directory,
         )

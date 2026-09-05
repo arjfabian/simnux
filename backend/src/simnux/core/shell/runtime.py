@@ -1,24 +1,26 @@
 """
-Session-bound shell runtime.
+Shell runtime bound to exactly one scenario.
 
-Orchestrates command execution, parsing, and session state
-for a single interactive environment.
+Owns all mutable interaction state for its scenario (current user, cwd,
+history, environment, pending input/progress) and orchestrates command
+execution: parse -> validate -> dispatch -> return.
 """
 
 import asyncio
 import logging
 
-from simnux.boot.config import LimitsConfig
 from simnux.core.commands.dispatcher import CommandDispatcher
 from simnux.core.commands.models import CommandContext
 from simnux.core.commands.registry import CommandRegistry
 from simnux.core.commands.streams import AsyncStreamReader
 from simnux.core.filesystem.vfs import SNXFileSystem
+from simnux.core.runtime.config import LimitsConfig
 from simnux.core.runtime.models import CommandResult
 from simnux.core.runtime.models import ExitCode
+from simnux.core.runtime.observability import ShellSnapshot
+from simnux.core.scenarios.models import SNXScenario
 from simnux.core.scripting.history import CommandHistory
-from simnux.core.sessions.runtime import SNXSession
-from simnux.infrastructure.observability.snapshots import ShellSnapshot
+from simnux.security.users.models import SNXUser
 
 from .parser import ShellParser
 from .prompt import PromptRenderer
@@ -26,26 +28,50 @@ from .prompt import PromptRenderer
 
 class SNXShell:
     """
-    Stateful shell runtime bound to a single session.
+    Stateful shell runtime bound to a single scenario.
 
-    Orchestrates the command lifecycle: parse -> validate -> dispatch -> return.
-    Each shell owns one session, one filesystem instance, one command registry.
-    This is the primary public API for the command execution pipeline.
+    Each shell owns exactly one scenario reference and its own interaction
+    state (current user, cwd, history, environment, pending input). The
+    shell is the source of truth commands read scenario-interaction state
+    from; it does not reference the application-level session.
     """
 
     def __init__(
         self,
-        session: SNXSession,
+        *,
+        scenario: SNXScenario,
+        user: SNXUser,
+        current_directory: str,
         filesystem: SNXFileSystem,
         registry: CommandRegistry,
         logger: logging.Logger,
         limits: LimitsConfig | None = None,
+        tasks_total: int = 0,
+        tasks_completed: int = 0,
+        metadata: dict | None = None,
+        environment: dict[str, str] | None = None,
+        history: list[str] | None = None,
+        identifier: str | None = None,
     ) -> None:
-        self.session = session
+        # Interaction state owned by this shell.
+        self.identifier = identifier or scenario.name
+        self.scenario = scenario
+        self.user = user
+        self.current_directory = current_directory
 
-        # Exposed for introspection/debugging purposes
+        self.tasks_total = tasks_total
+        self.tasks_completed = tasks_completed
+        self.metadata: dict = metadata if metadata is not None else {}
+        self.environment: dict[str, str] = environment if environment is not None else {}
+        self.history: list[str] = history if history is not None else []
+
+        self.awaiting_input = False
+        self.pending_var_name: str | None = None
+        self.pending_command: str | None = None
+        self.pending_state: object | None = None
+
+        # Execution machinery
         self.filesystem = filesystem
-
         self.registry = registry
         self.logger = logger
         self.limits = limits or LimitsConfig()
@@ -57,9 +83,50 @@ class SNXShell:
             limits=self.limits,
         )
 
-        self.history_expander = CommandHistory(self.session.history)
+        self.history_expander = CommandHistory(self.history)
 
         self._lock = asyncio.Lock()
+
+    # ── Scenario-derived passthroughs ────────────────────────────────────
+
+    @property
+    def motd(self) -> str:
+        node = self.scenario.filesystem.get("/etc/motd")
+        return node.content if node else ""
+
+    @property
+    def home_directory(self) -> str:
+        return self.scenario.starting_dir
+
+    @property
+    def hostname(self) -> str:
+        return self.scenario.hostname
+
+    # ── Interaction-state helpers ────────────────────────────────────────
+
+    def add_history(self, raw_input: str) -> None:
+        """Append a raw command line. Drops oldest entries past capacity."""
+        if not raw_input.strip():
+            return
+        self.history.append(raw_input)
+        if len(self.history) > _HISTORY_CAPACITY:
+            self.history.pop(0)
+
+    def set_cwd(self, path: str) -> None:
+        """Update working directory. Caller must verify path exists and is a directory."""
+        self.current_directory = path
+
+    def get_status(self) -> dict:
+        """Return aggregated scenario progress state."""
+        scenario_solved = self.tasks_total > 0 and self.tasks_completed >= self.tasks_total
+
+        return {
+            "tasks_total": self.tasks_total,
+            "tasks_completed": self.tasks_completed,
+            "scenario_solved": scenario_solved,
+        }
+
+    # ── Command lifecycle ────────────────────────────────────────────────
 
     async def execute(
         self,
@@ -88,7 +155,7 @@ class SNXShell:
         """Re-dispatch a suspended command with fresh stdin.
 
         Used by the REST input bridge to resume a ``read`` (or similar)
-        command that previously suspended and marked the session as
+        command that previously suspended and marked this shell as
         ``awaiting_input``. ``viewport_height`` refreshes suspended pager
         viewports against current terminal geometry.
         """
@@ -101,12 +168,20 @@ class SNXShell:
         # Simple check - presence of && or ||
         return "&&" in raw_input or "||" in raw_input
 
+    def _build_context(self, viewport_height: int | None = None) -> CommandContext:
+        return CommandContext(
+            shell=self,
+            filesystem=self.filesystem,
+            dispatcher=self.dispatcher,
+            viewport_height=viewport_height,
+        )
+
     async def _execute_impl(
         self,
         raw_input: str,
         viewport_height: int | None = None,
     ) -> CommandResult:
-        self.logger.info(f"[{self.session.session_id}] Executing: {raw_input}")
+        self.logger.info(f"[{self.identifier}] Executing: {raw_input}")
 
         # POSIX history expansion before parsing
         try:
@@ -117,7 +192,7 @@ class SNXShell:
                 exit_code=ExitCode.ERROR,
             )
 
-        self.session.add_history(raw_input)
+        self.add_history(raw_input)
 
         # Check for logical operators
         if self._has_logical_operators(raw_input):
@@ -137,21 +212,14 @@ class SNXShell:
                     and "/" not in seg.command
                     and not seg.command.startswith("~")
                 ):
-                    self.logger.warning(
-                        f"[{self.session.session_id}] Unknown command: {seg.command}"
-                    )
+                    self.logger.warning(f"[{self.identifier}] Unknown command: {seg.command}")
                     return CommandResult(
                         stderr=[f"{seg.command}: command not found"],
                         exit_code=ExitCode.ERROR,
                     )
 
             try:
-                ctx = CommandContext(
-                    session=self.session,
-                    filesystem=self.filesystem,
-                    dispatcher=self.dispatcher,
-                    viewport_height=viewport_height,
-                )
+                ctx = self._build_context(viewport_height)
 
                 if len(parsed.segments) == 1:
                     result = await self.dispatcher.dispatch(
@@ -172,7 +240,7 @@ class SNXShell:
                     )
 
             except Exception:
-                self.logger.exception(f"[{self.session.session_id}] Execution error: {raw_input}")
+                self.logger.exception(f"[{self.identifier}] Execution error: {raw_input}")
 
                 return CommandResult(
                     stderr=["Internal runtime error"],
@@ -183,7 +251,7 @@ class SNXShell:
         if was_expanded:
             result.stdout.insert(0, raw_input)
 
-        self.logger.info(f"[{self.session.session_id}] Exit code: {result.exit_code}")
+        self.logger.info(f"[{self.identifier}] Exit code: {result.exit_code}")
 
         return result
 
@@ -213,21 +281,14 @@ class SNXShell:
                     and "/" not in seg.command
                     and not seg.command.startswith("~")
                 ):
-                    self.logger.warning(
-                        f"[{self.session.session_id}] Unknown command: {seg.command}"
-                    )
+                    self.logger.warning(f"[{self.identifier}] Unknown command: {seg.command}")
                     return CommandResult(
                         stderr=[f"{seg.command}: command not found"],
                         exit_code=ExitCode.ERROR,
                     )
 
         try:
-            ctx = CommandContext(
-                session=self.session,
-                filesystem=self.filesystem,
-                dispatcher=self.dispatcher,
-                viewport_height=viewport_height,
-            )
+            ctx = self._build_context(viewport_height)
 
             last_exit = ExitCode.SUCCESS
             combined_result = CommandResult()
@@ -273,12 +334,12 @@ class SNXShell:
                     combined_result.action_message = result.action_message
 
             combined_result.exit_code = last_exit
-            self.logger.info(f"[{self.session.session_id}] Exit code: {last_exit}")
+            self.logger.info(f"[{self.identifier}] Exit code: {last_exit}")
 
             return combined_result
 
         except Exception:
-            self.logger.exception(f"[{self.session.session_id}] Execution error: {raw_input}")
+            self.logger.exception(f"[{self.identifier}] Execution error: {raw_input}")
 
             return CommandResult(
                 stderr=["Internal runtime error"],
@@ -294,13 +355,13 @@ class SNXShell:
         """Implementation of execute_resume — dispatches with custom stdin."""
 
         self.logger.info(
-            f"[{self.session.session_id}] Resuming: {pending_command}",
+            f"[{self.identifier}] Resuming: {pending_command}",
         )
 
         # Suspended-state resumes (e.g. full-screen pager keystrokes) are
         # interactive turns, not new user commands — do not record history.
-        if self.session.pending_state is None:
-            self.session.add_history(pending_command)
+        if self.pending_state is None:
+            self.add_history(pending_command)
 
         parsed = self.parser.parse(pending_command)
 
@@ -308,12 +369,7 @@ class SNXShell:
             return CommandResult()
 
         try:
-            ctx = CommandContext(
-                session=self.session,
-                filesystem=self.filesystem,
-                dispatcher=self.dispatcher,
-                viewport_height=viewport_height,
-            )
+            ctx = self._build_context(viewport_height)
 
             if len(parsed.segments) == 1:
                 result = await self.dispatcher.dispatch(
@@ -333,36 +389,41 @@ class SNXShell:
                 )
 
             self.logger.info(
-                f"[{self.session.session_id}] Resume exit: {result.exit_code}",
+                f"[{self.identifier}] Resume exit: {result.exit_code}",
             )
 
             return result
 
         except Exception:
             self.logger.exception(
-                f"[{self.session.session_id}] Resume error: {pending_command}",
+                f"[{self.identifier}] Resume error: {pending_command}",
             )
             return CommandResult(
                 stderr=["Internal runtime error"],
                 exit_code=ExitCode.ERROR,
             )
 
-    def get_snapshot(self) -> ShellSnapshot:
+    # ── Introspection ─────────────────────────────────────────────────────
+
+    def get_snapshot(self, session_id: str) -> ShellSnapshot:
         """Return shell state snapshot for debugging/inspection."""
 
         filesystem_paths = self.filesystem.list_paths()
 
         return ShellSnapshot(
-            session_id=self.session.session_id,
-            scenario_name=self.session.scenario.name,
+            session_id=session_id,
+            scenario_name=self.scenario.name,
             loaded_commands=self.registry.list_commands(),
             filesystem=filesystem_paths,
             filesystem_nodes=len(filesystem_paths),
-            current_path=self.session.current_directory,
-            recent_history=self.session.history[-20:] if self.session.history else [],
-            history_count=len(self.session.history),
+            current_path=self.current_directory,
+            recent_history=self.history[-20:] if self.history else [],
+            history_count=len(self.history),
         )
 
     def render_prompt(self) -> str:
-        """Render the current session prompt."""
-        return PromptRenderer.render(self.session)
+        """Render the current shell prompt."""
+        return PromptRenderer.render(self)
+
+
+_HISTORY_CAPACITY = 1000

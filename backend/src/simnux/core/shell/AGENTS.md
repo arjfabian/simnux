@@ -83,10 +83,14 @@ SNXShell 1 ─── 1 SNXScenario
 
 ## Current-state note
 
-Today the shell's interaction state still lives on the `SNXSession` dataclass
-(`scenario`, `user`, `current_directory`, `history`, `environment`, pending
-fields) and `SNXShell` (`core/shell/runtime.py`) reads/writes it through that
-reference. `SNXRuntime` currently creates one shell per scenario run keyed by a
-per-scenario identifier. The target is this contract: move interaction state
-onto `SNXShell` and have `SNXSession` dispatch to shells — without renaming
-classes, adding `SNXScenarioRun`, or changing command/VFS behaviour.
+The rewiring has landed. `SNXShell` (`core/shell/runtime.py`) now owns all
+interaction state directly (`user`, `current_directory`, `environment`,
+`history`, `pending_input`/`pending_state`, task progress) and no longer reads
+it through a session reference. `CommandContext.shell` is the source of
+interaction state for commands and prompt rendering. `SNXRuntime` attaches one
+shell per scenario identifier to an app-level `SNXSession`; reusing `session_id`
+with a different scenario keeps both shells alive under the same session. The
+remaining gap is that the API still routes by `session_id` alone (scenario
+selection is documented but not yet implemented), so externally only one shell
+per session is reached today. Keep that; do not rename classes or add
+`SNXScenarioRun`.

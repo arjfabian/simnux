@@ -16,8 +16,10 @@ from simnux.core.scenarios.loader import ScenarioNotFoundError
 SCENARIO_YAML = """\
 name: "Loader Test"
 difficulty: "Medium"
-username: "tester"
 hostname: "loader-host"
+users:
+  - user_id: 1001
+    identifier: tester
 starting_dir: "/home/tester"
 
 filesystem:
@@ -166,7 +168,7 @@ class TestScenarioLoader:
         scenario = ScenarioLoader.load("hello")
         assert scenario.name == "Loader Test"
         assert scenario.difficulty == "Medium"
-        assert scenario.username == "tester"
+        assert scenario.users["tester"].identifier == "tester"
         assert scenario.hostname == "loader-host"
         assert scenario.starting_dir == "/home/tester"
 
@@ -195,7 +197,7 @@ class TestScenarioLoader:
         patch_scenarios_dir(minimal_dir.parent)
         scenario = ScenarioLoader.load("minimal")
         assert scenario.name == "Minimal"
-        assert scenario.username == "user"
+        assert scenario.users["root"].identifier == "root"
         assert scenario.hostname == "simnux"
         assert scenario.starting_dir == "/home/user"
 

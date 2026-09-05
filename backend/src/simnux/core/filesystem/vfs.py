@@ -6,12 +6,18 @@ import logging
 from pathlib import PurePosixPath
 import posixpath
 
-from simnux.boot.config import VfsLimits
 from simnux.core.commands.errors import CommandError
 from simnux.core.filesystem.models import FSResult
 from simnux.core.filesystem.models import PermissionPresets
 from simnux.core.filesystem.models import SNXNode
+from simnux.core.runtime.config import VfsLimits
 from simnux.core.runtime.models import ExitCode
+from simnux.security.groups.models import SNXGroup
+from simnux.security.users.models import SNXUser
+
+
+_ROOT_USER = SNXUser(0, "root")
+_ROOT_GROUP = SNXGroup(0, "root")
 
 
 class SNXFileSystem:
@@ -183,8 +189,8 @@ class SNXFileSystem:
             path=path,
             content="",
             is_directory=False,
-            owner="root",
-            group="root",
+            owner=_ROOT_USER,
+            group=_ROOT_GROUP,
             permissions=PermissionPresets.FILE_DEFAULT,
         )
 
@@ -221,8 +227,8 @@ class SNXFileSystem:
             path=path,
             content="",
             is_directory=True,
-            owner="root",
-            group="root",
+            owner=_ROOT_USER,
+            group=_ROOT_GROUP,
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
         )
 
@@ -350,7 +356,12 @@ class SNXFileSystem:
                 message=CommandError.IS_A_DIRECTORY,
             )
 
-        self.delta_layer[path] = SNXNode(path=path, deleted=True)
+        self.delta_layer[path] = SNXNode(
+            path=path,
+            owner=_ROOT_USER,
+            group=_ROOT_GROUP,
+            deleted=True,
+        )
         self._log(f"delete_file: {path}")
 
         return FSResult(exit_code=ExitCode.SUCCESS)
@@ -379,7 +390,12 @@ class SNXFileSystem:
                 message=CommandError.DIRECTORY_NOT_EMPTY,
             )
 
-        self.delta_layer[path] = SNXNode(path=path, deleted=True)
+        self.delta_layer[path] = SNXNode(
+            path=path,
+            owner=_ROOT_USER,
+            group=_ROOT_GROUP,
+            deleted=True,
+        )
         self._log(f"delete_directory: {path}")
 
         return FSResult(exit_code=ExitCode.SUCCESS)
@@ -390,7 +406,13 @@ class SNXFileSystem:
         node = self.get_node(path)
 
         if not node:
-            node = SNXNode(path=path, content="", is_directory=False)
+            node = SNXNode(
+                path=path,
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
+                content="",
+                is_directory=False,
+            )
             self.delta_layer[path] = node
 
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)
@@ -421,7 +443,12 @@ class SNXFileSystem:
                     message=CommandError.DIRECTORY_NOT_EMPTY,
                 )
 
-        self.delta_layer[path] = SNXNode(path=path, deleted=True)
+        self.delta_layer[path] = SNXNode(
+            path=path,
+            owner=_ROOT_USER,
+            group=_ROOT_GROUP,
+            deleted=True,
+        )
         self._log(f"delete: {path}")
 
         return FSResult(exit_code=ExitCode.SUCCESS)

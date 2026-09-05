@@ -174,11 +174,18 @@ class TestGrepCommandStream:
         from simnux.core.commands.standard.grep import Command
         from simnux.core.filesystem.models import SNXNode
         from simnux.core.filesystem.vfs import SNXFileSystem
+        from simnux.security.groups.models import SNXGroup
+        from simnux.security.users.models import SNXUser
 
         cmd = Command(context=MagicMock())
         cmd.args = ["edge", "/etc/hostname", "-"]
 
-        hostname_node = SNXNode(path="/etc/hostname", content="simnux-edge\n")
+        hostname_node = SNXNode(
+            path="/etc/hostname",
+            owner=SNXUser(0, "root"),
+            group=SNXGroup(0, "root"),
+            content="simnux-edge\n",
+        )
         fs = MagicMock(spec=SNXFileSystem)
         fs.read.return_value = MagicMock(
             exit_code=ExitCode.SUCCESS,

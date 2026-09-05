@@ -17,6 +17,12 @@ from simnux.core.filesystem.models import SNXNode
 from simnux.core.filesystem.vfs import SNXFileSystem
 from simnux.core.runtime.models import ExitCode
 from simnux.core.scripting.runner import ScriptRunner
+from simnux.security.groups.models import SNXGroup
+from simnux.security.users.models import SNXUser
+
+
+_ROOT_USER = SNXUser(0, "root")
+_ROOT_GROUP = SNXGroup(0, "root")
 
 
 # ── VFS byte caps ────────────────────────────────────────────────────────
@@ -74,12 +80,16 @@ class TestVfsTotalByteLimit:
         base = {
             "/": SNXNode(
                 path="/",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="",
                 is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/a": SNXNode(
                 path="/a",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="aaa",
                 is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
@@ -104,18 +114,24 @@ class TestVfsTotalByteLimit:
         base = {
             "/": SNXNode(
                 path="/",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="",
                 is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/a": SNXNode(
                 path="/a",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="",
                 is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
             ),
             "/b": SNXNode(
                 path="/b",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="",
                 is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
@@ -139,12 +155,16 @@ class TestVfsTotalByteLimit:
         base = {
             "/": SNXNode(
                 path="/",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="",
                 is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/a": SNXNode(
                 path="/a",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="",
                 is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
@@ -191,7 +211,7 @@ def _make_runner(limits: LimitsConfig) -> tuple[ScriptRunner, CommandContext]:
     filesystem = MagicMock()
     filesystem.resolve_path.return_value = "/home/user"
 
-    ctx = CommandContext(session=session, filesystem=filesystem)
+    ctx = CommandContext(shell=session, filesystem=filesystem)
     return runner, ctx
 
 
@@ -395,7 +415,7 @@ class TestInfiniteWhileLoopWithTestCmd:
         filesystem = MagicMock()
         filesystem.resolve_path.return_value = "/home/user"
 
-        ctx = CommandContext(session=session, filesystem=filesystem)
+        ctx = CommandContext(shell=session, filesystem=filesystem)
 
         script = "while [ 1 -eq 1 ]\n  echo alive\ndone"
         exit_code, stderr = await _run_script(runner, ctx, script)
@@ -428,7 +448,7 @@ class TestVfsQuotaBreachViaLoopAppend:
         session.home_directory = "/home/user"
         session.environment = {}
 
-        ctx = CommandContext(session=session, filesystem=fs)
+        ctx = CommandContext(shell=session, filesystem=fs)
         return runner, ctx, fs
 
     @pytest.mark.asyncio
@@ -437,18 +457,24 @@ class TestVfsQuotaBreachViaLoopAppend:
         base = {
             "/": SNXNode(
                 path="/",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="",
                 is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/tmp": SNXNode(
                 path="/tmp",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="",
                 is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/data": SNXNode(
                 path="/data",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="hello",
                 is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
@@ -472,18 +498,24 @@ class TestVfsQuotaBreachViaLoopAppend:
         base = {
             "/": SNXNode(
                 path="/",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="",
                 is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/tmp": SNXNode(
                 path="/tmp",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="",
                 is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/log": SNXNode(
                 path="/log",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="AAA",
                 is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
@@ -509,24 +541,32 @@ class TestVfsQuotaBreachViaLoopAppend:
         base = {
             "/": SNXNode(
                 path="/",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="",
                 is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/tmp": SNXNode(
                 path="/tmp",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="",
                 is_directory=True,
                 permissions=PermissionPresets.DIRECTORY_DEFAULT,
             ),
             "/a": SNXNode(
                 path="/a",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="",
                 is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
             ),
             "/b": SNXNode(
                 path="/b",
+                owner=_ROOT_USER,
+                group=_ROOT_GROUP,
                 content="",
                 is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
@@ -701,7 +741,7 @@ class TestFileStreamWriterQuotaError:
         session.current_directory = "/home/user"
         session.home_directory = "/home/user"
         session.environment = {}
-        ctx = CommandContext(session=session, filesystem=fs)
+        ctx = CommandContext(shell=session, filesystem=fs)
 
         stdin = MagicMock()
         stdout = QueueStreamWriter(asyncio.Queue())

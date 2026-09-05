@@ -1,7 +1,10 @@
 name: "Hello SIMNUX"
 difficulty: "Easy"
-username: "user"
 hostname: "simnux"
+users:
+  - user_id: 1001
+    identifier: user
+
 starting_dir: "/home/user"
 
 filesystem:

@@ -65,7 +65,7 @@ def _make_runner(
     filesystem = MagicMock()
     filesystem.resolve_path.return_value = "/home/user"
 
-    ctx = CommandContext(session=session, filesystem=filesystem)
+    ctx = CommandContext(shell=session, filesystem=filesystem)
     return runner, ctx
 
 
@@ -158,7 +158,7 @@ class TestWhileLoopVariableExpansion:
 
         assert exit_code == ExitCode.SUCCESS, f"stderr: {stderr}"
         # x started as "hello", condition true once, set to "goodbye", then false
-        assert ctx.session.environment.get("x") == "goodbye"
+        assert ctx.shell.environment.get("x") == "goodbye"
 
     async def test_while_increment_reaches_zero(self):
         """while loop counting down: i=3; while [ $i -gt 0 ]; i=$((i-1))."""
@@ -195,7 +195,7 @@ class TestStandaloneAssignment:
         exit_code, _, _ = await _run_script(runner, ctx, script)
 
         assert exit_code == ExitCode.SUCCESS
-        assert ctx.session.environment["foo"] == "bar"
+        assert ctx.shell.environment["foo"] == "bar"
 
     async def test_assignment_before_echo(self):
         """Assignment followed by echo using the variable."""

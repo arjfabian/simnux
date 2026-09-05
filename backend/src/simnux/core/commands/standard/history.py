@@ -21,7 +21,7 @@ class Command(SNXCommand):
 
         if args:
             if args[0] == "-c":
-                ctx.session.history.clear()
+                ctx.shell.history.clear()
                 return ExitCode.SUCCESS
 
             if args[0].startswith("-"):
@@ -42,13 +42,13 @@ class Command(SNXCommand):
                 await stderr.write("history: 0: argument out of range")
                 return ExitCode.ERROR
 
-            total = len(ctx.session.history)
+            total = len(ctx.shell.history)
             n = min(n, total)
             start = total - n + 1
-            entries = ctx.session.history[start - 1 :]
+            entries = ctx.shell.history[start - 1 :]
         else:
             start = 1
-            entries = ctx.session.history
+            entries = ctx.shell.history
 
         for i, line in enumerate(entries, start=start):
             await stdout.write(f"{i:>4}  {line}\n")

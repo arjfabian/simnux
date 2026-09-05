@@ -27,7 +27,7 @@ class TestWhoamiCommand:
         """``whoami`` returns the session's username."""
         result = await shell_with_commands.execute("whoami")
         assert_success(result)
-        assert stdout_text(result) == "testuser"
+        assert stdout_text(result) == "user"
 
     async def test_whoami_with_args_rejected(self, shell_with_commands):
         """``whoami`` with arguments returns INVALID_ARGUMENT."""

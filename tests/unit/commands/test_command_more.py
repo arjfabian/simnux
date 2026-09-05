@@ -45,7 +45,7 @@ async def press_key(shell, session, key: str, viewport_height: int | None = None
 class TestMoreBasicInvocation:
     async def test_more_suspends_with_pager_state(self, shell_with_commands):
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         result = await shell_with_commands.execute("more doc.txt")
         assert_success(result)
@@ -58,7 +58,7 @@ class TestMoreBasicInvocation:
         make_pager_file(shell_with_commands)
 
         await shell_with_commands.execute("more doc.txt")
-        ps: PagerState = shell_with_commands.session.pending_state
+        ps: PagerState = shell_with_commands.pending_state
         # Viewport content flows via PagerState projection (pager_lines).
         ps_content = ps.current_page()
         assert len(ps_content) == ps.viewport
@@ -76,7 +76,7 @@ class TestMoreBasicInvocation:
         result = await shell_with_commands.execute("more -X doc.txt")
         assert_invalid_args(result)
         assert "invalid option" in stderr_text(result)
-        assert shell_with_commands.session.pending_state is None
+        assert shell_with_commands.pending_state is None
 
     async def test_more_missing_file(self, shell_with_commands):
         result = await shell_with_commands.execute("more /nope/gone.txt")
@@ -90,7 +90,7 @@ class TestMoreBasicInvocation:
 class TestMoreNavigation:
     async def test_space_advances_full_page(self, shell_with_commands):
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         await shell_with_commands.execute("more doc.txt")
         result = await press_key(shell_with_commands, session, "")
@@ -102,7 +102,7 @@ class TestMoreNavigation:
 
     async def test_f_advances_full_page(self, shell_with_commands):
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         await shell_with_commands.execute("more doc.txt")
         await press_key(shell_with_commands, session, "f")
@@ -110,7 +110,7 @@ class TestMoreNavigation:
 
     async def test_j_scrolls_one_line(self, shell_with_commands):
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         await shell_with_commands.execute("more doc.txt")
         await press_key(shell_with_commands, session, "j")
@@ -118,7 +118,7 @@ class TestMoreNavigation:
 
     async def test_b_backward_writes_error_and_stays(self, shell_with_commands):
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         await shell_with_commands.execute("more doc.txt")
         result = await press_key(shell_with_commands, session, "b")
@@ -129,7 +129,7 @@ class TestMoreNavigation:
 
     async def test_k_backward_writes_error_and_stays(self, shell_with_commands):
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         await shell_with_commands.execute("more doc.txt")
         result = await press_key(shell_with_commands, session, "k")
@@ -138,7 +138,7 @@ class TestMoreNavigation:
 
     async def test_search_unsupported(self, shell_with_commands):
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         await shell_with_commands.execute("more doc.txt")
         result = await press_key(shell_with_commands, session, "/row5")
@@ -148,7 +148,7 @@ class TestMoreNavigation:
 
     async def test_g_jump_unsupported(self, shell_with_commands):
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         await shell_with_commands.execute("more doc.txt")
         result = await press_key(shell_with_commands, session, "g")
@@ -162,7 +162,7 @@ class TestMoreNavigation:
 class TestMoreQuit:
     async def test_q_clears_all_state(self, shell_with_commands):
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         await shell_with_commands.execute("more doc.txt")
         result = await press_key(shell_with_commands, session, "q")
@@ -174,7 +174,7 @@ class TestMoreQuit:
 
     async def test_eof_on_resume_exits_pager(self, shell_with_commands):
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         await shell_with_commands.execute("more doc.txt")
 
@@ -189,7 +189,7 @@ class TestMoreQuit:
 
     async def test_unknown_key_keeps_pager_open(self, shell_with_commands):
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         await shell_with_commands.execute("more doc.txt")
         result = await press_key(shell_with_commands, session, "z")
@@ -203,7 +203,7 @@ class TestMoreQuit:
 
 class TestMorePipedInput:
     async def test_pipe_dumps_content_without_pager(self, shell_with_commands):
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         result = await shell_with_commands.execute("echo piped | more")
         assert_success(result)
@@ -221,20 +221,20 @@ class TestMoreDynamicViewport:
         make_pager_file(shell_with_commands)
 
         await shell_with_commands.execute("more doc.txt")
-        ps: PagerState = shell_with_commands.session.pending_state
+        ps: PagerState = shell_with_commands.pending_state
         assert ps.viewport == 24
 
     async def test_first_page_uses_request_viewport(self, shell_with_commands):
         make_pager_file(shell_with_commands)
 
         await shell_with_commands.execute("more doc.txt", viewport_height=6)
-        ps: PagerState = shell_with_commands.session.pending_state
+        ps: PagerState = shell_with_commands.pending_state
         assert ps.viewport == 6
         assert ps.current_page() == [f"row{i}\n" for i in range(1, 7)]
 
     async def test_resume_updates_viewport_and_clamps(self, shell_with_commands):
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         # Park safely mid-file with a narrow viewport.
         await shell_with_commands.execute("more doc.txt", viewport_height=5)
@@ -254,7 +254,7 @@ class TestMoreDynamicViewport:
 
     async def test_resume_without_geometry_keeps_viewport(self, shell_with_commands):
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         await shell_with_commands.execute("more doc.txt", viewport_height=9)
         await press_key(shell_with_commands, session, "j")
@@ -270,7 +270,7 @@ class TestMoreAutoExitOnEof:
     async def test_advance_landing_at_bottom_exits(self, shell_with_commands):
         """The advance that reaches (or passes) EOF terminates the pager."""
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         await shell_with_commands.execute("more doc.txt", viewport_height=5)
 
@@ -289,7 +289,7 @@ class TestMoreAutoExitOnEof:
 
     async def test_space_when_initially_at_bottom_exits(self, shell_with_commands):
         """Space on a file smaller than the viewport exits immediately."""
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         # notes.txt (3 lines) fits in the default 24-line viewport.
         result = await shell_with_commands.execute("more notes.txt")
@@ -307,7 +307,7 @@ class TestMoreAutoExitOnEof:
     async def test_backward_error_does_not_exit_at_eof(self, shell_with_commands):
         """Non-advance keys never trigger the auto-exit path."""
         make_pager_file(shell_with_commands)
-        session = shell_with_commands.session
+        session = shell_with_commands
 
         await shell_with_commands.execute("more doc.txt", viewport_height=5)
         for _ in range(6):

@@ -27,32 +27,34 @@ async def execute(
     payload: CommandRequest,
     request: Request,
 ) -> ShellResponse:
-    """Dispatch raw shell input to the session-bound shell runtime.
+    """Dispatch raw shell input to the session's target shell runtime.
 
-    When the session is ``awaiting_input`` the user's text is fed as stdin
-    to the suspended command rather than being parsed as a new command.
+    When the shell is ``awaiting_input`` the user's text is fed as stdin to
+    the suspended command rather than being parsed as a new command.
     """
 
     runtime = request.app.state.runtime
 
-    if not runtime.exists(payload.session_id):
+    session = runtime.get_session(payload.session_id)
+    if session is None or not session.shells:
         raise HTTPException(
             status_code=404,
             detail="Session not found",
         )
 
-    shell = runtime.get_session(payload.session_id)
-    session = shell.session
+    shell = session.get_shell(payload.scenario_name) if payload.scenario_name else None
+    if shell is None:
+        shell = session.active_shells[0]
 
     # ── Interactive input resume ─────────────────────────────────────
-    if session.awaiting_input and session.pending_command:
+    if shell.awaiting_input and shell.pending_command:
         stdin_queue: asyncio.Queue = asyncio.Queue()
         stdin_queue.put_nowait(payload.command + "\n")
         stdin_queue.put_nowait(None)
         resume_stdin = QueueStreamReader(stdin_queue)
 
         result = await shell.execute_resume(
-            session.pending_command,
+            shell.pending_command,
             resume_stdin,
             viewport_height=payload.viewport_height,
         )
@@ -65,12 +67,12 @@ async def execute(
     action_type = result.action_type
     action_message: str | None = None
 
-    pager_active = isinstance(session.pending_state, PagerState)
+    pager_active = isinstance(shell.pending_state, PagerState)
 
     if action_type == TerminalAction.NONE and not pager_active:
         try:
             eval_action, eval_message = await evaluate(
-                session,
+                shell,
                 shell.filesystem,
                 shell.dispatcher,
                 executed_command=payload.command,
@@ -79,7 +81,7 @@ async def execute(
                 action_type = eval_action
                 action_message = eval_message
                 if eval_action == TerminalAction.WIN:
-                    session.tasks_completed = 1
+                    shell.tasks_completed = 1
         except Exception:
             pass
     else:
@@ -95,9 +97,9 @@ async def execute(
             "pager_content": result.pager_payload.get("lines") or [],
             "pager_filename": result.pager_payload.get("filename"),
         }
-    elif isinstance(session.pending_state, PagerState):
+    elif isinstance(shell.pending_state, PagerState):
         # Legacy suspended pager (``more``): project the live viewport.
-        ps = session.pending_state
+        ps = shell.pending_state
         pager_fields = {
             "pager_lines": ps.current_page(),
             "pager_position": ps.position,
@@ -111,13 +113,13 @@ async def execute(
 
     return ShellResponse(
         session_id=payload.session_id,
-        scenario_name=session.scenario.name,
+        scenario_name=shell.scenario.name,
         stdout=result.stdout,
         stderr=result.stderr,
-        prompt="" if session.awaiting_input else shell.render_prompt(),
+        prompt="" if shell.awaiting_input else shell.render_prompt(),
         action_type=action_type,
         action_message=action_message,
-        awaiting_input=session.awaiting_input,
+        awaiting_input=shell.awaiting_input,
         **pager_fields,
         status="ok",
     )

@@ -65,7 +65,8 @@ support types. Core never depends on this directory.
 
 ## Current-state note
 
-Today the runtime keys one shell per scenario run by `session_id`, so the API
-behaves like one scenario per session. That is cited mid-migration drift in
-the root and `infrastructure/` contracts; do not lock it into the API
-contract permanently.
+The runtime holds `SNXSession 1 -> N SNXShell` internally, but the API still
+routes on `session_id` alone, so it behaves like one scenario per session today.
+That is acceptable while scenario selection is unimplemented; do not lock
+multi-shell routing into the API contract before the frontend can carry a
+scenario/shell identifier.
