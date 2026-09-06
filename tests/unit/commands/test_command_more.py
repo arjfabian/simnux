@@ -23,7 +23,7 @@ _MULTILINE = "".join(f"row{i}\n" for i in range(1, 61))
 def make_pager_file(shell):
     """Write a 60-line file into the VFS delta layer."""
     path = "/home/user/doc.txt"
-    shell.filesystem.touch(path)
+    shell.filesystem.touch(path, acting_user=shell.user)
     shell.filesystem.delta_layer[path].content = _MULTILINE
 
 

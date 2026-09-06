@@ -28,8 +28,9 @@ class TestScriptExecution:
     """Shell-level integration tests for script execution."""
 
     async def _write_script(self, shell, content=SCRIPT, path="/home/user/script.sh"):
-        shell.filesystem.touch(path)
+        shell.filesystem.touch(path, acting_user=shell.user)
         shell.filesystem.delta_layer[path].content = content
+        shell.filesystem.chmod(path, 0o755, acting_user=shell.user)
 
     # -- direct execution --------------------------------------------------
 
@@ -87,7 +88,10 @@ echo second
         result = await shell_with_commands.execute("./script.sh > /home/user/output.txt")
         assert_success(result)
 
-        read_result = shell_with_commands.filesystem.read("/home/user/output.txt")
+        read_result = shell_with_commands.filesystem.read(
+            "/home/user/output.txt",
+            acting_user=shell_with_commands.user,
+        )
         assert read_result.exit_code == 0
         assert read_result.node.content == "helloworldfoo"
 

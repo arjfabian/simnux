@@ -7,12 +7,17 @@ tombstone semantics (idempotency, recreation), and cross-session isolation.
 
 from simnux.core.commands.errors import CommandError
 from simnux.core.filesystem.vfs import SNXFileSystem
+from simnux.security.users.models import SNXUser
 from tests.helpers import assert_not_success
+
+
+_ROOT_USER = SNXUser(0, "root")
 
 
 def listed_paths(fs, path: str) -> list[str]:
     """Helper: return sorted list of immediate child paths for a directory."""
-    return [node.path for node in fs.list_directory(path)]
+    result = fs.list_directory(path, acting_user=_ROOT_USER)
+    return [node.path for node in result.nodes]
 
 
 class TestBaseLayerImmutability:
@@ -23,7 +28,7 @@ class TestBaseLayerImmutability:
 
     def test_base_layer_unchanged_after_write(self, fs):
         """Writing to a base-layer path does not alter the original node."""
-        fs.write("/etc/passwd", content="hacked:...")
+        fs.write("/etc/passwd", content="hacked:...", acting_user=_ROOT_USER)
         assert fs.base_layer["/etc/passwd"].content == "root:x:0:0:root:/root:/bin/bash"
 
     def test_base_layer_unchanged_after_delete(self, fs):
@@ -34,14 +39,14 @@ class TestBaseLayerImmutability:
 
     def test_base_layer_unchanged_after_touch(self, fs):
         """Touch on a new path only affects delta_layer."""
-        fs.touch("/newfile.txt")
+        fs.touch("/newfile.txt", acting_user=_ROOT_USER)
         assert "/newfile.txt" not in fs.base_layer
 
     def test_base_layer_immutable_multiple_operations(self, fs):
         """Repeated writes to the same path never leak into base_layer."""
-        fs.write("/etc/passwd", content="v1")
-        fs.write("/etc/passwd", content="v2")
-        fs.write("/etc/passwd", content="v3")
+        fs.write("/etc/passwd", content="v1", acting_user=_ROOT_USER)
+        fs.write("/etc/passwd", content="v2", acting_user=_ROOT_USER)
+        fs.write("/etc/passwd", content="v3", acting_user=_ROOT_USER)
         assert fs.base_layer["/etc/passwd"].content == "root:x:0:0:root:/root:/bin/bash"
 
 
@@ -50,13 +55,13 @@ class TestDeltaLayerOverrides:
 
     def test_delta_overrides_base_on_read(self, fs):
         """Delta-layer content is returned in preference to base_layer on read."""
-        fs.write("/etc/passwd", content="overridden")
+        fs.write("/etc/passwd", content="overridden", acting_user=_ROOT_USER)
         node = fs.get_node("/etc/passwd")
         assert node.content == "overridden"
 
     def test_delta_shadow_in_listing(self, fs):
         """Overwritten base-layer files appear in listings with delta content."""
-        fs.write("/home/user/secret.txt", content="overridden")
+        fs.write("/home/user/secret.txt", content="overridden", acting_user=_ROOT_USER)
         assert "/home/user/secret.txt" in listed_paths(
             fs,
             "/home/user",
@@ -65,12 +70,12 @@ class TestDeltaLayerOverrides:
     def test_delta_additions_visible(self, fs):
         """New files created in delta are immediately visible via ``exists()``."""
         fs.create_file("/home/user/new.txt")
-        fs.write("/home/user/new.txt", content="new")
+        fs.write("/home/user/new.txt", content="new", acting_user=_ROOT_USER)
         assert fs.exists("/home/user/new.txt")
 
     def test_delta_does_not_affect_other_base_nodes(self, fs):
         """Writing to one base-layer path does not alter sibling nodes."""
-        fs.write("/etc/passwd", content="changed")
+        fs.write("/etc/passwd", content="changed", acting_user=_ROOT_USER)
         assert fs.base_layer["/etc/shadow"].content == "root:!:20000:0:99999:7:::"
 
 
@@ -107,14 +112,14 @@ class TestDeleteTombstone:
     def test_delete_of_delta_added_node(self, fs):
         """Deleting a delta-layer-added node works correctly."""
         fs.create_file("/home/user/new.txt")
-        fs.write("/home/user/new.txt", content="temp")
+        fs.write("/home/user/new.txt", content="temp", acting_user=_ROOT_USER)
         fs.delete("/home/user/new.txt")
         assert fs.get_node("/home/user/new.txt") is None
 
     def test_delete_then_recreate(self, fs):
         """A deleted node can be recreated via write (tombstone replaced)."""
         fs.delete("/etc/passwd")
-        fs.write("/etc/passwd", content="recreated")
+        fs.write("/etc/passwd", content="recreated", acting_user=_ROOT_USER)
         node = fs.get_node("/etc/passwd")
         assert node is not None
         assert node.content == "recreated"
@@ -144,8 +149,8 @@ class TestOverlayConsistency:
 
     def test_append_after_write_uses_delta_version(self, fs):
         """Append after write uses the delta-layer version (not the base original)."""
-        fs.write("/etc/passwd", content="override")
-        fs.append("/etc/passwd", "\nextra")
+        fs.write("/etc/passwd", content="override", acting_user=_ROOT_USER)
+        fs.append("/etc/passwd", "\nextra", acting_user=_ROOT_USER)
 
         node = fs.get_node("/etc/passwd")
 
@@ -153,13 +158,13 @@ class TestOverlayConsistency:
 
     def test_delete_hides_overridden_node(self, fs):
         """Deleting a delta-overridden node hides it completely."""
-        fs.write("/etc/passwd", content="delta-version")
+        fs.write("/etc/passwd", content="delta-version", acting_user=_ROOT_USER)
         fs.delete("/etc/passwd")
         assert fs.get_node("/etc/passwd") is None
 
     def test_append_to_base_file_creates_delta(self, fs):
         """Appending to a base-layer file creates a delta entry with merged content."""
-        fs.append("/etc/passwd", "\nnewline")
+        fs.append("/etc/passwd", "\nnewline", acting_user=_ROOT_USER)
         node = fs.get_node("/etc/passwd")
         assert node.content == "root:x:0:0:root:/root:/bin/bash\nnewline"
         assert "/etc/passwd" in fs.delta_layer
@@ -167,7 +172,7 @@ class TestOverlayConsistency:
     def test_base_node_metadata_preserved_in_delta(self, fs):
         """Writing to a base node preserves the original owner and group metadata."""
         original = fs.get_node("/etc/passwd")
-        fs.write("/etc/passwd", content="new")
+        fs.write("/etc/passwd", content="new", acting_user=_ROOT_USER)
         delta_node = fs.get_node("/etc/passwd")
         assert delta_node.owner == original.owner
         assert delta_node.group == original.group

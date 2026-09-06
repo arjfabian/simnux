@@ -19,6 +19,7 @@ class CommandError(str, Enum):
     NO_SUCH_FILE_OR_DIR = "no such file or directory"
     NOT_A_DIRECTORY = "not a directory"
     NOT_FOUND = "not found"
+    PERMISSION_DENIED = "permission denied"
     TOO_MANY_ARGUMENTS = "too many arguments"
 
     def __str__(self):

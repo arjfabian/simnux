@@ -94,7 +94,12 @@ class CommandDispatcher:
                 target_path=stdout_redirect,
                 home_directory=ctx.shell.home_directory,
             )
-            out_writer = FileStreamWriter(ctx.filesystem, resolved, append=stdout_append)
+            out_writer = FileStreamWriter(
+                ctx.filesystem,
+                resolved,
+                append=stdout_append,
+                acting_user=ctx.shell.user,
+            )
         else:
             out_writer = stdout or QueueStreamWriter(out_queue)
 
@@ -189,7 +194,12 @@ class CommandDispatcher:
                         target_path=redirect,
                         home_directory=ctx.shell.home_directory,
                     )
-                    out_writer = FileStreamWriter(ctx.filesystem, resolved, append=append)
+                    out_writer = FileStreamWriter(
+                        ctx.filesystem,
+                        resolved,
+                        append=append,
+                        acting_user=ctx.shell.user,
+                    )
                 else:
                     out_queue = asyncio.Queue()
                     out_writer = QueueStreamWriter(out_queue)

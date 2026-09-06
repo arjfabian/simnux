@@ -133,10 +133,8 @@ class Command(SNXCommand):
         user = ctx.shell.user.identifier
 
         # Locate the account entry in /etc/passwd.
-        print(_PASSWD_PATH)
-        passwd_result = ctx.filesystem.read(_PASSWD_PATH)
+        passwd_result = ctx.filesystem.read(_PASSWD_PATH, acting_user=ctx.shell.user)
         if passwd_result.message:
-            print(passwd_result.message)
             await stderr.write(f"passwd: {passwd_result.message}\n")
             return ExitCode.ERROR
         passwd_node = passwd_result.node
@@ -147,7 +145,7 @@ class Command(SNXCommand):
             return ExitCode.ERROR
 
         # Locate the corresponding entry in /etc/shadow.
-        shadow_result = ctx.filesystem.read(_SHADOW_PATH)
+        shadow_result = ctx.filesystem.read(_SHADOW_PATH, acting_user=ctx.shell.user)
         if shadow_result.message:
             await stderr.write(f"passwd: {shadow_result.message}\n")
             return ExitCode.ERROR
@@ -177,6 +175,7 @@ class Command(SNXCommand):
         write_result = ctx.filesystem.write(
             _SHADOW_PATH,
             "\n".join(shadow_lines),
+            acting_user=ctx.shell.user,
         )
         if write_result.message:
             await stderr.write(f"passwd: {write_result.message}\n")

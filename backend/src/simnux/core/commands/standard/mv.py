@@ -48,7 +48,10 @@ class Command(SNXCommand):
         target_path = self.resolve_path(raw_target, ctx)
         target_display = raw_target
 
-        read_result = ctx.filesystem.read(source_path)
+        read_result = ctx.filesystem.read(
+            source_path,
+            acting_user=ctx.shell.user,
+        )
         if read_result.exit_code != ExitCode.SUCCESS:
             await stderr.write(f"mv: {raw_source}: {read_result.message}")
             return read_result.exit_code
@@ -73,7 +76,10 @@ class Command(SNXCommand):
 
         target_pre_existed = ctx.filesystem.exists(target_path)
 
-        touch_result = ctx.filesystem.touch(target_path)
+        touch_result = ctx.filesystem.touch(
+            target_path,
+            acting_user=ctx.shell.user,
+        )
         if touch_result.exit_code != ExitCode.SUCCESS:
             await stderr.write(f"mv: {target_display}: {touch_result.message}")
             return touch_result.exit_code
@@ -81,6 +87,7 @@ class Command(SNXCommand):
         write_result = ctx.filesystem.write(
             target_path,
             source_node.content or "",
+            acting_user=ctx.shell.user,
         )
         if write_result.exit_code != ExitCode.SUCCESS:
             await stderr.write(f"mv: {target_display}: {write_result.message}")

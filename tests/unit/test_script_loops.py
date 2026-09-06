@@ -13,6 +13,10 @@ from simnux.core.commands.standard.condition import Command as TestCmd
 from simnux.core.commands.streams import QueueStreamWriter
 from simnux.core.runtime.models import ExitCode
 from simnux.core.scripting.runner import ScriptRunner
+from simnux.security.users.models import SNXUser
+
+
+_ROOT_USER = SNXUser(0, "root")
 
 
 class _EchoCommand:
@@ -57,6 +61,7 @@ def _make_runner(
     registry.register(TestCmd(context=None))
 
     session = MagicMock()
+    session.user = _ROOT_USER
     session.session_id = "test"
     session.current_directory = "/home/user"
     session.home_directory = "/home/user"

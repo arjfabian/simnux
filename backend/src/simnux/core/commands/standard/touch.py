@@ -31,6 +31,7 @@ class Command(SNXCommand):
 
         result = ctx.filesystem.touch(
             path=target,
+            acting_user=ctx.shell.user,
         )
 
         if result.exit_code != ExitCode.SUCCESS:

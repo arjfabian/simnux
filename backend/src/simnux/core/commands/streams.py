@@ -6,9 +6,13 @@ import asyncio
 import logging
 
 from simnux.core.filesystem.vfs import SNXFileSystem
+from simnux.security.users.models import SNXUser
 
 
 logger = logging.getLogger("simnux.core.commands.streams")
+
+
+_ROOT_USER = SNXUser(0, "root")
 
 
 class AsyncStreamReader(ABC):
@@ -112,10 +116,12 @@ class FileStreamWriter(AsyncStreamWriter):
     On ``close()``, all buffered data is joined and written to the VFS at
     ``path``. If the file does not yet exist it is created (``touch``).
     ``append=False`` → ``write()`` (truncate); ``append=True`` → ``append()``.
+    All VFS mutations are performed as *acting_user* so permission
+    enforcement applies to file redirection.
 
     After ``close()``, ``last_error`` contains the error message from the
-    VFS if the write/append was rejected (e.g. ``DISK_QUOTA_EXCEEDED``),
-    or ``None`` on success.
+    VFS if the write/append was rejected (e.g. ``DISK_QUOTA_EXCEEDED`` or
+    ``PERMISSION_DENIED``), or ``None`` on success.
     """
 
     def __init__(
@@ -123,10 +129,13 @@ class FileStreamWriter(AsyncStreamWriter):
         filesystem: SNXFileSystem,
         path: str,
         append: bool = False,
+        *,
+        acting_user: SNXUser = _ROOT_USER,
     ) -> None:
         self._filesystem = filesystem
         self._path = path
         self._append = append
+        self._acting_user = acting_user
         self._lines: list[str] = []
         self._closed = False
         self.last_error: str | None = None
@@ -143,11 +152,19 @@ class FileStreamWriter(AsyncStreamWriter):
         content = "".join(self._lines)
         try:
             if not self._filesystem.exists(self._path):
-                self._filesystem.touch(self._path)
+                self._filesystem.touch(self._path, acting_user=self._acting_user)
             if self._append:
-                result = self._filesystem.append(self._path, content)
+                result = self._filesystem.append(
+                    self._path,
+                    content,
+                    acting_user=self._acting_user,
+                )
             else:
-                result = self._filesystem.write(self._path, content)
+                result = self._filesystem.write(
+                    self._path,
+                    content,
+                    acting_user=self._acting_user,
+                )
             if result.message:
                 self.last_error = str(result.message)
         except Exception:

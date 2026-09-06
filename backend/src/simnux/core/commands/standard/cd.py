@@ -33,7 +33,10 @@ class Command(SNXCommand):
 
         resolved_path = self.resolve_path(target, ctx)
 
-        result = ctx.filesystem.validate_directory(resolved_path)
+        result = ctx.filesystem.validate_directory(
+            resolved_path,
+            acting_user=ctx.shell.user,
+        )
 
         if result.exit_code != ExitCode.SUCCESS:
             await stderr.write(f"cd: {target}: {result.message}")

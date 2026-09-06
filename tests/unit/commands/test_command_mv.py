@@ -12,11 +12,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from simnux.core.commands.errors import CommandError
-from simnux.core.commands.models import CommandContext
 from simnux.core.commands.streams import QueueStreamWriter
 from simnux.core.runtime.models import ExitCode
 from tests.helpers import assert_error
 from tests.helpers import assert_success
+from tests.helpers import make_mock_context
 from tests.helpers import stderr_text
 from tests.helpers import stdout_text
 
@@ -173,8 +173,7 @@ class TestMvAtomicCleanup:
             MagicMock(exit_code=ExitCode.SUCCESS),
         ]
 
-        mock_ctx = MagicMock(spec=CommandContext)
-        mock_ctx.filesystem = fs
+        mock_ctx = make_mock_context(filesystem=fs)
 
         stdout_writer = QueueStreamWriter(asyncio.Queue())
         stderr_writer = QueueStreamWriter(asyncio.Queue())
@@ -210,8 +209,7 @@ class TestMvAtomicCleanup:
         fs.write.return_value = MagicMock(exit_code=ExitCode.SUCCESS)
         fs.delete_file.return_value = MagicMock(exit_code=ExitCode.SUCCESS)
 
-        mock_ctx = MagicMock(spec=CommandContext)
-        mock_ctx.filesystem = fs
+        mock_ctx = make_mock_context(filesystem=fs)
 
         stdout_writer = QueueStreamWriter(asyncio.Queue())
         stderr_writer = QueueStreamWriter(asyncio.Queue())
@@ -250,8 +248,7 @@ class TestMvAtomicCleanup:
             message="permission denied",
         )
 
-        mock_ctx = MagicMock(spec=CommandContext)
-        mock_ctx.filesystem = fs
+        mock_ctx = make_mock_context(filesystem=fs)
 
         stdout_writer = QueueStreamWriter(asyncio.Queue())
         stderr_writer = QueueStreamWriter(asyncio.Queue())

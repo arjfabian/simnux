@@ -13,12 +13,13 @@ from simnux.core.runtime.models import ExitCode
 from tests.helpers import assert_error
 from tests.helpers import assert_success
 from tests.helpers import drain_queue
+from tests.helpers import make_mock_context
 from tests.helpers import stderr_text
 from tests.helpers import stdout_text
 
 
 def _write(shell, path, content):
-    shell.filesystem.touch(path)
+    shell.filesystem.touch(path, acting_user=shell.user)
     shell.filesystem.delta_layer[path].content = content
 
 
@@ -175,8 +176,7 @@ class TestCatCommandStream:
         )
         cmd.resolve_path = lambda t, c: t
 
-        mock_ctx = MagicMock(spec=CommandContext)
-        mock_ctx.filesystem = fs
+        mock_ctx = make_mock_context(filesystem=fs)
 
         stdin_queue: asyncio.Queue = asyncio.Queue()
         stdin_queue.put_nowait("piped input")

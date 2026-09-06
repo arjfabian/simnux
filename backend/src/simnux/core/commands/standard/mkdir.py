@@ -25,7 +25,10 @@ class Command(SNXCommand):
 
         target = self.resolve_path(raw_target, ctx)
 
-        result = ctx.filesystem.create_directory(target)
+        result = ctx.filesystem.create_directory(
+            target,
+            acting_user=ctx.shell.user,
+        )
 
         if result.exit_code != ExitCode.SUCCESS:
             await stderr.write(f"mkdir: {raw_target}: {result.message}")

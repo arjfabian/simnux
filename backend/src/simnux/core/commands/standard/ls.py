@@ -52,7 +52,15 @@ class Command(SNXCommand):
         show_all = self.parsed_args and self.parsed_args.flags.get("all", False)
         show_almost_all = self.parsed_args and self.parsed_args.flags.get("almost_all", False)
 
-        nodes = ctx.filesystem.list_directory(target)
+        list_result = ctx.filesystem.list_directory(
+            target,
+            acting_user=ctx.shell.user,
+        )
+        if list_result.exit_code != ExitCode.SUCCESS:
+            await stderr.write(f"ls: cannot access '{raw_target}': {list_result.message}")
+            return list_result.exit_code
+
+        nodes = list_result.nodes
 
         names: list[str] = []
 

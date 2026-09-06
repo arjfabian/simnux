@@ -20,11 +20,11 @@ class TestHeadCommand:
     """Shell-level integration tests for head."""
 
     async def _write_multi(self, shell, path="/home/user/multi.txt"):
-        shell.filesystem.touch(path)
+        shell.filesystem.touch(path, acting_user=shell.user)
         shell.filesystem.delta_layer[path].content = MULTI_LINE
 
     async def _write(self, shell, path, content):
-        shell.filesystem.touch(path)
+        shell.filesystem.touch(path, acting_user=shell.user)
         shell.filesystem.delta_layer[path].content = content
 
     # -- basic file reading ------------------------------------------------
@@ -68,7 +68,9 @@ class TestHeadCommand:
 
     async def test_head_stdin_with_n(self, shell_with_commands):
         """``head -n 3`` reads from stdin with custom count."""
-        shell_with_commands.filesystem.touch("/home/user/data.txt")
+        shell_with_commands.filesystem.touch(
+            "/home/user/data.txt", acting_user=shell_with_commands.user
+        )
         shell_with_commands.filesystem.delta_layer[
             "/home/user/data.txt"
         ].content = "hello\nworld\nfoo\nbar\nbaz"
@@ -80,7 +82,9 @@ class TestHeadCommand:
 
     async def test_head_file_shorter_than_n(self, shell_with_commands):
         """File with fewer lines than N outputs all lines."""
-        shell_with_commands.filesystem.touch("/home/user/short.txt")
+        shell_with_commands.filesystem.touch(
+            "/home/user/short.txt", acting_user=shell_with_commands.user
+        )
         shell_with_commands.filesystem.delta_layer[
             "/home/user/short.txt"
         ].content = "only\nthree\nlines"

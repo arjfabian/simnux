@@ -170,3 +170,28 @@ def drain_queue(queue: asyncio.Queue) -> list[str]:
         if item is not None:
             lines.extend(item.splitlines())
     return lines
+
+
+def make_mock_context(filesystem=None, shell_user=_ROOT_USER, **attrs):
+    """Build a ``CommandContext`` mock whose ``shell.user`` is accessible.
+
+    Commands now receive their acting identity from ``ctx.shell.user``, so
+    unit tests that drive commands with a plain ``MagicMock(spec=CommandContext)``
+    must attach a shell child mock exposing ``user``. Root is the default
+    acting identity (bypasses permission checks), matching the neutral
+    mechanics-verification intent of mock-based command unit tests.
+    """
+    from unittest.mock import MagicMock
+
+    from simnux.core.commands.models import CommandContext
+    from simnux.core.shell.runtime import SNXShell
+
+    ctx = MagicMock(spec=CommandContext)
+    if filesystem is not None:
+        ctx.filesystem = filesystem
+    shell = MagicMock(spec=SNXShell)
+    shell.user = shell_user
+    ctx.shell = shell
+    for key, value in attrs.items():
+        setattr(ctx, key, value)
+    return ctx

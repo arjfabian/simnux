@@ -13,6 +13,7 @@ from simnux.core.commands.models import CommandContext
 from simnux.core.commands.streams import AsyncStreamReader
 from simnux.core.commands.streams import AsyncStreamWriter
 from simnux.core.commands.streams import FileStreamWriter
+from simnux.core.filesystem.permissions import Access
 from simnux.core.runtime.config import LimitsConfig
 from simnux.core.runtime.models import CommandResult
 from simnux.core.runtime.models import ExitCode
@@ -61,17 +62,22 @@ class ScriptRunner:
         """Try to resolve *cmd_name* as a VFS path and return (content, error).
 
         Returns ``(content, None)`` on success or ``(None, error_message)``
-        on failure.
+        on failure. Executing a file as a command requires ``EXECUTE``
+        permission on it (``./script`` style invocation).
         """
         abs_path = ctx.filesystem.resolve_path(
             current_directory=ctx.shell.current_directory,
             target_path=cmd_name,
             home_directory=ctx.shell.home_directory,
         )
-        result = ctx.filesystem.read(abs_path)
-        if result.exit_code != ExitCode.SUCCESS:
-            return None, f"{cmd_name}: {result.message}"
-        return (result.node.content or ""), None
+        access_result = ctx.filesystem.check_access(
+            abs_path,
+            Access.EXECUTE,
+            ctx.shell.user,
+        )
+        if access_result.exit_code != ExitCode.SUCCESS:
+            return None, f"{cmd_name}: {access_result.message}"
+        return (access_result.node.content or ""), None
 
     # ── Main execution entry point ────────────────────────────────────
 
@@ -248,6 +254,7 @@ class ScriptRunner:
                     ctx.filesystem,
                     resolved,
                     append=seg.stdout_append,
+                    acting_user=ctx.shell.user,
                 )
 
             try:
@@ -775,6 +782,7 @@ class ScriptRunner:
                     ctx.filesystem,
                     resolved,
                     append=seg.stdout_append,
+                    acting_user=ctx.shell.user,
                 )
 
             exit_code = await command.execute(ctx, stdin, cmd_stdout, stderr)
@@ -866,6 +874,7 @@ class ScriptRunner:
                     ctx.filesystem,
                     resolved,
                     append=seg.stdout_append,
+                    acting_user=ctx.shell.user,
                 )
 
             try:
@@ -922,7 +931,12 @@ class ScriptRunner:
                         target_path=redirect,
                         home_directory=ctx.shell.home_directory,
                     )
-                    out_writer = FileStreamWriter(ctx.filesystem, resolved, append=append)
+                    out_writer = FileStreamWriter(
+                        ctx.filesystem,
+                        resolved,
+                        append=append,
+                        acting_user=ctx.shell.user,
+                    )
                 else:
                     out_queue = asyncio.Queue()
                     out_writer = QueueStreamWriter(out_queue)

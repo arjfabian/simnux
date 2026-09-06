@@ -126,24 +126,30 @@ class TestValidateDirectory:
 
     def test_valid_directory(self, filesystem):
         """Valid existing directory returns success."""
-        result = filesystem.validate_directory("/home/user")
+        result = filesystem.validate_directory("/home/user", acting_user=_ROOT_USER)
         assert_success(result)
 
     def test_root_is_directory(self, filesystem):
         """Root (``/``) is always a valid directory."""
-        result = filesystem.validate_directory("/")
+        result = filesystem.validate_directory("/", acting_user=_ROOT_USER)
         assert_success(result)
 
     def test_nonexistent_path(self, filesystem):
         """Nonexistent path returns ERROR with "No such file or directory"."""
-        result = filesystem.validate_directory("/nonexistent")
+        result = filesystem.validate_directory(
+            "/nonexistent",
+            acting_user=_ROOT_USER,
+        )
         assert_not_success(result)
         assert result.exit_code == ExitCode.ERROR
         assert CommandError.NO_SUCH_FILE_OR_DIR in result.message
 
     def test_file_is_not_directory(self, filesystem):
         """A file path returns ERROR with "Not a directory"."""
-        result = filesystem.validate_directory("/home/user/notes.txt")
+        result = filesystem.validate_directory(
+            "/home/user/notes.txt",
+            acting_user=_ROOT_USER,
+        )
         assert_not_success(result)
         assert result.exit_code == ExitCode.ERROR
         assert CommandError.NOT_A_DIRECTORY in result.message
@@ -260,26 +266,26 @@ class TestRead:
 
     def test_read_file(self, filesystem):
         """Reading an existing file returns its content successfully."""
-        result = filesystem.read("/home/user/notes.txt")
+        result = filesystem.read("/home/user/notes.txt", acting_user=_ROOT_USER)
         assert_success(result)
         assert result.node is not None
         assert result.node.content == "hello world"
 
     def test_read_nonexistent(self, filesystem):
         """Reading a nonexistent file returns an error with "not found"."""
-        result = filesystem.read("/missing")
+        result = filesystem.read("/missing", acting_user=_ROOT_USER)
         assert_not_success(result)
         assert CommandError.NOT_FOUND in result.message
 
     def test_read_directory_returns_error(self, filesystem):
         """Reading a directory path returns an error with "is a directory"."""
-        result = filesystem.read("/home/user")
+        result = filesystem.read("/home/user", acting_user=_ROOT_USER)
         assert_not_success(result)
         assert CommandError.IS_A_DIRECTORY in result.message
 
     def test_read_root_returns_error(self, filesystem):
         """Reading root (``/``) returns an error — root is a directory."""
-        result = filesystem.read("/")
+        result = filesystem.read("/", acting_user=_ROOT_USER)
         assert_not_success(result)
         assert CommandError.IS_A_DIRECTORY in result.message
 
@@ -296,6 +302,7 @@ class TestWrite:
         result = filesystem.write(
             "/home/user/notes.txt",
             content="new content",
+            acting_user=_ROOT_USER,
         )
         assert_success(result)
         node = filesystem.get_node("/home/user/notes.txt")
@@ -307,6 +314,7 @@ class TestWrite:
         result = filesystem.append(
             "/home/user/notes.txt",
             "\nappended",
+            acting_user=_ROOT_USER,
         )
         assert_success(result)
         node = filesystem.get_node("/home/user/notes.txt")
@@ -319,6 +327,7 @@ class TestWrite:
         result = filesystem.append(
             "/home/user/newfile.txt",
             "content",
+            acting_user=_ROOT_USER,
         )
 
         assert_not_success(result)
@@ -333,6 +342,7 @@ class TestWrite:
         result = filesystem.write(
             "/home/user/new.txt",
             content="new file",
+            acting_user=_ROOT_USER,
         )
 
         assert_success(result)
@@ -359,6 +369,7 @@ class TestWrite:
         result = filesystem.write(
             "/home/user",
             content="data",
+            acting_user=_ROOT_USER,
         )
 
         assert_not_success(result)
@@ -370,6 +381,7 @@ class TestWrite:
         result = filesystem.write(
             "/missing.txt",
             content="data",
+            acting_user=_ROOT_USER,
         )
 
         assert_not_success(result)
@@ -381,6 +393,7 @@ class TestWrite:
         filesystem.write(
             "/etc/hostname",
             content="overwritten",
+            acting_user=_ROOT_USER,
         )
 
         assert filesystem.base_layer["/etc/hostname"].content == "simnux-edge"
@@ -403,7 +416,7 @@ class TestTouch:
     def test_touch_existing_file_is_noop(self, filesystem):
         """Touch on an existing file does not alter its content."""
 
-        result = filesystem.touch("/etc/hostname")
+        result = filesystem.touch("/etc/hostname", acting_user=_ROOT_USER)
 
         assert_success(result)
         node = filesystem.get_node("/etc/hostname")
@@ -441,13 +454,19 @@ class TestDelete:
 class TestListDirectory:
     """``list_directory()`` — returns immediate children of a directory path.
 
-    Only direct children are listed (non-recursive). Deleted and
-    delta-added nodes are reflected correctly.
+    Listing is gated on ``READ`` for the acting user; on success the
+    children are returned in ``FSResult.nodes``. Only direct children are
+    listed (non-recursive). Deleted and delta-added nodes are reflected.
     """
+
+    def _list(self, filesystem, path):
+        result = filesystem.list_directory(path, acting_user=_ROOT_USER)
+        assert_success(result)
+        return result.nodes
 
     def test_list_root(self, filesystem):
         """Listing root (``/``) returns all top-level directories."""
-        nodes = filesystem.list_directory("/")
+        nodes = self._list(filesystem, "/")
         paths = [n.path for n in nodes]
         assert "/home" in paths
         assert "/etc" in paths
@@ -455,19 +474,20 @@ class TestListDirectory:
 
     def test_list_nested_directory(self, filesystem):
         """Listing a nested directory returns its immediate children."""
-        nodes = filesystem.list_directory("/home/user")
+        nodes = self._list(filesystem, "/home/user")
         paths = [n.path for n in nodes]
         assert "/home/user/notes.txt" in paths
 
     def test_list_empty_directory(self, filesystem):
         """An empty directory returns an empty list."""
-        nodes = filesystem.list_directory("/var/log")
+        nodes = self._list(filesystem, "/var/log")
         assert nodes == []
 
     def test_list_nonexistent_directory(self, filesystem):
-        """Listing a nonexistent directory returns an empty list (never raises)."""
-        nodes = filesystem.list_directory("/nonexistent")
-        assert nodes == []
+        """Listing a nonexistent directory returns a "not found" error."""
+        result = filesystem.list_directory("/nonexistent", acting_user=_ROOT_USER)
+        assert_not_success(result)
+        assert CommandError.NOT_FOUND in result.message
 
     def test_only_immediate_children(self, filesystem):
         """Only direct children are included; grandchildren are not listed."""
@@ -486,8 +506,9 @@ class TestListDirectory:
         filesystem.write(
             "/home/user/sub/deep/file.txt",
             content="deep",
+            acting_user=_ROOT_USER,
         )
-        nodes = filesystem.list_directory("/home/user")
+        nodes = self._list(filesystem, "/home/user")
         paths = [n.path for n in nodes]
         assert "/home/user/notes.txt" in paths
         assert "/home/user/sub" in paths
@@ -496,7 +517,7 @@ class TestListDirectory:
     def test_listing_omits_deleted_nodes(self, filesystem):
         """Deleted nodes are excluded from directory listings."""
         filesystem.delete("/home/user/notes.txt")
-        nodes = filesystem.list_directory("/home/user")
+        nodes = self._list(filesystem, "/home/user")
         paths = [n.path for n in nodes]
         assert "/home/user/notes.txt" not in paths
 
@@ -507,8 +528,9 @@ class TestListDirectory:
         filesystem.write(
             "/home/user/newfile.txt",
             content="new",
+            acting_user=_ROOT_USER,
         )
-        nodes = filesystem.list_directory("/home/user")
+        nodes = self._list(filesystem, "/home/user")
         paths = [n.path for n in nodes]
         assert "/home/user/newfile.txt" in paths
 
@@ -530,6 +552,7 @@ class TestListPaths:
         filesystem.write(
             "/newfile.txt",
             content="new",
+            acting_user=_ROOT_USER,
         )
         paths = filesystem.list_paths()
         assert "/newfile.txt" in paths
@@ -549,6 +572,7 @@ class TestOverlayIntegrity:
         filesystem.write(
             "/etc/hostname",
             content="changed",
+            acting_user=_ROOT_USER,
         )
 
         assert filesystem.base_layer["/etc/hostname"].content == original
@@ -559,6 +583,7 @@ class TestOverlayIntegrity:
         filesystem.write(
             "/etc/hostname",
             content="delta-value",
+            acting_user=_ROOT_USER,
         )
 
         assert filesystem.get_node("/etc/hostname").content == "delta-value"
@@ -576,6 +601,7 @@ class TestOverlayIntegrity:
         filesystem.write(
             "/etc/hostname",
             content="new",
+            acting_user=_ROOT_USER,
         )
 
         node = filesystem.get_node("/etc/hostname")
@@ -591,6 +617,7 @@ class TestWriteToDirectoryRejection:
         result = filesystem.write(
             "/home",
             content="data",
+            acting_user=_ROOT_USER,
         )
 
         assert_not_success(result)
@@ -628,6 +655,7 @@ class TestRegressionWriteEmptyContent:
         result = filesystem.write(
             "/new_empty.txt",
             content="",
+            acting_user=_ROOT_USER,
         )
 
         assert_success(result)
@@ -639,9 +667,9 @@ class TestRegressionWriteEmptyContent:
 
         filesystem.create_file("/empty.txt")
 
-        filesystem.write("/empty.txt", content="")
+        filesystem.write("/empty.txt", content="", acting_user=_ROOT_USER)
 
-        filesystem.append("/empty.txt", "data")
+        filesystem.append("/empty.txt", "data", acting_user=_ROOT_USER)
 
         node = filesystem.get_node("/empty.txt")
         assert node.content == "data"

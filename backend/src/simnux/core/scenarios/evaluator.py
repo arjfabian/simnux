@@ -18,6 +18,7 @@ from simnux.core.runtime.models import TerminalAction
 
 if TYPE_CHECKING:
     from simnux.core.shell.runtime import SNXShell
+    from simnux.security.users.models import SNXUser
 
 
 # ── Trigger action mapping ──────────────────────────────────────────────
@@ -151,7 +152,8 @@ async def _evaluate_condition(
     ctype = condition.get("type", "")
 
     if ctype == "file_state":
-        return _check_file_state(condition, filesystem)
+        acting_user = shell.scenario.users.get("root") or shell.user
+        return _check_file_state(condition, filesystem, acting_user)
     elif ctype == "command_output":
         return await _check_command_output(
             condition, shell, filesystem, dispatcher, executed_command=executed_command
@@ -165,8 +167,12 @@ async def _evaluate_condition(
 def _check_file_state(
     condition: dict,
     filesystem: SNXFileSystem,
+    acting_user: SNXUser,
 ) -> bool:
     """Check whether a VFS file matches expected existence and content state.
+
+    Read as a system observer, so objective evaluation sees world state
+    regardless of the current shell user's permissions.
 
     Supports an ``exists`` boolean in the condition:
     - ``exists: false`` — fires only when the file does **not** exist.
@@ -189,7 +195,7 @@ def _check_file_state(
     contains = condition.get("contains")
     exact = condition.get("exact_match")
 
-    result = filesystem.read(path)
+    result = filesystem.read(path, acting_user=acting_user)
     if result.exit_code != 0:
         return False
 

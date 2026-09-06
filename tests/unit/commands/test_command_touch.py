@@ -8,6 +8,7 @@ import pytest
 
 from simnux.core.commands.errors import CommandError
 from tests.helpers import assert_invalid_args
+from tests.helpers import assert_not_success
 from tests.helpers import assert_success
 from tests.helpers import stderr_text
 
@@ -30,10 +31,24 @@ class TestTouchCommand:
         assert shell_with_commands.filesystem.exists("/home/user/newfile.txt")
 
     async def test_touch_existing_file_is_noop(self, shell_with_commands):
-        """Touch on an existing file does not alter its content."""
+        """Touch by the non-root user on a root-owned file is denied (WRITE gate)."""
         result = await shell_with_commands.execute("touch /etc/hostname")
-        assert_success(result)
+        assert_not_success(result)
+        assert "permission denied" in stderr_text(result)
         assert shell_with_commands.filesystem.get_node("/etc/hostname").content == "simnux-edge"
+
+    async def test_touch_existing_owned_file_is_noop(self, session, test_logger):
+        """Touch on a file the acting user owns succeeds without altering content."""
+        filesystem = session.filesystem
+        from tests.helpers import create_shell_with_commands
+
+        filesystem.touch("/home/user/locked.txt", acting_user=session.user)
+        filesystem.delta_layer["/home/user/locked.txt"].content = "data"
+
+        shell = create_shell_with_commands(session, filesystem, test_logger)
+        result = await shell.execute("touch /home/user/locked.txt")
+        assert_success(result)
+        assert shell.filesystem.get_node("/home/user/locked.txt").content == "data"
 
     async def test_touch_no_args(self, shell_with_commands):
         """Touch with no arguments returns INVALID_ARGUMENT (MISSING_FILE_OPERAND)."""

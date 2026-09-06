@@ -18,6 +18,7 @@ from simnux.core.runtime.observability import RuntimeSnapshot
 from simnux.core.scenarios.loader import ScenarioLoader
 from simnux.core.sessions.runtime import SNXSession
 from simnux.core.shell.runtime import SNXShell
+from simnux.security.groups.membership import SNXGroupMembership
 
 
 class SNXRuntime:
@@ -70,6 +71,10 @@ class SNXRuntime:
             base_layer=scenario.filesystem,
             logger=self.logger,
             vfs_limits=self.limits.vfs,
+            membership=SNXGroupMembership.from_identities(
+                scenario.users,
+                scenario.groups,
+            ),
         )
 
         registry = CommandRegistry()
