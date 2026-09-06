@@ -69,6 +69,51 @@ class ScenarioLoader:
         return users["root"], groups["root"]
 
     @staticmethod
+    def _build_passwd_file(
+        users: dict[str, SNXUser],
+        groups: dict[str, SNXGroup],
+    ) -> str:
+        """Build ``/etc/passwd`` from the scenario users.
+
+        The password field is always ``x`` (credentials live in
+        ``/etc/shadow``). Each declared user maps to the scenario-local home
+        directory, primary group id, and a deterministic default shell.
+        """
+        entries = ["root:x:0:0:root:/root:/bin/sh"]
+
+        for user in users.values():
+            if user.identifier == "root":
+                continue
+
+            group = groups.get(user.identifier)
+            gid = group.group_id if group is not None else user.user_id
+
+            entries.append(
+                f"{user.identifier}:x:{user.user_id}:{gid}:{user.identifier}:"
+                f"/home/{user.identifier}:/bin/sh"
+            )
+
+        return "\n".join(entries) + "\n"
+
+    @staticmethod
+    def _build_shadow_file(users: dict[str, SNXUser]) -> str:
+        """Build ``/etc/shadow`` with locked (``!``) password fields.
+
+        No password is configured during bootstrap, so every account's
+        password field uses the standard ``!`` "no password / locked"
+        marker. No SNXPAM encoding is performed here.
+        """
+        entries = ["root:!:20000:0:99999:7:::"]
+
+        for user in users.values():
+            if user.identifier == "root":
+                continue
+
+            entries.append(f"{user.identifier}:!:20000:0:99999:7:::")
+
+        return "\n".join(entries) + "\n"
+
+    @staticmethod
     def _build_group_file(users: dict[str, SNXUser]) -> str:
         entries = ["root:x:0:root"]
 
@@ -92,8 +137,6 @@ class ScenarioLoader:
         # Initialize groups and users.
         groups = {"root": SNXGroup(0, "root")}
         users = {"root": SNXUser(0, "root")}
-        # Prepare contents of file "/etc/group".
-        group_entries = ["root:x:0:root"]
 
         for user_data in raw.get("users", []):
             user = SNXUser(
@@ -108,7 +151,6 @@ class ScenarioLoader:
 
             users[user.identifier] = user
             groups[group.identifier] = group
-            group_entries.append(f"{user.identifier}:x:{user.user_id}:{user.identifier}")
 
         # Initialize filesystem.
         filesystem: dict[str, SNXNode] = {}
@@ -173,14 +215,23 @@ class ScenarioLoader:
                 permissions=PermissionPresets.FILE_DEFAULT,
             )
 
-        filesystem["/etc/group"] = SNXNode(
-            path="/etc/group",
-            owner=users["root"],
-            group=groups["root"],
-            content=cls._build_group_file(users),
-            is_directory=False,
-            permissions=PermissionPresets.FILE_DEFAULT,
+        # Bootstrap the initial account database: /etc/passwd, /etc/shadow,
+        # and /etc/group are ordinary scenario files owned by root:root.
+        account_files = (
+            ("/etc/passwd", cls._build_passwd_file(users, groups)),
+            ("/etc/shadow", cls._build_shadow_file(users)),
+            ("/etc/group", cls._build_group_file(users)),
         )
+
+        for path, content in account_files:
+            filesystem[path] = SNXNode(
+                path=path,
+                owner=users["root"],
+                group=groups["root"],
+                content=content,
+                is_directory=False,
+                permissions=PermissionPresets.FILE_DEFAULT,
+            )
 
         objective = raw.get("objective")
 

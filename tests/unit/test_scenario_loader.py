@@ -230,3 +230,98 @@ class TestScenarioLoader:
         scenario = ScenarioLoader.load("objective_test")
         assert scenario.objective is not None
         assert scenario.objective["win_message"] == "Scenario objective completed successfully!"
+
+
+class TestAccountDatabaseBootstrap:
+    """Bootstrapped ``/etc/passwd``, ``/etc/shadow`` and ``/etc/group`` files."""
+
+    def _load(self, hello_dir, patch_scenarios_dir):
+        patch_scenarios_dir(hello_dir.parent)
+        return ScenarioLoader.load("hello")
+
+    def test_passwd_is_ordinary_readable_file(self, hello_dir, patch_scenarios_dir):
+        """``/etc/passwd`` exists as a regular FILE_DEFAULT file."""
+        scenario = self._load(hello_dir, patch_scenarios_dir)
+        node = scenario.filesystem["/etc/passwd"]
+        assert node.is_directory is False
+        assert node.permissions == PermissionPresets.FILE_DEFAULT
+        assert node.content.endswith("\n")
+
+    def test_passwd_contains_root(self, hello_dir, patch_scenarios_dir):
+        """Root always has a valid account entry."""
+        scenario = self._load(hello_dir, patch_scenarios_dir)
+        assert "root:x:0:0:root:/root:/bin/sh" in scenario.filesystem["/etc/passwd"].content
+
+    def test_passwd_contains_every_declared_user(self, hello_dir, patch_scenarios_dir):
+        """Every declared user appears in the passwd file with uid/gid/home/shell."""
+        scenario = self._load(hello_dir, patch_scenarios_dir)
+        content = scenario.filesystem["/etc/passwd"].content
+        assert "tester:x:1001:1001:tester:/home/tester:/bin/sh" in content
+
+    def test_passwd_password_field_is_x(self, hello_dir, patch_scenarios_dir):
+        """Each passwd line has exactly seven fields with an ``x`` password field."""
+        scenario = self._load(hello_dir, patch_scenarios_dir)
+        for line in scenario.filesystem["/etc/passwd"].content.splitlines():
+            fields = line.split(":")
+            assert len(fields) == 7
+            assert fields[1] == "x"
+
+    def test_passwd_no_invented_users(self, hello_dir, patch_scenarios_dir):
+        """Only root and the declared user exist in the passwd database."""
+        scenario = self._load(hello_dir, patch_scenarios_dir)
+        identifiers = {
+            line.split(":")[0] for line in scenario.filesystem["/etc/passwd"].content.splitlines()
+        }
+        assert identifiers == {"root", "tester"}
+
+    def test_shadow_is_ordinary_readable_file(self, hello_dir, patch_scenarios_dir):
+        """``/etc/shadow`` exists as a regular FILE_DEFAULT file."""
+        scenario = self._load(hello_dir, patch_scenarios_dir)
+        node = scenario.filesystem["/etc/shadow"]
+        assert node.is_directory is False
+        assert node.permissions == PermissionPresets.FILE_DEFAULT
+        assert node.content.endswith("\n")
+
+    def test_shadow_contains_root_and_declared_users(self, hello_dir, patch_scenarios_dir):
+        """Both root and the declared user have shadow entries."""
+        scenario = self._load(hello_dir, patch_scenarios_dir)
+        content = scenario.filesystem["/etc/shadow"].content
+        assert "root:!:20000:0:99999:7:::" in content
+        assert "tester:!:20000:0:99999:7:::" in content
+
+    def test_shadow_password_fields_locked(self, hello_dir, patch_scenarios_dir):
+        """Initial shadow password fields are locked with ``!``."""
+        scenario = self._load(hello_dir, patch_scenarios_dir)
+        content = scenario.filesystem["/etc/shadow"].content
+        for line in content.splitlines():
+            assert line.split(":")[1] == "!"
+
+    def test_shadow_has_no_plaintext_password(self, hello_dir, patch_scenarios_dir):
+        """The shadow file stores no password material, only the ``!`` marker."""
+        scenario = self._load(hello_dir, patch_scenarios_dir)
+        content = scenario.filesystem["/etc/shadow"].content
+        assert "password" not in content.lower()
+        assert "pbkdf2" not in content.lower()
+        for line in content.splitlines():
+            assert line.split(":")[1] == "!"
+
+    def test_group_behavior_unchanged(self, hello_dir, patch_scenarios_dir):
+        """``/etc/group`` keeps its previous bootstrap format."""
+        scenario = self._load(hello_dir, patch_scenarios_dir)
+        assert scenario.filesystem["/etc/group"].content == "root:x:0:root\ntester:x:1001:tester\n"
+
+    def test_account_files_root_owned(self, hello_dir, patch_scenarios_dir):
+        """The account database files are owned by root:root."""
+        scenario = self._load(hello_dir, patch_scenarios_dir)
+        for path in ("/etc/passwd", "/etc/shadow", "/etc/group"):
+            node = scenario.filesystem[path]
+            assert node.owner == scenario.users["root"]
+            assert node.group == scenario.groups["root"]
+
+    def test_minimal_scenario_bootstraps_root_only(self, minimal_dir, patch_scenarios_dir):
+        """A userless scenario still gets a valid root-only account database."""
+        patch_scenarios_dir(minimal_dir.parent)
+        scenario = ScenarioLoader.load("minimal")
+        assert scenario.filesystem["/etc/passwd"].content == ("root:x:0:0:root:/root:/bin/sh\n")
+        assert scenario.filesystem["/etc/shadow"].content == ("root:!:20000:0:99999:7:::\n")
+        assert scenario.filesystem["/etc/group"].content == "root:x:0:root\n"
