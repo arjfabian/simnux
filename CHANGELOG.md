@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.5.0] - 2026.09.06
+
+### Added
+
+* **Scenario-Local Users and Groups:** Introduced `SNXUser` and `SNXGroup` as scenario-scoped simulated Linux identities. Users and groups are owned by the scenario and are distinct from SIMNUX application/session identities.
+* **Scenario Group Membership:** Added `SNXGroupMembership` for resolving scenario-local group membership independently from the identity value objects. Group membership is resolved from the scenario's group database rather than stored redundantly on `SNXUser`.
+* **Account Database Bootstrapping:** The scenario loader now creates `/etc/passwd`, `/etc/group`, and `/etc/shadow` as ordinary VFS files during scenario initialization. Initial accounts are created with locked passwords (`!`); no plaintext passwords are stored.
+* **Password Authentication Primitives:** Added `SNXPAM` and `SNXPasswordCredential` using PBKDF2-HMAC-SHA256 with per-credential random salts and constant-time verification.
+* **`passwd` Command:** Added interactive and piped password changes using the scenario-local `/etc/passwd` and `/etc/shadow` files. Password changes update only the shadow password field and never expose or persist plaintext passwords.
+* **Filesystem Ownership:** `SNXNode` now has explicit `owner` (`SNXUser`) and `group` (`SNXGroup`) references. Newly created filesystem objects inherit ownership from the acting shell user and that user's primary group.
+* **Unix-Style Permissions:** Added three-class user/group/other permission flags and standard permission presets for files and directories.
+* **Permission Evaluation:** Added a centralized `PermissionEvaluator` that resolves the applicable permission class for an acting user and evaluates read, write, and execute access. Root (`UID 0`) has an explicit permission bypass under the SIMNUX v0.5.0 security model.
+* **Filesystem Authorization:** VFS operations now enforce permissions for reads, writes, appends, existing-file updates, directory traversal, directory listing, creation, and deletion.
+* **Parent-Directory Authorization:** File and directory creation/deletion now require write and execute access on the containing directory, matching Unix directory semantics rather than relying on the target's write bit.
+* **`chmod` Command:** Added numeric Unix permission changes with support for common modes such as `644`, `600`, `755`, and `000`. Only the file owner or root may change permissions.
+* **`ls -l`:** Added long-format directory listing showing file type, permission bits, owner, group, and filename.
+
+### Changed
+
+* **Filesystem Authorization Boundary:** Permission decisions are centralized in the VFS/permission layer. Commands provide the acting shell user and invoke filesystem primitives; commands do not implement permission policy themselves.
+* **Command Acting Identity:** Filesystem and command authorization consistently use `ctx.shell.user`, keeping simulated Linux identity on the shell rather than the application-level `SNXSession`.
+* **Filesystem Stream Authorization:** File stream writers and command redirection now propagate the acting user into VFS operations, ensuring redirected writes are subject to the same permission enforcement as direct filesystem writes.
+* **Composite File Operations:** `mv`, `rm`, `rmdir`, `mkdir`, `touch`, and shell redirection now consistently pass through the VFS authorization boundary, including the appropriate parent-directory checks.
+* **`ls -l` Scope:** Long-format listing intentionally exposes only metadata currently modeled by the VFS: file type, permissions, owner, group, and name. File size and timestamps remain outside the v0.5.0 scope.
+
+### Fixed
+
+* **Unauthorized File Deletion:** Closing a permission-enforcement gap where files could be deleted without write/execute access on their parent directory.
+* **Unauthorized Creation:** Closed VFS paths that allowed creation of files or directories inside directories where the acting user lacked the required parent-directory permissions.
+* **Unauthorized Redirect Writes:** Fixed stream/redirect error handling so denied writes surface as permission errors rather than misleading `not found` failures.
+* **Composite Command Authorization:** Corrected `mv`, `rm`, `rmdir`, and related command paths so their underlying filesystem mutations are subject to centralized authorization.
+* **Permission Regression Coverage:** Added regression coverage for wrong-owner access, group membership, permission-class selection, parent-directory authorization, denied creation/deletion, chmod ownership restrictions, root bypass, and rollback behavior.
+
+### Tests
+
+* **Filesystem Authorization Matrix:** Added comprehensive VFS authorization tests covering read, write, execute, creation, deletion, directory traversal, listing, ownership, group membership, permission classes, root bypass, and parent-directory semantics.
+* **Command Enforcement Tests:** Added command-level regression coverage for `cat`, `head`, `tail`, `mkdir`, `rm`, `rmdir`, `mv`, shell redirection, and related filesystem operations.
+* **`ls -l` Tests:** Added coverage for file/directory type, permission rendering, owner/group display, combined flags, and explicit exclusion of size/timestamp fields.
+* **Release Validation:** v0.5.0 implementation validated with the full test suite, Ruff linting, Ruff formatting, and mypy baseline comparison without introducing new type-checking errors.
+
+---
+
 ## [0.4.6] - 2026.09.05
 
 ### Added
