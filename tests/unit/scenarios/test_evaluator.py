@@ -68,12 +68,12 @@ class TestFileStateObjective:
 
     async def test_file_state_contains(self, session, filesystem):
         """``contains`` sub-string constraint is enforced."""
-        filesystem.touch("/tmp/secret.txt", acting_user=_ROOT_USER)
-        filesystem.write("/tmp/secret.txt", "FLAG{hidden}", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/secret.txt", acting_user=_ROOT_USER)
+        filesystem.write("/home/user/secret.txt", "FLAG{hidden}", acting_user=_ROOT_USER)
         scenario = _make_scenario(
             {
                 "type": "file_state",
-                "path": "/tmp/secret.txt",
+                "path": "/home/user/secret.txt",
                 "contains": "FLAG",
             }
         )
@@ -82,12 +82,12 @@ class TestFileStateObjective:
 
     async def test_file_state_contains_fails_when_missing(self, session, filesystem):
         """``contains`` check fails when sub-string is absent."""
-        filesystem.touch("/tmp/secret.txt", acting_user=_ROOT_USER)
-        filesystem.write("/tmp/secret.txt", "nothing here", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/secret.txt", acting_user=_ROOT_USER)
+        filesystem.write("/home/user/secret.txt", "nothing here", acting_user=_ROOT_USER)
         scenario = _make_scenario(
             {
                 "type": "file_state",
-                "path": "/tmp/secret.txt",
+                "path": "/home/user/secret.txt",
                 "contains": "FLAG",
             }
         )

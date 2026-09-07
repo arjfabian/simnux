@@ -3,11 +3,13 @@ from simnux.core.commands.models import CommandContext
 from simnux.core.commands.runtime import SNXCommand
 from simnux.core.commands.streams import AsyncStreamReader
 from simnux.core.commands.streams import AsyncStreamWriter
+from simnux.core.filesystem.models import SNXNode
+from simnux.core.filesystem.models import permissions_symbolic
 from simnux.core.runtime.models import ExitCode
 
 
 class Command(SNXCommand):
-    """List directory contents (POSIX-like, single-line output)."""
+    """List directory contents (POSIX-like)."""
 
     name = "ls"
 
@@ -21,6 +23,11 @@ class Command(SNXCommand):
             "flags": ["-A", "--almost-all"],
             "type": bool,
             "help": "include hidden files but not . and ..",
+        },
+        "long": {
+            "flags": ["-l", "--long"],
+            "type": bool,
+            "help": "include file type, permission bits, owner, and group",
         },
     }
 
@@ -51,6 +58,7 @@ class Command(SNXCommand):
 
         show_all = self.parsed_args and self.parsed_args.flags.get("all", False)
         show_almost_all = self.parsed_args and self.parsed_args.flags.get("almost_all", False)
+        show_long = self.parsed_args and self.parsed_args.flags.get("long", False)
 
         list_result = ctx.filesystem.list_directory(
             target,
@@ -62,25 +70,68 @@ class Command(SNXCommand):
 
         nodes = list_result.nodes
 
-        names: list[str] = []
+        children = sorted(nodes, key=lambda n: n.path.split("/")[-1])
+
+        if not show_long:
+            names: list[str] = []
+
+            if show_all:
+                names.append(".")
+                if target != "/":
+                    names.append("..")
+
+            for node in children:
+                name = node.path.split("/")[-1]
+
+                if name.startswith(".") and not show_all and not show_almost_all:
+                    continue
+
+                if node.is_directory:
+                    names.append(name + "/")
+                else:
+                    names.append(name)
+
+            if names:
+                await stdout.write("  ".join(names))
+
+            return ExitCode.SUCCESS
+
+        lines: list[str] = []
 
         if show_all:
-            names.append(".")
+            target_node = ctx.filesystem.get_node(target)
+            if target_node is not None:
+                lines.append(self._format_node(target_node, "."))
             if target != "/":
-                names.append("..")
+                parent = self._parent_path(target)
+                parent_node = ctx.filesystem.get_node(parent)
+                if parent_node is not None:
+                    lines.append(self._format_node(parent_node, ".."))
 
-        for node in sorted(nodes, key=lambda n: n.path.split("/")[-1]):
+        for node in children:
             name = node.path.split("/")[-1]
 
             if name.startswith(".") and not show_all and not show_almost_all:
                 continue
 
-            if node.is_directory:
-                names.append(name + "/")
-            else:
-                names.append(name)
+            lines.append(self._format_node(node, name))
 
-        if names:
-            await stdout.write("  ".join(names))
+        if lines:
+            await stdout.writelines(lines)
 
         return ExitCode.SUCCESS
+
+    @staticmethod
+    def _parent_path(path: str) -> str:
+        """Absolute path of the parent directory (``/`` is its own parent)."""
+        if path == "/":
+            return "/"
+        parent = path.rsplit("/", 1)[0]
+        return parent or "/"
+
+    @staticmethod
+    def _format_node(node: SNXNode, name: str) -> str:
+        """Render one ``ls -l`` line from the node's in-memory metadata."""
+        type_char = "d" if node.is_directory else "-"
+        perms = permissions_symbolic(node.permissions)
+        return f"{type_char}{perms} {node.owner.identifier} {node.group.identifier} {name}"

@@ -159,8 +159,8 @@ class TestHeadCommand:
 
     async def test_head_stdin_dash_with_n(self, shell_with_commands):
         """``head -n 1 -`` reads one line from stdin."""
-        await self._write(shell_with_commands, "/tmp/data.txt", "a\nb\nc\n")
-        result = await shell_with_commands.execute("cat /tmp/data.txt | head -n 1 -")
+        await self._write(shell_with_commands, "/home/user/data.txt", "a\nb\nc\n")
+        result = await shell_with_commands.execute("cat /home/user/data.txt | head -n 1 -")
         assert_success(result)
         assert stdout_text(result) == "a"
 

@@ -117,7 +117,8 @@ class TestStdoutAppendRedirect:
     async def test_redirect_after_cd(self, shell_with_commands):
         """Redirect target is resolved after ``cd`` changes cwd."""
         shell = shell_with_commands
-        await shell.execute("cd /etc")
-        await shell.execute("echo hello > from_etc.txt")
-        verify = await shell.execute("cat /etc/from_etc.txt")
+        await shell.execute("mkdir workdir")
+        await shell.execute("cd workdir")
+        await shell.execute("echo hello > from_workdir.txt")
+        verify = await shell.execute("cat /home/user/workdir/from_workdir.txt")
         assert stdout_text(verify) == "hello"

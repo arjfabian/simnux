@@ -63,16 +63,16 @@ class TestMkdirCommand:
 
     async def test_mkdir_relative_path(self, shell_with_commands):
         """Mkdir with a relative path resolves against the session CWD."""
-        shell_with_commands.set_cwd("/etc")
+        shell_with_commands.set_cwd("/home/user")
         result = await shell_with_commands.execute("mkdir newdir")
         assert_success(result)
-        assert shell_with_commands.filesystem.get_node("/etc/newdir").is_directory
+        assert shell_with_commands.filesystem.get_node("/home/user/newdir").is_directory
 
     async def test_mkdir_verify_created(self, shell_with_commands):
         """Mkdir directory is visible via the filesystem."""
-        result = await shell_with_commands.execute("mkdir /var/log/nginx")
+        result = await shell_with_commands.execute("mkdir /home/user/nginx")
         assert_success(result)
-        node = shell_with_commands.filesystem.get_node("/var/log/nginx")
+        node = shell_with_commands.filesystem.get_node("/home/user/nginx")
         assert node is not None
         assert node.is_directory
         assert node.content == ""

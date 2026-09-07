@@ -6,6 +6,7 @@ import asyncio
 import logging
 
 from simnux.core.filesystem.vfs import SNXFileSystem
+from simnux.core.runtime.models import ExitCode
 from simnux.security.users.models import SNXUser
 
 
@@ -152,7 +153,10 @@ class FileStreamWriter(AsyncStreamWriter):
         content = "".join(self._lines)
         try:
             if not self._filesystem.exists(self._path):
-                self._filesystem.touch(self._path, acting_user=self._acting_user)
+                touch_result = self._filesystem.touch(self._path, acting_user=self._acting_user)
+                if touch_result.exit_code != ExitCode.SUCCESS:
+                    self.last_error = str(touch_result.message)
+                    return
             if self._append:
                 result = self._filesystem.append(
                     self._path,

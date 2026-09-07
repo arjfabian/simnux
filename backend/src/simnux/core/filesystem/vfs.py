@@ -1,13 +1,25 @@
 """Virtual layered filesystem: immutable base_layer + per-session delta_layer overlay.
 
-Permission enforcement: every permission-sensitive VFS operation (``read``,
-``write``, ``append``, ``touch`` of an existing file, ``list_directory``,
-``validate_directory``, ``chmod``, ``check_access``) gates on the acting
-scenario-local user through ``PermissionEvaluator``. Creation (``touch`` /
-``create_file`` / ``create_directory`` of a missing path) and deletion are
-deliberately NOT gated yet (documented v0.5.0 gaps): scenario system dirs are
-root-owned 755, so gating would break ordinary workflows like ``mkdir`` or
-running a command in ``/tmp``.
+Permission enforcement: every permission-sensitive VFS mutation/access gates
+on the acting scenario-local user through ``PermissionEvaluator`` — read
+(``read``), write (``write``/``append``/``touch`` of an existing file),
+execute (``validate_directory``/``check_access``), directory read
+(``list_directory``), owner-or-root (``chmod``), and parent-directory
+``WRITE + EXECUTE`` for entry creation/removal (``create_file`` /
+``create_directory`` / ``touch`` of a missing path / ``delete`` /
+``delete_file`` / ``delete_directory``).
+
+Creation and deletion follow Unix directory-entry semantics: they authorize
+on the *containing directory* (write+execute there), never on the target
+file's own permission bits. Root (``user_id == 0``) bypasses every gate per
+the documented root policy.
+
+Intentional simplifications / gaps: ``exists``/``is_directory``/
+``list_paths``/``get_node``/``resolve_path`` are informational and
+unenforced; ``list_directory``/``validate_directory`` check only the target
+directory (no ancestor-path traversal audit); sticky-bit / world-writable
+``/tmp`` semantics are not modeled, so only the directory owner (or an
+explicitly writable directory) may create/delete entries there.
 """
 
 from __future__ import annotations
@@ -81,6 +93,29 @@ class SNXFileSystem:
         """Primary group for a newly created node, falling back to root."""
         primary = self._membership.primary_group(user)
         return primary if primary is not None else _ROOT_GROUP
+
+    def _deny_without_parent_access(
+        self, parent: SNXNode | None, acting_user: SNXUser
+    ) -> FSResult | None:
+        """Return a denied FSResult when *acting_user* may not change *parent* entries.
+
+        Unix create/delete semantics authorize on the containing directory:
+        the acting user needs BOTH write and execute there. Returns ``None``
+        when the mutation is permitted. A missing parent (orphan node) is
+        never modifiable, so its absence also denies.
+        """
+        if parent is None:
+            return self._denied()
+        can_write = self.permissions.check(acting_user, parent, Access.WRITE)
+        can_search = self.permissions.check(acting_user, parent, Access.EXECUTE)
+        if can_write and can_search:
+            return None
+        return self._denied()
+
+    def _parent_node(self, path: str) -> SNXNode | None:
+        """The node containing *path* (``/`` is its own parent)."""
+        parent_path = str(PurePosixPath(path).parent)
+        return self.get_node(parent_path)
 
     # ── Byte cap helpers ──────────────────────────────────────────────
 
@@ -227,8 +262,8 @@ class SNXFileSystem:
     def create_file(self, path: str, acting_user: SNXUser = _ROOT_USER) -> FSResult:
         """Create an empty regular file owned by *acting_user*.
 
-        Creation is not permission-gated (documented v0.5.0 gap); only the
-        parent-existence/non-conflict checks apply.
+        Creating an entry requires ``WRITE + EXECUTE`` on the containing
+        directory (Unix directory-entry semantics).
         """
         path = self.normalize_path(path)
 
@@ -258,6 +293,10 @@ class SNXFileSystem:
                 message=CommandError.NOT_A_DIRECTORY,
             )
 
+        denied = self._deny_without_parent_access(parent, acting_user)
+        if denied is not None:
+            return denied
+
         node = SNXNode(
             path=path,
             content="",
@@ -275,8 +314,8 @@ class SNXFileSystem:
     def create_directory(self, path: str, acting_user: SNXUser = _ROOT_USER) -> FSResult:
         """Create an empty directory owned by *acting_user*.
 
-        Creation is not permission-gated (documented v0.5.0 gap); only the
-        parent-existence/non-conflict checks apply.
+        Creating an entry requires ``WRITE + EXECUTE`` on the containing
+        directory (Unix directory-entry semantics).
         """
         path = self.normalize_path(path)
 
@@ -300,6 +339,10 @@ class SNXFileSystem:
                 exit_code=ExitCode.ERROR,
                 message=CommandError.NOT_A_DIRECTORY,
             )
+
+        denied = self._deny_without_parent_access(parent, acting_user)
+        if denied is not None:
+            return denied
 
         node = SNXNode(
             path=path,
@@ -427,7 +470,12 @@ class SNXFileSystem:
 
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
-    def delete_file(self, path: str) -> FSResult:
+    def delete_file(self, path: str, acting_user: SNXUser = _ROOT_USER) -> FSResult:
+        """Remove a regular file from its containing directory.
+
+        Removing an entry requires ``WRITE + EXECUTE`` on the parent
+        directory — never the target file's own permission bits.
+        """
         path = self.normalize_path(path)
         node = self.get_node(path)
 
@@ -443,6 +491,11 @@ class SNXFileSystem:
                 message=CommandError.IS_A_DIRECTORY,
             )
 
+        parent = self._parent_node(path)
+        denied = self._deny_without_parent_access(parent, acting_user)
+        if denied is not None:
+            return denied
+
         self.delta_layer[path] = SNXNode(
             path=path,
             owner=_ROOT_USER,
@@ -453,7 +506,12 @@ class SNXFileSystem:
 
         return FSResult(exit_code=ExitCode.SUCCESS)
 
-    def delete_directory(self, path: str) -> FSResult:
+    def delete_directory(self, path: str, acting_user: SNXUser = _ROOT_USER) -> FSResult:
+        """Remove an empty directory from its containing directory.
+
+        Removing an entry requires ``WRITE + EXECUTE`` on the parent
+        directory — never the target directory's own permission bits.
+        """
         path = self.normalize_path(path)
         node = self.get_node(path)
 
@@ -477,6 +535,11 @@ class SNXFileSystem:
                 message=CommandError.DIRECTORY_NOT_EMPTY,
             )
 
+        parent = self._parent_node(path)
+        denied = self._deny_without_parent_access(parent, acting_user)
+        if denied is not None:
+            return denied
+
         self.delta_layer[path] = SNXNode(
             path=path,
             owner=_ROOT_USER,
@@ -491,14 +554,25 @@ class SNXFileSystem:
         """Idempotent file creation (POSIX divergence: no timestamp update).
 
         Creating a missing file assigns ownership to *acting_user* with
-        ``FILE_DEFAULT`` permissions; the act of creating is not permission
-        gated (documented v0.5.0 gap). On an existing regular file the
-        modifying write permission is required.
+        ``FILE_DEFAULT`` permissions and requires ``WRITE + EXECUTE`` on the
+        containing directory. On an existing regular file the modifying
+        write permission is required.
         """
         path = self.normalize_path(path)
         node = self.get_node(path)
 
         if not node:
+            parent = self._parent_node(path)
+            if parent is None:
+                return FSResult(
+                    exit_code=ExitCode.ERROR,
+                    message=CommandError.NOT_FOUND,
+                )
+
+            denied = self._deny_without_parent_access(parent, acting_user)
+            if denied is not None:
+                return denied
+
             node = SNXNode(
                 path=path,
                 owner=acting_user,
@@ -517,8 +591,14 @@ class SNXFileSystem:
 
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
-    def delete(self, path: str, delete_dir: bool = False) -> FSResult:
-        """Mark node as deleted in delta_layer (tombstone). By default, dirs cannot be deleted."""
+    def delete(
+        self, path: str, delete_dir: bool = False, acting_user: SNXUser = _ROOT_USER
+    ) -> FSResult:
+        """Mark node as deleted in delta_layer (tombstone). By default, dirs cannot be deleted.
+
+        Removing an entry requires ``WRITE + EXECUTE`` on the parent
+        directory (Unix directory-entry semantics).
+        """
         path = self.normalize_path(path)
         node = self.get_node(path)
 
@@ -542,6 +622,11 @@ class SNXFileSystem:
                     exit_code=ExitCode.ERROR,
                     message=CommandError.DIRECTORY_NOT_EMPTY,
                 )
+
+        parent = self._parent_node(path)
+        denied = self._deny_without_parent_access(parent, acting_user)
+        if denied is not None:
+            return denied
 
         self.delta_layer[path] = SNXNode(
             path=path,

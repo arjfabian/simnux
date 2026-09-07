@@ -1,20 +1,20 @@
 """Tests for the ``ls`` command implementation.
 
 Covers listing root and nested directories, nonexistent/file targets,
-CWD default, POSIX dotfile filtering (``-a``, ``-A``), and alphabetical
-sorting.
+CWD default, POSIX dotfile filtering (``-a``, ``-A``), alphabetical
+sorting, and the ``-l`` long format (file type, permission bits, owner,
+group, name).
 """
 
 import pytest
 
 from simnux.core.commands.errors import CommandError
+from simnux.core.filesystem.models import PermissionPresets
+from simnux.core.filesystem.models import permissions_symbolic
 from tests.helpers import assert_error
 from tests.helpers import assert_success
 from tests.helpers import stderr_text
 from tests.helpers import stdout_text
-
-
-pytestmark = pytest.mark.asyncio
 
 
 class TestLsCommand:
@@ -23,6 +23,8 @@ class TestLsCommand:
     Uses the ``shell_with_commands`` fixture for basic tests and
     ``runtime_shell`` (hello scenario) for hidden-file tests.
     """
+
+    pytestmark = pytest.mark.asyncio
 
     async def test_ls_root(self, shell_with_commands):
         """Listing root (``/``) shows top-level directories (no hidden by default)."""
@@ -97,3 +99,119 @@ class TestLsCommand:
         stdout = stdout_text(result)
         names = stdout.split("  ")
         assert names == sorted(names)
+
+
+class TestPermissionsSymbolic:
+    """The nine-character permission renderer used by ``ls -l``."""
+
+    def test_regular_file_default(self):
+        assert permissions_symbolic(PermissionPresets.FILE_DEFAULT) == "rw-r--r--"
+
+    def test_directory_default(self):
+        assert permissions_symbolic(PermissionPresets.DIRECTORY_DEFAULT) == "rwxr-xr-x"
+
+    def test_owner_only_write(self):
+        from simnux.core.filesystem.models import PermissionFlags
+        from simnux.core.filesystem.models import SNXPermissions
+
+        permissions = SNXPermissions(user=PermissionFlags.rw())
+        assert permissions_symbolic(permissions) == "rw-------"
+
+    def test_none_set(self):
+        from simnux.core.filesystem.models import SNXPermissions
+
+        assert permissions_symbolic(SNXPermissions()) == "---------"
+
+    def test_deterministic(self):
+        assert permissions_symbolic(PermissionPresets.FILE_DEFAULT) == permissions_symbolic(
+            PermissionPresets.FILE_DEFAULT
+        )
+
+
+class TestLsLongFormat:
+    """``ls -l`` renders file type, perms, owner, group, and name."""
+
+    pytestmark = pytest.mark.asyncio
+
+    async def test_regular_file_644(self, shell_with_commands):
+        result = await shell_with_commands.execute("ls -l /home/user")
+        assert_success(result)
+        assert "-rw-r--r-- user user notes.txt" in stdout_text(result)
+
+    async def test_directory_755(self, shell_with_commands):
+        result = await shell_with_commands.execute("ls -l /")
+        assert_success(result)
+        assert "drwxr-xr-x root root home" in stdout_text(result)
+
+    async def test_file_600(self, shell_with_commands):
+        fs = shell_with_commands.filesystem
+        fs.chmod("/home/user/notes.txt", 0o600, acting_user=shell_with_commands.user)
+        result = await shell_with_commands.execute("ls -l /home/user")
+        assert_success(result)
+        assert "-rw------- user user notes.txt" in stdout_text(result)
+
+    async def test_file_000(self, shell_with_commands):
+        fs = shell_with_commands.filesystem
+        fs.chmod("/home/user/notes.txt", 0o000, acting_user=shell_with_commands.user)
+        result = await shell_with_commands.execute("ls -l /home/user")
+        assert_success(result)
+        assert "---------- user user notes.txt" in stdout_text(result)
+
+    async def test_owner_group_identifiers_rendered(self, shell_with_commands):
+        """Owner and group are the in-memory ``identifier`` strings."""
+        result = await shell_with_commands.execute("ls -l /home/user")
+        stdout = stdout_text(result)
+        assert "-rw-r--r-- user user notes.txt" in stdout
+        assert "root" not in stdout.split("notes.txt")[0]
+
+    async def test_ls_without_l_long_unchanged(self, shell_with_commands):
+        """``ls`` without ``-l`` keeps the name-only single-line output."""
+        result = await shell_with_commands.execute("ls /home/user")
+        assert_success(result)
+        assert stdout_text(result) == "notes.txt"
+
+    async def test_ls_al_long_unchanged(self, runtime_shell):
+        """``ls -a`` still renders name-only output (no metadata columns)."""
+        result = await runtime_shell.execute("ls -a /home/user")
+        stdout = stdout_text(result)
+        assert "lipsum.txt" in stdout
+        assert "rw-r--r--" not in stdout
+
+    async def test_long_respects_permission_enforcement(self, shell_with_commands):
+        """``ls -l`` on a sealed directory is denied via list_directory."""
+        from simnux.security.users.models import SNXUser
+
+        root = SNXUser(0, "root")
+        fs = shell_with_commands.filesystem
+        fs.create_directory("/sealed", acting_user=root)
+        fs.chmod("/sealed", 0o700, acting_user=root)
+        result = await shell_with_commands.execute("ls -l /sealed")
+        assert_error(result)
+        assert "permission denied" in stderr_text(result)
+
+    async def test_long_combined_flag_la(self, shell_with_commands):
+        """``ls -la`` includes dot entries with their directory metadata."""
+        result = await shell_with_commands.execute("ls -la /home/user")
+        assert_success(result)
+        stdout = stdout_text(result)
+        assert "drwxr-xr-x user user ." in stdout
+        assert "drwxr-xr-x root root .." in stdout
+        assert "-rw-r--r-- user user notes.txt" in stdout
+
+    async def test_long_combined_flag_al_root(self, shell_with_commands):
+        """``ls -al /`` shows ``.`` but not ``..`` for the root directory."""
+        result = await shell_with_commands.execute("ls -al /")
+        assert_success(result)
+        stdout = stdout_text(result)
+        assert "drwxr-xr-x root root ." in stdout
+        assert " .." not in stdout
+
+    async def test_no_size_or_timestamp_columns(self, shell_with_commands):
+        """Each long line has exactly four fields: perms, owner, group, name."""
+        result = await shell_with_commands.execute("ls -l /")
+        assert_success(result)
+        for line in stdout_text(result).splitlines():
+            fields = line.split()
+            assert len(fields) == 4
+            assert fields[0].startswith(("d", "-"))
+            assert not fields[1][0].isdigit()

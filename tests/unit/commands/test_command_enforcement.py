@@ -134,3 +134,67 @@ class TestCdGate:
         assert_error(result)
         assert "permission denied" in stderr_text(result)
         assert shell.current_directory == "/home/user"
+
+
+class TestMutationEnforcement:
+    """Creation/deletion commands enforce parent-directory WRITE+EXECUTE."""
+
+    async def test_rm_root_owned_file_denied(self, shell_with_commands):
+        """Regression: ``rm`` on a root-owned file is denied for the non-root user."""
+        result = await shell_with_commands.execute("rm /etc/hostname")
+        assert_error(result)
+        assert "permission denied" in stderr_text(result)
+        node = shell_with_commands.filesystem.get_node("/etc/hostname")
+        assert node.content == "simnux-edge"
+
+    async def test_rm_root_owned_directory_denied(self, shell_with_commands):
+        """Regression: ``rmdir`` on a root-owned empty directory is denied."""
+        result = await shell_with_commands.execute("rmdir /var/log")
+        assert_error(result)
+        assert "permission denied" in stderr_text(result)
+
+    async def test_rm_own_file_allowed(self, shell_with_commands):
+        """``rm`` of a user-owned file inside the user's home succeeds."""
+        result = await shell_with_commands.execute("rm /home/user/notes.txt")
+        assert_success(result)
+        result = await shell_with_commands.execute("cat /home/user/notes.txt")
+        assert_error(result)
+        assert "not found" in stderr_text(result)
+
+    async def test_mkdir_denied_outside_writable_dirs(self, shell_with_commands):
+        """``mkdir`` in a root-owned non-writable directory is denied."""
+        result = await shell_with_commands.execute("mkdir /etc/blocked")
+        assert_error(result)
+        assert "permission denied" in stderr_text(result)
+        assert shell_with_commands.filesystem.get_node("/etc/blocked") is None
+
+    async def test_mkdir_allowed_in_home(self, shell_with_commands):
+        """``mkdir`` inside the user's home succeeds."""
+        result = await shell_with_commands.execute("mkdir /home/user/freshdir")
+        assert_success(result)
+        node = shell_with_commands.filesystem.get_node("/home/user/freshdir")
+        assert node is not None
+        assert node.is_directory
+
+    async def test_redirect_denied_when_directory_not_writable(self, shell_with_commands):
+        """``echo >`` into a root-owned directory is denied at creation time."""
+        result = await shell_with_commands.execute("echo x > /etc/newfile.txt")
+        assert_error(result)
+        assert "permission denied" in stderr_text(result)
+        assert shell_with_commands.filesystem.get_node("/etc/newfile.txt") is None
+
+    async def test_mv_out_of_root_directory_denied(self, shell_with_commands):
+        """``mv`` whose source delete is denied rolls back the written target."""
+        result = await shell_with_commands.execute("mv /etc/hostname /home/user/hostname")
+        assert_error(result)
+        assert "permission denied" in stderr_text(result)
+        assert shell_with_commands.filesystem.get_node("/etc/hostname") is not None
+        assert shell_with_commands.filesystem.get_node("/home/user/hostname") is None
+
+    async def test_mv_own_files_allowed(self, shell_with_commands):
+        """``mv`` between paths the user can modify succeeds."""
+        result = await shell_with_commands.execute("mv /home/user/notes.txt /home/user/renamed.txt")
+        assert_success(result)
+        node = shell_with_commands.filesystem.get_node("/home/user/renamed.txt")
+        assert node is not None
+        assert shell_with_commands.filesystem.get_node("/home/user/notes.txt") is None

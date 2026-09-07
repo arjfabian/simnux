@@ -54,12 +54,12 @@ class TestRmCommand:
         assert "user" in stdout_text(result)
 
     async def test_rm_empty_directory_without_recursive_flag(self, shell_with_commands):
-        result = await shell_with_commands.execute("mkdir /testdir")
+        result = await shell_with_commands.execute("mkdir testdir")
         assert_success(result)
-        result = await shell_with_commands.execute("rm /testdir")
+        result = await shell_with_commands.execute("rm testdir")
         assert_error(result)
         assert CommandError.IS_A_DIRECTORY in stderr_text(result)
-        result = await shell_with_commands.execute("ls /")
+        result = await shell_with_commands.execute("ls")
         assert_success(result)
         assert "testdir" in stdout_text(result)
 
@@ -184,16 +184,16 @@ class TestRmCommand:
 
     async def test_rm_base_layer_file_creates_overlay_tombstone(self, shell_with_commands):
         # Step 1 - verify base-layer file exists
-        result = await shell_with_commands.execute("cat /etc/hostname")
+        result = await shell_with_commands.execute("cat /home/user/notes.txt")
         assert_success(result)
-        assert "simnux-edge" in stdout_text(result)
+        assert "hello world" in stdout_text(result)
 
         # Step 2 - remove file
-        result = await shell_with_commands.execute("rm /etc/hostname")
+        result = await shell_with_commands.execute("rm /home/user/notes.txt")
         assert_success(result)
 
         # Step 3 - assert file hidden afterwards
-        result = await shell_with_commands.execute("cat /etc/hostname")
+        result = await shell_with_commands.execute("cat /home/user/notes.txt")
         assert_error(result)
         assert CommandError.NOT_FOUND in stderr_text(result)
 

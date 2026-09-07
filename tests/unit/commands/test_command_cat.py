@@ -81,10 +81,10 @@ class TestCatCommand:
 
     async def test_cat_mixed_stdin_and_files(self, shell_with_commands):
         """``cat file - file`` interleaves VFS content with piped stdin."""
-        _write(shell_with_commands, "/tmp/before.txt", "before\n")
-        _write(shell_with_commands, "/tmp/after.txt", "after\n")
+        _write(shell_with_commands, "/home/user/before.txt", "before\n")
+        _write(shell_with_commands, "/home/user/after.txt", "after\n")
         result = await shell_with_commands.execute(
-            "echo piped | cat /tmp/before.txt - /tmp/after.txt"
+            "echo piped | cat /home/user/before.txt - /home/user/after.txt"
         )
         assert_success(result)
         assert stdout_text(result) == "before\npiped\nafter"

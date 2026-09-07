@@ -98,6 +98,24 @@ def mode_from_permissions(permissions: SNXPermissions) -> int:
     return (_oct(permissions.user) << 6) | (_oct(permissions.group) << 3) | _oct(permissions.other)
 
 
+def permissions_symbolic(permissions: SNXPermissions) -> str:
+    """Render :class:`SNXPermissions` as the nine-character Unix string.
+
+    Three ``r``/``w``/``x`` triples for the user, group, and other classes,
+    each bit shown as its letter or ``-`` when unset. Matches ``ls -l``
+    rendering (without the leading file-type column).
+    """
+
+    def _triple(flags: PermissionFlags) -> str:
+        return (
+            ("r" if flags.read else "-")
+            + ("w" if flags.write else "-")
+            + ("x" if flags.execute else "-")
+        )
+
+    return _triple(permissions.user) + _triple(permissions.group) + _triple(permissions.other)
+
+
 @dataclass
 class SNXNode:
     """File or directory node. Path must be absolute and normalized."""

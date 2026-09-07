@@ -160,8 +160,8 @@ class TestTailCommand:
 
     async def test_tail_stdin_dash_with_n(self, shell_with_commands):
         """``tail -n 1 -`` reads the last line from stdin."""
-        await self._write(shell_with_commands, "/tmp/data.txt", "a\nb\nc\n")
-        result = await shell_with_commands.execute("cat /tmp/data.txt | tail -n 1 -")
+        await self._write(shell_with_commands, "/home/user/data.txt", "a\nb\nc\n")
+        result = await shell_with_commands.execute("cat /home/user/data.txt | tail -n 1 -")
         assert_success(result)
         assert stdout_text(result) == "c"
 
@@ -183,8 +183,8 @@ class TestTailCommand:
 
     async def test_tail_double_dash_reuses_cache(self, shell_with_commands):
         """``tail - -`` reads stdin once; second ``-`` reuses cached lines."""
-        await self._write(shell_with_commands, "/tmp/data.txt", "line1\nline2\nline3\n")
-        result = await shell_with_commands.execute("cat /tmp/data.txt | tail -n 2 - -")
+        await self._write(shell_with_commands, "/home/user/data.txt", "line1\nline2\nline3\n")
+        result = await shell_with_commands.execute("cat /home/user/data.txt | tail -n 2 - -")
         assert_success(result)
         stdout = stdout_text(result)
         assert stdout.count("==> - <==") == 2

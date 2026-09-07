@@ -65,32 +65,32 @@ class TestFullShellFlow:
     async def test_session_state_persistence(self, runtime):
         """Session state (CWD, filesystem) persists across multiple commands and retrievals."""
         shell = runtime.create_session(scenario_name="hello", session_id="e2e-7")
-        await shell.execute("cd /tmp")
+        await shell.execute("cd /home/user")
         await shell.execute("touch test.log")
         await shell.execute("cd /")
 
         s = runtime.get_shell("e2e-7", "hello")
         assert s.current_directory == "/"
-        assert s.filesystem.exists("/tmp/test.log")
+        assert s.filesystem.exists("/home/user/test.log")
 
     async def test_snapshot_consistency_after_mutations(self, runtime):
         """Snapshot reflects all state changes (CWD, new files, session ID, scenario name)."""
         shell = runtime.create_session(scenario_name="hello", session_id="e2e-snap")
-        await shell.execute("cd /etc")
-        await shell.execute("touch /etc/new.conf")
+        await shell.execute("cd /home/user")
+        await shell.execute("touch new.conf")
         await shell.execute("cd /")
 
         snap = shell.get_snapshot("e2e-snap")
         assert snap.current_path == "/"
-        assert "/etc/new.conf" in snap.filesystem
+        assert "/home/user/new.conf" in snap.filesystem
         assert snap.session_id == "e2e-snap"
         assert snap.scenario_name == "Hello SIMNUX"
 
     async def test_filesystem_mutations_visible_in_snapshot(self, runtime_shell):
         """New files created via ``touch`` appear in the shell snapshot."""
-        await runtime_shell.execute("touch /tmp/testfile")
+        await runtime_shell.execute("touch /home/user/testfile")
         snapshot = runtime_shell.get_snapshot("53494d4e-5558-4202-a13d-204c494e5558")
-        assert "/tmp/testfile" in snapshot.filesystem
+        assert "/home/user/testfile" in snapshot.filesystem
 
     async def test_prompt_cwd_coherence(self, runtime_shell):
         """Prompt tilde and path always stay in sync with the session's CWD."""

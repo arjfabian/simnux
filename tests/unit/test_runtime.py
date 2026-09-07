@@ -143,20 +143,20 @@ class TestSNXRuntime:
             session_id="isolation-2",
         )
 
-        result = s1.filesystem.create_file("/unique.txt", acting_user=s1.user)
+        result = s1.filesystem.create_file("/home/user/unique.txt", acting_user=s1.user)
 
         assert_success(result)
 
         result = s1.filesystem.write(
-            "/unique.txt",
+            "/home/user/unique.txt",
             content="s1-only",
             acting_user=s1.user,
         )
 
         assert_success(result)
 
-        assert s1.filesystem.exists("/unique.txt") is True
-        assert s2.filesystem.exists("/unique.txt") is False
+        assert s1.filesystem.exists("/home/user/unique.txt") is True
+        assert s2.filesystem.exists("/home/user/unique.txt") is False
 
     def test_session_current_directory_set(self, runtime):
         """New sessions start in the scenario's configured starting directory."""

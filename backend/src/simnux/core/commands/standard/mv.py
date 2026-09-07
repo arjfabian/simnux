@@ -93,10 +93,10 @@ class Command(SNXCommand):
             await stderr.write(f"mv: {target_display}: {write_result.message}")
             return write_result.exit_code
 
-        delete_result = ctx.filesystem.delete_file(source_path)
+        delete_result = ctx.filesystem.delete_file(source_path, acting_user=ctx.shell.user)
         if delete_result.exit_code != ExitCode.SUCCESS:
             if not target_pre_existed:
-                ctx.filesystem.delete_file(target_path)
+                ctx.filesystem.delete_file(target_path, acting_user=ctx.shell.user)
             await stderr.write(f"mv: {raw_source}: {delete_result.message}")
             return delete_result.exit_code
 

@@ -25,7 +25,7 @@ class Command(SNXCommand):
 
         abs_path = self.resolve_path(raw_target, ctx)
 
-        result = ctx.filesystem.delete(abs_path, delete_dir=True)
+        result = ctx.filesystem.delete(abs_path, delete_dir=True, acting_user=ctx.shell.user)
 
         if result.exit_code != ExitCode.SUCCESS:
             await stderr.write(f"rmdir: {raw_target}: {result.message}")
