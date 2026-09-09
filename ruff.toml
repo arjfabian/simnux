@@ -1,0 +1,4 @@
+# Root-level Ruff policy: inherit the backend project's Ruff configuration so
+# that root-level SIMNUX-backend Python (tests/, dev.py) is governed by the
+# same rules as backend/src without duplicating them.
+extend = "backend/pyproject.toml"
