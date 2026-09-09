@@ -1,6 +1,7 @@
 """Tests for variable expansion and assignment in script loops."""
 
 import asyncio
+from typing import ClassVar
 from unittest.mock import MagicMock
 
 import pytest
@@ -23,8 +24,8 @@ class _EchoCommand:
     """Echo command that writes args (space-separated) to stdout."""
 
     name = "echo"
-    aliases = []
-    args = []
+    aliases: ClassVar[list[str]] = []
+    args: ClassVar[list[str]] = []
     _invoked_name = "echo"
     parameters = None
     parsed_args = None
@@ -39,8 +40,8 @@ class _TrueCommand:
     """Stub ``true`` — always succeeds."""
 
     name = "true"
-    aliases = []
-    args = []
+    aliases: ClassVar[list[str]] = []
+    args: ClassVar[list[str]] = []
     _invoked_name = "true"
     parameters = None
     parsed_args = None
@@ -330,7 +331,7 @@ class TestNestedForLoop:
         """No 'done: command not found' error at the end of a nested for."""
         runner, ctx = _make_runner()
         script = "for i in a b; do\n  for j in x y; do\n    echo $j\n  done\ndone\n"
-        exit_code, stdout, stderr = await _run_script(runner, ctx, script)
+        exit_code, _, stderr = await _run_script(runner, ctx, script)
         assert exit_code == ExitCode.SUCCESS
         assert not any("command not found" in e for e in stderr)
 

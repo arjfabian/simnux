@@ -1,8 +1,8 @@
 """Tests for ShellParser — POSIX-style shell input tokenization.
 
-Covers empty/whitespace input, simple commands, quoted strings,
-escape sequences, tab separation, and error cases (unclosed quotes,
-trailing backslash).
+Covers empty/whitespace input, simple commands, quoted strings, escape
+sequences, tab separation, and error cases (unclosed quotes, trailing
+backslash).
 """
 
 import pytest
@@ -13,8 +13,8 @@ from simnux.core.shell.parser import ShellParser
 class TestShellParser:
     """Shell input tokenization: command + args extraction via shlex.
 
-    Validates POSIX-compatible quoting, escaping, whitespace handling,
-    and error detection for malformed input.
+    Validates POSIX-compatible quoting, escaping, whitespace handling, and error
+    detection for malformed input.
     """
 
     def test_empty_input(self):
@@ -159,7 +159,7 @@ class TestShellParser:
         with pytest.raises(ValueError):
             ShellParser.parse("echo hello\\")
 
-    # ── stdout redirection (>, >>) ──────────────────────────────────────
+    # ── stdout redirection (>, >>) ────────────────────────────────────────────
 
     def test_redirect_stdout_to_file(self):
         """``>`` operator redirects stdout to a file."""
@@ -222,7 +222,7 @@ class TestShellParser:
         assert result.args == []
         assert result.stdout_redirect == "out.txt"
 
-    # ── pipeline (|) ────────────────────────────────────────────────────
+    # ── pipeline (|) ──────────────────────────────────────────────────────────
 
     def test_pipe_two_commands(self):
         """Basic pipe between two commands."""

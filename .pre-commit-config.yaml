@@ -3,6 +3,18 @@ repos:
     rev: v0.15.14
     hooks:
       - id: ruff
+        name: ruff - backend
+        exclude: "^frontend/"
         args: ["--config=backend/pyproject.toml", "--fix"]
+      - id: ruff
+        name: ruff - frontend
+        files: "^frontend/"
+        args: ["--config=frontend/pyproject.toml", "--fix"]
       - id: ruff-format
+        name: ruff-format - backend
+        exclude: "^frontend/"
         args: ["--config=backend/pyproject.toml"]
+      - id: ruff-format
+        name: ruff-format - frontend
+        files: "^frontend/"
+        args: ["--config=frontend/pyproject.toml"]

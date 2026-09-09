@@ -1,6 +1,7 @@
 """Tests for resource limits: VFS byte caps, script loop bounds, execution time."""
 
 import asyncio
+from typing import ClassVar
 from unittest.mock import MagicMock
 
 import pytest
@@ -303,8 +304,8 @@ class TestScriptExecutionTime:
 
         class _SlowCommand:
             name = "slowwait"
-            aliases = []
-            args = []
+            aliases: ClassVar[list[str]] = []
+            args: ClassVar[list[str]] = []
             _invoked_name = "slowwait"
             parameters = None
             parsed_args = None
@@ -355,8 +356,8 @@ class TestScriptLineLimit:
 
         class _SentinelCommand:
             name = "sentinel"
-            aliases = []
-            args = []
+            aliases: ClassVar[list[str]] = []
+            args: ClassVar[list[str]] = []
             _invoked_name = "sentinel"
             parameters = None
             parsed_args = None
@@ -385,8 +386,8 @@ class _EchoCommand:
     """Echo command that writes args to stdout (no trailing newline)."""
 
     name = "echo"
-    aliases = []
-    args = []
+    aliases: ClassVar[list[str]] = []
+    args: ClassVar[list[str]] = []
     _invoked_name = "echo"
     parameters = None
     parsed_args = None
@@ -492,7 +493,7 @@ class TestVfsQuotaBreachViaLoopAppend:
         runner, ctx, fs = self._make_real_fs_runner(limits, base)
 
         script = "for i in 1 2 3 4 5 6 7 8 9 10\n  echo x >> /data\ndone"
-        exit_code, stderr = await _run_script(runner, ctx, script)
+        _, stderr = await _run_script(runner, ctx, script)
 
         node = fs.get_node("/data")
         assert node is not None
@@ -535,7 +536,7 @@ class TestVfsQuotaBreachViaLoopAppend:
         # Each iteration appends "CCCCC" (5 bytes). After 1 iteration:
         # "AAACCCCC" = 8 bytes = exactly at cap. 2nd iteration rejected.
         script = "for i in 1 2 3 4 5\n  echo CCCCC >> /log\ndone"
-        exit_code, _ = await _run_script(runner, ctx, script)
+        _, _ = await _run_script(runner, ctx, script)
 
         node = fs.get_node("/log")
         assert node is not None
@@ -588,7 +589,7 @@ class TestVfsQuotaBreachViaLoopAppend:
             "for i in 1 2 3 4 5 6 7 8 9 0\n  echo 1 >> /a\ndone"
             "\nfor i in 1 2 3 4 5 6 7 8 9 0\n  echo 2 >> /b\ndone"
         )
-        exit_code, _ = await _run_script(runner, ctx, script)
+        _, _ = await _run_script(runner, ctx, script)
 
         node_a = fs.get_node("/a")
         node_b = fs.get_node("/b")

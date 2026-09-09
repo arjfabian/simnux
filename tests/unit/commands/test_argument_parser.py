@@ -105,11 +105,11 @@ class TestValueOptions:
         assert parsed.flags == {"lines": "10"}
 
     def test_missing_value_for_short(self):
-        parsed, errors = parse_arguments(["-n"], VALUE_SPEC, "test")
+        _, errors = parse_arguments(["-n"], VALUE_SPEC, "test")
         assert errors == ["test: option requires an argument -- 'n'"]
 
     def test_missing_value_for_long(self):
-        parsed, errors = parse_arguments(["--lines"], VALUE_SPEC, "test")
+        _, errors = parse_arguments(["--lines"], VALUE_SPEC, "test")
         assert errors == ["test: option '--lines' requires an argument"]
 
 

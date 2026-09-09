@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.5.1] - 2026.09.09
+
+### Added
+
+* **Derived File Size:** `SNXNode` now exposes a derived `size` property representing the UTF-8 byte length of the node's current file content. Size is not stored independently, preventing stale or duplicated filesystem metadata.
+* **`ls -l` File Size:** Long-format listings now display file size in bytes between the group and filename fields, with numeric sizes right-aligned across the listing.
+
+### Changed
+
+* **VFS Size Accounting:** Filesystem quota accounting now delegates byte-size calculation to `SNXNode.size`, establishing a single source of truth for file size.
+
+### Tests
+
+* **File Size Semantics:** Added coverage for empty files, ASCII content, multibyte UTF-8 content, content replacement, appending, copying, and quota boundary behavior.
+* **`ls -l` Formatting:** Added coverage for size rendering, column alignment, directories, dot entries, and preservation of the existing timestamp boundary.
+
+---
+
 ## [0.5.0] - 2026.09.06
 
 ### Added

@@ -455,7 +455,11 @@ class TestAuthorizationMatrix:
                 fs.read("/etc/secret", acting_user=USER_OWNER),
                 False,
             ),
-            ("read /etc/secret by root", fs.read("/etc/secret", acting_user=ROOT_USER), True),
+            (
+                "read /etc/secret by root",
+                fs.read("/etc/secret", acting_user=ROOT_USER),
+                True,
+            ),
             (
                 "write own file by user",
                 fs.write("/home/user/owned.txt", "v2", acting_user=USER_OWNER),
@@ -491,8 +495,16 @@ class TestAuthorizationMatrix:
                 fs.create_file("/home/user/n.txt", acting_user=USER_OWNER),
                 True,
             ),
-            ("create file in /etc by root", fs.create_file("/etc/n", acting_user=ROOT_USER), True),
-            ("mkdir in /etc by user", fs.create_directory("/etc/n", acting_user=USER_OWNER), False),
+            (
+                "create file in /etc by root",
+                fs.create_file("/etc/n", acting_user=ROOT_USER),
+                True,
+            ),
+            (
+                "mkdir in /etc by user",
+                fs.create_directory("/etc/n", acting_user=USER_OWNER),
+                False,
+            ),
             (
                 "mkdir in /home/user by user",
                 fs.create_directory("/home/user/ndir", acting_user=USER_OWNER),

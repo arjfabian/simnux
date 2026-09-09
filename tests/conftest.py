@@ -2,7 +2,8 @@
 
 This module provides reusable pytest fixtures for:
 - Scenario and session creation (factory fixtures)
-- Filesystem base layers (hierarchy: fs_root_only -> fs_with_home -> fs_standard -> fs_rich)
+- Filesystem base layers (hierarchy: fs_root_only -> fs_with_home -> fs_standard
+  -> fs_rich)
 - Command registry and dispatcher setup
 - Shell instances with loaded commands
 - HTTP API test client
@@ -41,7 +42,9 @@ USER_GROUP = SNXGroup(1001, "user")
 
 
 def pytest_configure(config):
-    """Suppress PytestCollectionWarning for production Command class in condition.py."""
+    """Suppress PytestCollectionWarning for production Command class in
+    condition.py.
+    """
     config.addinivalue_line(
         "filterwarnings",
         "ignore::pytest.PytestCollectionWarning",
@@ -69,8 +72,8 @@ def create_scenario():
     Returns a factory function that creates scenarios with a minimal 6-node
     filesystem: /, /home, /home/user, /root, and configurable starting_dir.
 
-    Use this when you need a scenario with custom starting_dir or when
-    testing scenario-related functionality.
+    Use this when you need a scenario with custom starting_dir or when testing
+    scenario-related functionality.
 
     Returns:
         A factory function with signature:
@@ -139,8 +142,8 @@ def create_scenario():
 def create_session(create_scenario, test_logger):
     """Factory fixture for creating customizable SNXShell instances.
 
-    Returns a factory function that creates shells using create_scenario
-    as the scenario provider. Supports custom cwd and task counts.
+    Returns a factory function that creates shells using create_scenario as the
+    scenario provider. Supports custom cwd and task counts.
 
     Use this when testing interaction state, snapshots, or when you need
     multiple shells with different scenarios for isolation testing.
@@ -221,8 +224,8 @@ def fs_root_only():
     """Minimal filesystem base layer: just the root directory.
 
     Single-node filesystem for tests that need absolute minimal setup.
-    Use this when testing path resolution edge cases or when testing
-    scenarios that don't require home directories.
+    Use this when testing path resolution edge cases or when testing scenarios
+    that don't require home directories.
 
     Nodes:
         - / (directory)
@@ -259,9 +262,9 @@ def minimal_fs(fs_root_only):
 def fs_with_home():
     """Filesystem base layer with basic home directory structure.
 
-    3-node filesystem for tests that need user home directory but not
-    the full scenario setup. Useful for prompt renderer tests and
-    path resolution tests involving home directories.
+    3-node filesystem for tests that need user home directory but not the full
+    scenario setup. Useful for prompt renderer tests and path resolution tests
+    involving home directories.
 
     Nodes:
         - / (directory)
@@ -405,9 +408,9 @@ def fs_standard(base_layer):
 def fs_rich(base_layer_rich):
     """Extended filesystem with security-sensitive files.
 
-    10-node filesystem for overlay integrity tests and tests that need
-    files like /etc/passwd and /etc/shadow for testing copy-on-write
-    behavior and session isolation.
+    10-node filesystem for overlay integrity tests and tests that need files
+    like /etc/passwd and /etc/shadow for testing copy-on-write behavior and
+    session isolation.
 
     Nodes (extends base_layer):
         - /etc/passwd (file, content: "root:x:0:0:root:/root:/bin/bash")
@@ -424,9 +427,9 @@ def fs_rich(base_layer_rich):
 def test_logger():
     """Null logger for tests that need a logging.Logger instance.
 
-    Creates a logger with DEBUG level and a NullHandler to suppress
-    output during tests. Use this when testing components that require
-    a logger but don't need actual output verification.
+    Creates a logger with DEBUG level and a NullHandler to suppress output
+    during tests. Use this when testing components that require a logger but
+    don't need actual output verification.
 
     Returns:
         logging.Logger: A configured logger instance.
@@ -445,8 +448,8 @@ def test_logger():
 def runtime_config(tmp_path):
     """Runtime configuration using a temporary log file.
 
-    Creates a RuntimeConfig with log_path pointing to a file in
-    pytest's temporary directory. Used by the runtime fixture.
+    Creates a RuntimeConfig with log_path pointing to a file in pytest's
+    temporary directory. Used by the runtime fixture.
 
     Returns:
         RuntimeConfig: Configuration with temporary log path.
@@ -459,8 +462,8 @@ def base_layer_rich(base_layer):
     """Extended base_layer with additional nodes for overlay integrity tests.
 
     Adds security-sensitive files to base_layer for testing copy-on-write
-    overlay behavior. Tests that write to these files should verify that
-    the base_layer remains unchanged (delta layer gets the mutations).
+    overlay behavior. Tests that write to these files should verify that the
+    base_layer remains unchanged (delta layer gets the mutations).
 
     Nodes added:
         - /etc/passwd: Simulated passwd file entry
@@ -503,8 +506,8 @@ def base_layer_rich(base_layer):
 def filesystem(base_layer):
     """SNXFileSystem instance using the standard base_layer.
 
-    Wraps base_layer in an SNXFileSystem instance. Use this for tests
-    that need a ready-to-use filesystem rather than a base_layer dict.
+    Wraps base_layer in an SNXFileSystem instance. Use this for tests that need
+    a ready-to-use filesystem rather than a base_layer dict.
 
     Returns:
         SNXFileSystem: Filesystem instance with standard base layer.
@@ -516,8 +519,8 @@ def filesystem(base_layer):
 def filesystem_rich(base_layer_rich):
     """SNXFileSystem instance using the extended base_layer_rich.
 
-    Wraps base_layer_rich in an SNXFileSystem instance for overlay
-    integrity tests and tests that need the extended file set.
+    Wraps base_layer_rich in an SNXFileSystem instance for overlay integrity
+    tests and tests that need the extended file set.
 
     Returns:
         SNXFileSystem: Filesystem instance with extended base layer.
@@ -529,8 +532,8 @@ def filesystem_rich(base_layer_rich):
 def base(base_layer_rich):
     """Alias for base_layer_rich - used by overlay integrity tests.
 
-    Shorter alias for tests in test_overlay_integrity.py that reference
-    this fixture by the 'base' name. Maintained for compatibility.
+    Shorter alias for tests in test_overlay_integrity.py that reference this
+    fixture by the 'base' name. Maintained for compatibility.
 
     Returns:
         dict[str, SNXNode]: Same as base_layer_rich.
@@ -542,8 +545,8 @@ def base(base_layer_rich):
 def fs(filesystem_rich):
     """Alias for filesystem_rich - used by overlay integrity tests.
 
-    Shorter alias for tests in test_overlay_integrity.py that reference
-    this fixture by the 'fs' name. Maintained for compatibility.
+    Shorter alias for tests in test_overlay_integrity.py that reference this
+    fixture by the 'fs' name. Maintained for compatibility.
 
     Returns:
         SNXFileSystem: Same as filesystem_rich.
@@ -555,9 +558,9 @@ def fs(filesystem_rich):
 def base_scenario(base_layer):
     """Standard test scenario using base_layer filesystem.
 
-    Creates a SNXScenario with default test configuration and the
-    standard 7-node base_layer filesystem. Use this when you need
-    a scenario for session or shell creation.
+    Creates a SNXScenario with default test configuration and the standard
+    7-node base_layer filesystem. Use this when you need a scenario for session
+    or shell creation.
 
     Scenario details:
         - name: "TestScenario"
@@ -591,8 +594,8 @@ def session(base_scenario, filesystem, test_logger):
     """Standard test shell using base_scenario and the filesystem fixture.
 
     Creates an SNXShell with a fixed identifier and base_scenario as the
-    scenario, sharing the ``filesystem`` fixture instance. Use this for
-    tests that need a ready-made interaction-state owner (the shell).
+    scenario, sharing the ``filesystem`` fixture instance. Use this for tests
+    that need a ready-made interaction-state owner (the shell).
 
     Shell details:
         - identifier: "TestScenario"
@@ -617,9 +620,9 @@ def session(base_scenario, filesystem, test_logger):
 def runtime_shell(runtime):
     """Shell instance created via SNXRuntime with "hello" scenario.
 
-    Creates a shell by calling runtime.create_session(). This is the
-    preferred way to get a shell for e2e tests and tests that need
-    the full runtime setup with all commands loaded.
+    Creates a shell by calling runtime.create_session(). This is the preferred
+    way to get a shell for e2e tests and tests that need the full runtime setup
+    with all commands loaded.
 
     Uses a fixed UUID for session_id to maintain test determinism.
 
@@ -636,9 +639,9 @@ def runtime_shell(runtime):
 def command_context(session, filesystem):
     """CommandContext for executing commands without a full shell.
 
-    Creates a CommandContext instance that combines shell interaction state
-    and filesystem for direct command execution. Use this when testing
-    individual commands without the full shell infrastructure.
+    Creates a CommandContext instance that combines shell interaction state and
+    filesystem for direct command execution. Use this when testing individual
+    commands without the full shell infrastructure.
 
     Returns:
         CommandContext: Context for command execution.
@@ -651,8 +654,8 @@ def registry():
     """Empty CommandRegistry instance.
 
     Creates a fresh CommandRegistry with no commands registered.
-    Use this for testing registry operations like register(), get(),
-    and list_commands().
+    Use this for testing registry operations like register(), get(), and
+    list_commands().
 
     Returns:
         CommandRegistry: An empty registry instance.
@@ -665,8 +668,8 @@ def dispatcher(registry):
     """CommandDispatcher using the empty registry fixture.
 
     Creates a CommandDispatcher instance bound to the provided registry.
-    Use this for testing dispatch behavior when commands are registered
-    vs. unregistered.
+    Use this for testing dispatch behavior when commands are registered vs.
+    unregistered.
 
     Returns:
         CommandDispatcher: A dispatcher instance.
@@ -678,10 +681,10 @@ def dispatcher(registry):
 def populated_registry(session, filesystem, test_logger):
     """CommandRegistry with all standard commands loaded.
 
-    Creates a registry and uses CommandLoader to load all available
-    commands (cat, cd, echo, ls, pwd, touch, etc.). Use this when
-    testing full command execution or when you need access to
-    registered commands without a full shell.
+    Creates a registry and uses CommandLoader to load all available commands
+    (cat, cd, echo, ls, pwd, touch, etc.). Use this when testing full command
+    execution or when you need access to registered commands without a full
+    shell.
 
     Returns:
         CommandRegistry: A registry with all standard commands.
@@ -712,13 +715,13 @@ def shell_with_commands(
 ):
     """Shell with all standard commands loaded using default fixtures.
 
-    Creates an SNXShell instance using the default session, filesystem,
-    and test_logger fixtures, with all commands loaded via
-    create_shell_with_commands(). This is the primary fixture for
-    command unit tests.
+    Creates an SNXShell instance using the default session, filesystem, and
+    test_logger fixtures, with all commands loaded via
+    create_shell_with_commands(). This is the primary fixture for command unit
+    tests.
 
-    Uses the default session and filesystem fixtures, so tests that
-    need custom filesystem setup should either:
+    Uses the default session and filesystem fixtures, so tests that need custom
+    filesystem setup should either:
     1. Override session/filesystem fixtures, or
     2. Use create_shell_with_commands() directly
 
@@ -735,8 +738,8 @@ def runtime(test_logger, runtime_config):
     """SNXRuntime instance for creating shells with "hello" scenario.
 
     Creates a full SNXRuntime instance that can create sessions via
-    runtime.create_session(). Use this for e2e tests and for tests
-    that need the runtime's session management capabilities.
+    runtime.create_session(). Use this for e2e tests and for tests that need the
+    runtime's session management capabilities.
 
     Returns:
         SNXRuntime: A configured runtime instance.
@@ -755,9 +758,7 @@ async def api_client(app):
     Yields:
         httpx.AsyncClient: Client configured for app testing.
     """
-    transport = ASGITransport(app=app)
-
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
 

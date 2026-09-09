@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import simnux.core.commands.ansi as ansi
+from simnux.core.commands import ansi
 
 
 def _esc(param: str) -> str:

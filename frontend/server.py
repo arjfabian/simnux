@@ -7,12 +7,12 @@ separate router.
 """
 
 import http.server
-import os
+from pathlib import Path
 import sys
 
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8001
-DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+DIRECTORY = Path(__file__).resolve().parent
 
 
 class SPAHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -24,7 +24,7 @@ class SPAHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         clean_path = self.path.split("?")[0]
         translated = self.translate_path(clean_path)
-        if not os.path.isfile(translated):
+        if not Path(translated).is_file():
             self.path = "/index.html"
         super().do_GET()
 

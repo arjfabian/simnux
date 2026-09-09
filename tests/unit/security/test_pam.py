@@ -129,7 +129,10 @@ class TestMalformedCredentials:
                 SNXPasswordCredential(iterations=-5, salt="abcd", password_hash="abcd"),
                 "negative iterations",
             ),
-            (SNXPasswordCredential(salt="abc", password_hash="def"), "odd-length hex fields"),
+            (
+                SNXPasswordCredential(salt="abc", password_hash="def"),
+                "odd-length hex fields",
+            ),
         ],
     )
     def test_verify_fails_safely(self, credential, scenario):

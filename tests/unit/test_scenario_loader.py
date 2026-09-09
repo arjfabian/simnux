@@ -1,7 +1,7 @@
 """Tests for ScenarioLoader — YAML-based scenario file deserialization.
 
-Covers YAML parsing, implicit directory creation, permission presets,
-filesystem bootstrap, contract defaults, and the listing API.
+Covers YAML parsing, implicit directory creation, permission presets, filesystem
+bootstrap, contract defaults, and the listing API.
 """
 
 from pathlib import Path
@@ -99,8 +99,8 @@ def patch_scenarios_dir(monkeypatch):
 class TestScenarioLoader:
     """Scenario loading from YAML: metadata parsing, filesystem bootstrap.
 
-    Uses the ``hello_dir`` fixture (valid YAML) and ``patch_scenarios_dir``
-    to redirect ScenarioLoader to a temp directory.
+    Uses the ``hello_dir`` fixture (valid YAML) and ``patch_scenarios_dir`` to
+    redirect ScenarioLoader to a temp directory.
     """
 
     def test_yaml_loading(self, hello_dir, patch_scenarios_dir):
