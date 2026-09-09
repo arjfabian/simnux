@@ -728,3 +728,54 @@ class TestCreateFile:
 
         assert_not_success(result)
         assert CommandError.NOT_FOUND in result.message
+
+
+class TestFileSizeSemantics:
+    """``SNXNode.size`` stays correct across the VFS content lifecycle."""
+
+    def test_create_and_touch_are_zero(self, filesystem):
+        filesystem.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/b.txt", acting_user=_ROOT_USER)
+        assert filesystem.get_node("/home/user/a.txt").size == 0
+        assert filesystem.get_node("/home/user/b.txt").size == 0
+
+    def test_write_sets_exact_utf8_bytes(self, filesystem):
+        filesystem.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
+        filesystem.write("/home/user/a.txt", "héllo", acting_user=_ROOT_USER)
+        assert filesystem.get_node("/home/user/a.txt").size == 6
+
+    def test_overwrite_reflects_latest_content(self, filesystem):
+        """Size never goes stale across repeated overwrites."""
+        filesystem.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
+        filesystem.write("/home/user/a.txt", "x" * 5, acting_user=_ROOT_USER)
+        assert filesystem.get_node("/home/user/a.txt").size == 5
+        filesystem.write("/home/user/a.txt", "y" * 100, acting_user=_ROOT_USER)
+        assert filesystem.get_node("/home/user/a.txt").size == 100
+        filesystem.write("/home/user/a.txt", "", acting_user=_ROOT_USER)
+        assert filesystem.get_node("/home/user/a.txt").size == 0
+
+    def test_append_grows_by_appended_bytes(self, filesystem):
+        filesystem.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
+        filesystem.append("/home/user/a.txt", "ab", acting_user=_ROOT_USER)
+        filesystem.append("/home/user/a.txt", "c", acting_user=_ROOT_USER)
+        filesystem.append("/home/user/a.txt", "d", acting_user=_ROOT_USER)
+        assert filesystem.get_node("/home/user/a.txt").content == "abcd"
+        assert filesystem.get_node("/home/user/a.txt").size == 4
+
+    def test_directory_size_zero(self, filesystem):
+        assert filesystem.is_directory("/home/user")
+        assert filesystem.get_node("/home/user").size == 0
+
+    def test_direct_content_seed_tracks_size(self, filesystem):
+        """Fixture-style direct seeding stays consistent because size is live."""
+        filesystem.delta_layer["/home/user/seeded.txt"] = SNXNode(
+            path="/home/user/seeded.txt",
+            owner=_ROOT_USER,
+            group=_ROOT_GROUP,
+            content="seeded",
+            permissions=PermissionPresets.FILE_DEFAULT,
+        )
+        node = filesystem.get_node("/home/user/seeded.txt")
+        assert node.size == 6
+        node.content = "seed changed"
+        assert node.size == 12

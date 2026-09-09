@@ -132,6 +132,19 @@ class SNXNode:
 
     permissions: SNXPermissions = field(default_factory=SNXPermissions)
 
+    @property
+    def size(self) -> int:
+        """Byte length of the regular file's UTF-8 encoded content.
+
+        Derived live from ``content`` so it can never go stale: any mutation
+        rebuilds the node with new content, and readers always see the current
+        state. Empty files, directories, and tombstones (``content`` is
+        ``None`` or ``""``) report 0 — directory sizes are not simulated yet.
+        """
+        if not self.content:
+            return 0
+        return len(self.content.encode("utf-8"))
+
 
 @dataclass
 class FSResult:

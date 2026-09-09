@@ -124,16 +124,16 @@ class SNXFileSystem:
         if self._total_bytes_initialized:
             return
         for _path, node in self._all_nodes().items():
-            if not node.is_directory and node.content:
-                self._current_total_bytes += len(node.content.encode("utf-8"))
+            if not node.is_directory:
+                self._current_total_bytes += node.size
         self._total_bytes_initialized = True
 
     def _effective_content_bytes(self, path: str) -> int:
         """Return the byte count of the current effective content for *path*."""
         node = self.get_node(path)
-        if node is None or node.is_directory or not node.content:
+        if node is None:
             return 0
-        return len(node.content.encode("utf-8"))
+        return node.size
 
     def _check_write_limit(self, path: str, new_content: str) -> str | None:
         """Return an error string if the write would exceed byte caps, else None."""

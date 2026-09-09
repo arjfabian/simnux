@@ -96,17 +96,17 @@ class Command(SNXCommand):
 
             return ExitCode.SUCCESS
 
-        lines: list[str] = []
+        rows: list[tuple[str, str, str, str, str]] = []
 
         if show_all:
             target_node = ctx.filesystem.get_node(target)
             if target_node is not None:
-                lines.append(self._format_node(target_node, "."))
+                rows.append(self._long_row(target_node, "."))
             if target != "/":
                 parent = self._parent_path(target)
                 parent_node = ctx.filesystem.get_node(parent)
                 if parent_node is not None:
-                    lines.append(self._format_node(parent_node, ".."))
+                    rows.append(self._long_row(parent_node, ".."))
 
         for node in children:
             name = node.path.split("/")[-1]
@@ -114,10 +114,10 @@ class Command(SNXCommand):
             if name.startswith(".") and not show_all and not show_almost_all:
                 continue
 
-            lines.append(self._format_node(node, name))
+            rows.append(self._long_row(node, name))
 
-        if lines:
-            await stdout.writelines(lines)
+        if rows:
+            await stdout.writelines(self._render_long(rows))
 
         return ExitCode.SUCCESS
 
@@ -130,8 +130,19 @@ class Command(SNXCommand):
         return parent or "/"
 
     @staticmethod
-    def _format_node(node: SNXNode, name: str) -> str:
-        """Render one ``ls -l`` line from the node's in-memory metadata."""
+    def _long_row(node: SNXNode, name: str) -> tuple[str, str, str, str, str]:
+        """Collect the columns needed for one ``ls -l`` line."""
         type_char = "d" if node.is_directory else "-"
-        perms = permissions_symbolic(node.permissions)
-        return f"{type_char}{perms} {node.owner.identifier} {node.group.identifier} {name}"
+        mode = f"{type_char}{permissions_symbolic(node.permissions)}"
+        return (mode, node.owner.identifier, node.group.identifier, str(node.size), name)
+
+    @staticmethod
+    def _render_long(rows: list[tuple[str, str, str, str, str]]) -> list[str]:
+        """Align variable-width columns across all rows before rendering."""
+        owner_width = max(len(owner) for _, owner, _, _, _ in rows)
+        group_width = max(len(group) for _, _, group, _, _ in rows)
+        size_width = max(len(size) for _, _, _, size, _ in rows)
+        return [
+            f"{mode} {owner:<{owner_width}} {group:<{group_width}} {size:>{size_width}} {name}"
+            for mode, owner, group, size, name in rows
+        ]

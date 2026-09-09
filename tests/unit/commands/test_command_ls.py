@@ -129,39 +129,47 @@ class TestPermissionsSymbolic:
 
 
 class TestLsLongFormat:
-    """``ls -l`` renders file type, perms, owner, group, and name."""
+    """``ls -l`` renders file type, perms, size, owner, group, and name."""
 
     pytestmark = pytest.mark.asyncio
 
     async def test_regular_file_644(self, shell_with_commands):
         result = await shell_with_commands.execute("ls -l /home/user")
         assert_success(result)
-        assert "-rw-r--r-- user user notes.txt" in stdout_text(result)
+        assert "-rw-r--r-- 11 user user notes.txt" in stdout_text(result)
+
+    async def test_regular_file_empty_size_zero(self, shell_with_commands):
+        """An empty file reports size 0 in ``ls -l``."""
+        fs = shell_with_commands.filesystem
+        fs.touch("/home/user/empty.txt", acting_user=shell_with_commands.user)
+        result = await shell_with_commands.execute("ls -l /home/user")
+        assert_success(result)
+        assert "-rw-r--r-- 0 user root empty.txt" in stdout_text(result)
 
     async def test_directory_755(self, shell_with_commands):
         result = await shell_with_commands.execute("ls -l /")
         assert_success(result)
-        assert "drwxr-xr-x root root home" in stdout_text(result)
+        assert "drwxr-xr-x 0 root root home" in stdout_text(result)
 
     async def test_file_600(self, shell_with_commands):
         fs = shell_with_commands.filesystem
         fs.chmod("/home/user/notes.txt", 0o600, acting_user=shell_with_commands.user)
         result = await shell_with_commands.execute("ls -l /home/user")
         assert_success(result)
-        assert "-rw------- user user notes.txt" in stdout_text(result)
+        assert "-rw------- 11 user user notes.txt" in stdout_text(result)
 
     async def test_file_000(self, shell_with_commands):
         fs = shell_with_commands.filesystem
         fs.chmod("/home/user/notes.txt", 0o000, acting_user=shell_with_commands.user)
         result = await shell_with_commands.execute("ls -l /home/user")
         assert_success(result)
-        assert "---------- user user notes.txt" in stdout_text(result)
+        assert "---------- 11 user user notes.txt" in stdout_text(result)
 
     async def test_owner_group_identifiers_rendered(self, shell_with_commands):
         """Owner and group are the in-memory ``identifier`` strings."""
         result = await shell_with_commands.execute("ls -l /home/user")
         stdout = stdout_text(result)
-        assert "-rw-r--r-- user user notes.txt" in stdout
+        assert "-rw-r--r-- 11 user user notes.txt" in stdout
         assert "root" not in stdout.split("notes.txt")[0]
 
     async def test_ls_without_l_long_unchanged(self, shell_with_commands):
@@ -194,24 +202,32 @@ class TestLsLongFormat:
         result = await shell_with_commands.execute("ls -la /home/user")
         assert_success(result)
         stdout = stdout_text(result)
-        assert "drwxr-xr-x user user ." in stdout
-        assert "drwxr-xr-x root root .." in stdout
-        assert "-rw-r--r-- user user notes.txt" in stdout
+        assert "drwxr-xr-x 0 user user ." in stdout
+        assert "drwxr-xr-x 0 root root .." in stdout
+        assert "-rw-r--r-- 11 user user notes.txt" in stdout
 
     async def test_long_combined_flag_al_root(self, shell_with_commands):
         """``ls -al /`` shows ``.`` but not ``..`` for the root directory."""
         result = await shell_with_commands.execute("ls -al /")
         assert_success(result)
         stdout = stdout_text(result)
-        assert "drwxr-xr-x root root ." in stdout
+        assert "drwxr-xr-x 0 root root ." in stdout
         assert " .." not in stdout
 
-    async def test_no_size_or_timestamp_columns(self, shell_with_commands):
-        """Each long line has exactly four fields: perms, owner, group, name."""
-        result = await shell_with_commands.execute("ls -l /")
+    async def test_size_column_tracks_content(self, shell_with_commands):
+        """The size column follows the current content of each file."""
+        await shell_with_commands.execute("echo longer content > /home/user/notes.txt")
+        result = await shell_with_commands.execute("ls -l /home/user")
+        assert_success(result)
+        assert "-rw-r--r-- 14 user user notes.txt" in stdout_text(result)
+
+    async def test_no_timestamp_columns(self, shell_with_commands):
+        """Each ``ls -l`` line is type+perms, size, owner, group, name."""
+        result = await shell_with_commands.execute("ls -l /home/user")
         assert_success(result)
         for line in stdout_text(result).splitlines():
             fields = line.split()
-            assert len(fields) == 4
+            assert len(fields) == 5
             assert fields[0].startswith(("d", "-"))
-            assert not fields[1][0].isdigit()
+            assert fields[1].isdigit()
+            assert fields[4] in ("notes.txt", "secret.txt")

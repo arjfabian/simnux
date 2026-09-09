@@ -185,3 +185,44 @@ class TestModeHelpers:
         """FILE_DEFAULT is 0644 on disk within evaluator tested gate semantics."""
         assert mode_from_permissions(PermissionPresets.FILE_DEFAULT) == 0o644
         assert mode_from_permissions(PermissionPresets.DIRECTORY_DEFAULT) == 0o755
+
+
+class TestNodeSize:
+    """``SNXNode.size`` is the live UTF-8 byte length of the file content."""
+
+    def _node(self, content: str | None, is_directory: bool = False) -> SNXNode:
+        return SNXNode(
+            path="/etc/hostname",
+            owner=OWNER,
+            group=TEAM,
+            content=content,
+            is_directory=is_directory,
+            permissions=PermissionPresets.FILE_DEFAULT,
+        )
+
+    def test_ascii_content_bytes(self):
+        assert self._node("hello world").size == 11
+
+    def test_empty_file_zero(self):
+        assert self._node("").size == 0
+
+    def test_none_content_zero(self):
+        assert self._node(None).size == 0
+
+    def test_multibyte_utf8_bytes(self):
+        """Size counts UTF-8 code-unit bytes, not characters."""
+        assert self._node("héllo").size == 6  # é is 2 bytes in UTF-8
+        assert self._node("日本語").size == 9
+        assert self._node("a💡").size == 5  # emoji is 4 bytes
+
+    def test_directory_zero(self):
+        """Directories do not report a simulated filesystem size yet."""
+        assert self._node("", is_directory=True).size == 0
+        assert self._node(None, is_directory=True).size == 0
+
+    def test_node_survives_content_reassignment(self):
+        """Size reflects the current content, so it cannot go stale."""
+        node = self._node("small")
+        assert node.size == 5
+        node.content = "a considerably longer payload"
+        assert node.size == len(b"a considerably longer payload")
