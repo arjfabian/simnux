@@ -7,10 +7,11 @@ from simnux.core.runtime.models import ExitCode
 
 
 class Command(SNXCommand):
-    """Create an empty file or update its existence in the VFS.
+    """Create an empty file or bump an existing file's mtime.
 
-    NOTE: does NOT update access/modification timestamps (no inode metadata
-    layer yet). This is a documented deviation from POSIX touch(1).
+    Models only mtime: creating a file sets its mtime to the current
+    simulated time; touching an existing file updates its mtime while
+    leaving content untouched. atime/ctime are not modeled.
     """
 
     name = "touch"

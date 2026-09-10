@@ -24,6 +24,12 @@ class Command(SNXCommand):
     written target is cleaned up only when it was a brand-new path.
     Pre-existing target files are left intact (not deleted) to avoid
     corrupting the filesystem.
+
+    Divergence: ``mv`` is implemented as copy-then-delete, so it does NOT
+    preserve the source inode's metadata (owner, group, permissions, or
+    mtime). A brand-new target is stamped with the acting user's default
+    ownership and the current mtime; an overwritten target keeps its own
+    identity with a fresh mtime.
     """
 
     name = "mv"

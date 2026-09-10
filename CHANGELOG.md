@@ -6,7 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.5.1] - 2026.09.09
+## [0.5.2] - 2026-09-10
+
+### Added
+- Added filesystem modification timestamps (`mtime`) to `SNXNode`.
+- Added injectable filesystem clock support for deterministic time-dependent behavior.
+- Implemented functional `touch`, including mtime updates for existing files.
+- Added modification date/time display to `ls -l`.
+
+### Changed
+- `cal` now uses the filesystem clock for today's date, enabling deterministic execution.
+- Filesystem mutations that modify file contents or create nodes now update their mtime.
+- Documented that SIMNUX models `mtime` only; access time and change time are not currently modeled.
+- Nodes without mtime metadata are rendered as `Jan  1  1970` by `ls -l`.
+
+### Tests
+- Added deterministic timestamp coverage for filesystem mutations, `touch`, `ls -l`, and `cal`.
+
+---
+
+## [0.5.1] - 2026-09-09
 
 ### Added
 
@@ -24,7 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.5.0] - 2026.09.06
+## [0.5.0] - 2026-09-06
 
 ### Added
 
@@ -66,7 +85,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.4.6] - 2026.09.05
+## [0.4.6] - 2026-09-05
 
 ### Added
 

@@ -20,10 +20,7 @@ def _month_lines(year: int, month: int) -> list[str]:
     return _CAL.formatmonth(year, month).splitlines()
 
 
-def _highlight_today(lines: list[str], year: int, month: int) -> list[str]:
-    today = datetime.date.today()
-    if today.year != year or today.month != month:
-        return lines
+def _highlight_today(lines: list[str], today: datetime.date) -> list[str]:
     day = today.day
     cell = f" {day} " if day < 10 else f"{day} "
     day_part = cell.rstrip()
@@ -94,7 +91,7 @@ class Command(SNXCommand):
         flags = self.parsed_args.flags if self.parsed_args else {}
         pos = self.parsed_args.positional if self.parsed_args else (self.args or [])
 
-        today = datetime.date.today()
+        today = ctx.filesystem.now().date()
         year = today.year
         month = today.month
         show_year = bool(flags.get("year"))
@@ -137,7 +134,7 @@ class Command(SNXCommand):
         else:
             lines = _month_lines(year, month)
             if year == today.year and month == today.month:
-                lines = _highlight_today(lines, year, month)
+                lines = _highlight_today(lines, today)
 
         for line in lines:
             await stdout.write(f"{line}\n")

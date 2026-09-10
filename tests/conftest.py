@@ -204,7 +204,7 @@ def create_filesystem(minimal_fs):
 
     Returns:
         A factory function with signature:
-            factory(base_layer=None) -> SNXFileSystem
+            factory(base_layer=None, *, clock=None) -> SNXFileSystem
 
     Example:
         def test_filesystem_write(create_filesystem, fs_with_home):
@@ -213,8 +213,11 @@ def create_filesystem(minimal_fs):
             ...
     """
 
-    def factory(base_layer=None):
-        return SNXFileSystem(base_layer=dict(base_layer or minimal_fs))
+    def factory(base_layer=None, *, clock=None):
+        return SNXFileSystem(
+            base_layer=dict(base_layer or minimal_fs),
+            clock=clock,
+        )
 
     return factory
 

@@ -1,6 +1,8 @@
 """Test helper functions and utilities for SIMNUX test suite."""
 
 import asyncio
+from collections.abc import Callable
+import datetime
 import logging
 
 from simnux.core.commands.dispatcher import CommandDispatcher
@@ -117,6 +119,23 @@ def create_shell_with_commands(
     shell.dispatcher = CommandDispatcher(registry=registry, limits=shell.limits)
 
     return shell
+
+
+def make_command_shell(
+    base_layer: dict[str, SNXNode],
+    logger: logging.Logger,
+    *,
+    clock: Callable[[], datetime.datetime] | None = None,
+) -> SNXShell:
+    """Build a full command shell over a fresh filesystem in one step.
+
+    The filesystem is constructed through the public
+    ``SNXFileSystem(clock=...)`` injection, so tests can pin the simulated
+    time deterministically without mutating private state.
+    """
+    filesystem = SNXFileSystem(base_layer=dict(base_layer), clock=clock)
+    shell = make_shell(filesystem, logger)
+    return create_shell_with_commands(shell, filesystem, logger)
 
 
 def assert_success(result):

@@ -24,6 +24,8 @@ explicitly writable directory) may create/delete entries there.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from datetime import datetime
 import logging
 from pathlib import PurePosixPath
 import posixpath
@@ -59,6 +61,7 @@ class SNXFileSystem:
         max_file_bytes: int = 0,
         max_total_bytes: int = 0,
         membership: SNXGroupMembership | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.base_layer = base_layer
         self.delta_layer: dict[str, SNXNode] = {}
@@ -73,12 +76,18 @@ class SNXFileSystem:
         self._membership = membership or SNXGroupMembership()
         self.permissions = PermissionEvaluator(self._membership)
 
+        self._clock = clock or datetime.now
+
         self._total_bytes_initialized = False
         self._current_total_bytes = 0
 
     def _log(self, message: str) -> None:
         if self.logger:
             self.logger.info(message)
+
+    def now(self) -> datetime:
+        """Current simulated time used for mtime stamping; injectable for tests."""
+        return self._clock()
 
     # ── Permission helpers ─────────────────────────────────────────────
 
@@ -304,6 +313,7 @@ class SNXFileSystem:
             owner=acting_user,
             group=self._owner_group(acting_user),
             permissions=PermissionPresets.FILE_DEFAULT,
+            modified_at=self.now(),
         )
 
         self.delta_layer[path] = node
@@ -351,6 +361,7 @@ class SNXFileSystem:
             owner=acting_user,
             group=self._owner_group(acting_user),
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
+            modified_at=self.now(),
         )
 
         self.delta_layer[path] = node
@@ -416,6 +427,7 @@ class SNXFileSystem:
             owner=existing.owner,
             group=existing.group,
             permissions=existing.permissions,
+            modified_at=self.now(),
         )
 
         self.delta_layer[path] = node
@@ -462,6 +474,7 @@ class SNXFileSystem:
             owner=existing.owner,
             group=existing.group,
             permissions=existing.permissions,
+            modified_at=self.now(),
         )
 
         self.delta_layer[path] = node
@@ -551,12 +564,16 @@ class SNXFileSystem:
         return FSResult(exit_code=ExitCode.SUCCESS)
 
     def touch(self, path: str, acting_user: SNXUser) -> FSResult:
-        """Idempotent file creation (POSIX divergence: no timestamp update).
+        """Idempotent file creation with mtime update.
 
         Creating a missing file assigns ownership to *acting_user* with
         ``FILE_DEFAULT`` permissions and requires ``WRITE + EXECUTE`` on the
         containing directory. On an existing regular file the modifying
-        write permission is required.
+        write permission is required and its mtime is bumped to the current
+        simulated time (content, owner, group, and permissions preserved).
+        Only mtime is modeled — atime/ctime are not.
+
+        On directories this is a permission-gated no-op, as before.
         """
         path = self.normalize_path(path)
         node = self.get_node(path)
@@ -580,6 +597,7 @@ class SNXFileSystem:
                 content="",
                 is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
+                modified_at=self.now(),
             )
             self.delta_layer[path] = node
 
@@ -588,6 +606,17 @@ class SNXFileSystem:
 
         if not self.permissions.check(acting_user, node, Access.WRITE):
             return self._denied()
+
+        node = SNXNode(
+            path=node.path,
+            owner=node.owner,
+            group=node.group,
+            content=node.content,
+            is_directory=False,
+            permissions=node.permissions,
+            modified_at=self.now(),
+        )
+        self.delta_layer[path] = node
 
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
@@ -700,8 +729,9 @@ class SNXFileSystem:
         """Change the permission bits of an existing node.
 
         Only *mode* is mutated: path, owner, group, content, directory state,
-        and deleted state are preserved. The node owner (or root) may chmod;
-        any other user is denied. Files are never created here.
+        deleted state, and mtime are preserved (Unix updates ctime here, which
+        is not modeled). The node owner (or root) may chmod; any other user is
+        denied. Files are never created here.
         """
         path = self.normalize_path(path)
         node = self.get_node(path)
@@ -725,6 +755,7 @@ class SNXFileSystem:
             is_directory=node.is_directory,
             deleted=node.deleted,
             permissions=permissions,
+            modified_at=node.modified_at,
         )
 
         self.delta_layer[path] = new_node

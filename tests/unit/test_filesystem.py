@@ -5,6 +5,8 @@ get/exists/read/write/touch/delete operations, directory listing,
 and overlay integrity guarantees (base-layer immutability).
 """
 
+import datetime
+
 import pytest
 
 from simnux.core.commands.errors import CommandError
@@ -19,6 +21,8 @@ from tests.helpers import assert_success
 
 _ROOT_USER = SNXUser(0, "root")
 _ROOT_GROUP = SNXGroup(0, "root")
+
+_FIXED_NOW = datetime.datetime(2024, 6, 15, 9, 30, 0)
 
 
 class TestNormalizePath:
@@ -779,3 +783,78 @@ class TestFileSizeSemantics:
         assert node.size == 6
         node.content = "seed changed"
         assert node.size == 12
+
+
+class TestNodeMtime:
+    """``modified_at`` carries Unix mtime semantics across VFS mutations."""
+
+    def test_create_file_stamps_mtime(self, base_layer, create_filesystem):
+        fs = create_filesystem(
+            base_layer=base_layer,
+            clock=lambda: _FIXED_NOW,
+        )
+        fs.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
+        assert fs.get_node("/home/user/a.txt").modified_at == _FIXED_NOW
+
+    def test_create_directory_stamps_mtime(self, base_layer, create_filesystem):
+        fs = create_filesystem(
+            base_layer=base_layer,
+            clock=lambda: _FIXED_NOW,
+        )
+        fs.create_directory("/home/user/d", acting_user=_ROOT_USER)
+        assert fs.get_node("/home/user/d").modified_at == _FIXED_NOW
+
+    def test_write_stamps_mtime(self, base_layer, create_filesystem):
+        fs = create_filesystem(
+            base_layer=base_layer,
+            clock=lambda: _FIXED_NOW,
+        )
+        fs.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
+        fs.write("/home/user/a.txt", "hi", acting_user=_ROOT_USER)
+        assert fs.get_node("/home/user/a.txt").modified_at == _FIXED_NOW
+
+    def test_append_stamps_mtime(self, base_layer, create_filesystem):
+        fs = create_filesystem(
+            base_layer=base_layer,
+            clock=lambda: _FIXED_NOW,
+        )
+        fs.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
+        fs.append("/home/user/a.txt", "x", acting_user=_ROOT_USER)
+        fs.append("/home/user/a.txt", "y", acting_user=_ROOT_USER)
+        assert fs.get_node("/home/user/a.txt").modified_at == _FIXED_NOW
+
+    def test_touch_creates_and_updates_mtime(self, base_layer, create_filesystem):
+        current = _FIXED_NOW
+        fs = create_filesystem(
+            base_layer=base_layer,
+            clock=lambda: current,
+        )
+        fs.touch("/home/user/a.txt", acting_user=_ROOT_USER)
+        assert fs.get_node("/home/user/a.txt").modified_at == current
+
+        current = _FIXED_NOW + datetime.timedelta(hours=1)
+        fs.touch("/home/user/a.txt", acting_user=_ROOT_USER)
+        node = fs.get_node("/home/user/a.txt")
+        assert node.modified_at == current
+        assert node.content == ""
+
+    def test_chmod_preserves_mtime(self, filesystem):
+        """chmod mutates only permission bits; mtime is left untouched."""
+        filesystem.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
+        filesystem.write("/home/user/a.txt", "data", acting_user=_ROOT_USER)
+        stamped = filesystem.get_node("/home/user/a.txt").modified_at
+        filesystem.chmod("/home/user/a.txt", 0o600, acting_user=_ROOT_USER)
+        node = filesystem.get_node("/home/user/a.txt")
+        assert node.modified_at == stamped
+
+    def test_base_nodes_default_to_no_mtime(self, filesystem):
+        """Nodes constructed without mtime metadata keep ``modified_at`` None."""
+        assert filesystem.get_node("/home/user").modified_at is None
+
+    def test_injected_clock_is_used(self, base_layer, create_filesystem):
+        """The ``clock`` callable is the single simulated ``now`` source."""
+        fs = create_filesystem(
+            base_layer=base_layer,
+            clock=lambda: _FIXED_NOW,
+        )
+        assert fs.now() == _FIXED_NOW

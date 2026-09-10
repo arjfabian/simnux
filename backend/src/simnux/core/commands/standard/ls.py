@@ -1,3 +1,6 @@
+from datetime import date
+from datetime import datetime
+
 from simnux.core.commands.errors import CommandError
 from simnux.core.commands.models import CommandContext
 from simnux.core.commands.runtime import SNXCommand
@@ -6,6 +9,22 @@ from simnux.core.commands.streams import AsyncStreamWriter
 from simnux.core.filesystem.models import SNXNode
 from simnux.core.filesystem.models import permissions_symbolic
 from simnux.core.runtime.models import ExitCode
+
+
+_EPOCH = datetime(1970, 1, 1)
+
+
+def _format_mtime(modified_at: datetime | None, today: date) -> str:
+    """Render an mtime for ``ls -l`` (GNU-style, space-padded day).
+
+    Same year as *today* → ``May  9 14:22``; older → ``May  9  2025``.
+    Nodes predating mtime metadata render as the epoch (``Jan  1  1970``).
+    """
+    if modified_at is None:
+        modified_at = _EPOCH
+    if modified_at.year == today.year:
+        return f"{modified_at:%b} {modified_at.day:>2} {modified_at:%H:%M}"
+    return f"{modified_at:%b} {modified_at.day:>2}  {modified_at.year}"
 
 
 class Command(SNXCommand):
@@ -27,7 +46,7 @@ class Command(SNXCommand):
         "long": {
             "flags": ["-l", "--long"],
             "type": bool,
-            "help": "include file type, permission bits, owner, and group",
+            "help": "include file type, permission bits, owner, group, size, and mtime",
         },
     }
 
@@ -96,17 +115,19 @@ class Command(SNXCommand):
 
             return ExitCode.SUCCESS
 
-        rows: list[tuple[str, str, str, str, str]] = []
+        today = ctx.filesystem.now().date()
+
+        rows: list[tuple[str, str, str, str, str, str]] = []
 
         if show_all:
             target_node = ctx.filesystem.get_node(target)
             if target_node is not None:
-                rows.append(self._long_row(target_node, "."))
+                rows.append(self._long_row(target_node, ".", today))
             if target != "/":
                 parent = self._parent_path(target)
                 parent_node = ctx.filesystem.get_node(parent)
                 if parent_node is not None:
-                    rows.append(self._long_row(parent_node, ".."))
+                    rows.append(self._long_row(parent_node, "..", today))
 
         for node in children:
             name = node.path.split("/")[-1]
@@ -114,7 +135,7 @@ class Command(SNXCommand):
             if name.startswith(".") and not show_all and not show_almost_all:
                 continue
 
-            rows.append(self._long_row(node, name))
+            rows.append(self._long_row(node, name, today))
 
         if rows:
             await stdout.writelines(self._render_long(rows))
@@ -130,19 +151,24 @@ class Command(SNXCommand):
         return parent or "/"
 
     @staticmethod
-    def _long_row(node: SNXNode, name: str) -> tuple[str, str, str, str, str]:
+    def _long_row(
+        node: SNXNode,
+        name: str,
+        today: date,
+    ) -> tuple[str, str, str, str, str, str]:
         """Collect the columns needed for one ``ls -l`` line."""
         type_char = "d" if node.is_directory else "-"
         mode = f"{type_char}{permissions_symbolic(node.permissions)}"
-        return (mode, node.owner.identifier, node.group.identifier, str(node.size), name)
+        mtime = _format_mtime(node.modified_at, today)
+        return (mode, node.owner.identifier, node.group.identifier, str(node.size), mtime, name)
 
     @staticmethod
-    def _render_long(rows: list[tuple[str, str, str, str, str]]) -> list[str]:
+    def _render_long(rows: list[tuple[str, str, str, str, str, str]]) -> list[str]:
         """Align variable-width columns across all rows before rendering."""
-        owner_width = max(len(owner) for _, owner, _, _, _ in rows)
-        group_width = max(len(group) for _, _, group, _, _ in rows)
-        size_width = max(len(size) for _, _, _, size, _ in rows)
+        owner_width = max(len(owner) for _, owner, _, _, _, _ in rows)
+        group_width = max(len(group) for _, _, group, _, _, _ in rows)
+        size_width = max(len(size) for _, _, _, size, _, _ in rows)
         return [
-            f"{mode} {owner:<{owner_width}} {group:<{group_width}} {size:>{size_width}} {name}"
-            for mode, owner, group, size, name in rows
+            f"{mode} {owner:<{owner_width}} {group:<{group_width}} {size:>{size_width}} {mtime:<12} {name}"
+            for mode, owner, group, size, mtime, name in rows
         ]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import field
+from datetime import datetime
 from enum import Enum
 
 from simnux.core.runtime.models import ExitCode
@@ -118,7 +119,12 @@ def permissions_symbolic(permissions: SNXPermissions) -> str:
 
 @dataclass
 class SNXNode:
-    """File or directory node. Path must be absolute and normalized."""
+    """File or directory node. Path must be absolute and normalized.
+
+    ``modified_at`` carries Unix mtime semantics only: it is set when the
+    node's content/entry is created or rewritten and rendered by ``ls -l``.
+    atime, ctime, and birth/creation timestamps are not modeled.
+    """
 
     path: str
 
@@ -131,6 +137,8 @@ class SNXNode:
     deleted: bool = False
 
     permissions: SNXPermissions = field(default_factory=SNXPermissions)
+
+    modified_at: datetime | None = None
 
     @property
     def size(self) -> int:
