@@ -26,22 +26,26 @@ context from the shell and produces `CommandResult`s.
 
 ## Relationships
 
-* The shell builds a `CommandContext` (session reference, filesystem,
-  dispatcher) and calls the dispatcher.
+* The shell builds a `CommandContext` (shell reference, filesystem,
+  execution context, dispatcher) and calls the dispatcher.
 * Commands interact with the simulated world through that context:
-  filesystem, and the scenario state reachable via the shell/session.
+  filesystem (passing `context.execution_context` as the authorization
+  subject) and the scenario state reachable via the shell.
 * The dispatch flow stays within the responsibility boundary
   `SNXSession -> SNXShell -> command pipeline -> SNXScenario` described in the
   root document. Do not redesign the command system.
 
 ## Invariants
 
-* A command never treats the session object as an identity: the current Linux
-  user is a scenario-scoped `SNXUser` from shell interaction state, not
-  `session.username` or any session-bound identity field.
+* A command never treats the session object as an identity: the current
+  subject is the scenario-scoped `ExecutionContext` from
+  `CommandContext.execution_context`, not `session.username` or any
+  session-bound identity field.
 * Consent/prompt style or identity-dependent commands (`whoami`, prompt
-  rendering, home-directory expansion) read the acting user from the shell's
-  interaction state / scenario identities.
+  rendering, home-directory expansion) read the subject's effective identity
+  from `ctx.execution_context.credentials.effective_user`.
+* All filesystem operations in commands pass `execution=ctx.execution_context`
+  (never a bare `SNXUser` and never `ctx.shell.user`).
 * Commands resolve simulated users/groups against the owning `SNXScenario`, not
   against a global registry.
 
@@ -54,23 +58,30 @@ context from the shell and produces `CommandResult`s.
 
 ## Terminology
 
-* **CommandContext** — the bounded set of references (session/shell, filesystem,
-  dispatcher) a command needs; not a grab-bag for global state.
-* **acting identity** — the scenario-local user the command runs as.
+* **CommandContext** — the bounded set of references (shell, filesystem,
+  execution context, dispatcher) a command needs; not a grab-bag for global
+  state.
+* **execution context** — the scenario-scoped subject (`security/execution`)
+  the command runs as and passes to the VFS.
 * **action/result** — structured `CommandResult` output with exit code.
 
 ## Common mistakes / conflations
 
-* Reading the current Linux user off the session object or the scenario
-  definition (either is the `username` conflation that was removed).
+* Reading the current user off the session object or the scenario definition
+  (either is the `username` conflation that was removed); use
+  `ctx.execution_context`.
 * Reaching from a command into scenario internals that the shell should
   mediate.
 * Storing per-interaction state on the scenario or session to make a command
   work.
+* Passing `ctx.shell.user` to filesystem/stream operations after the migration
+  to `ExecutionContext`.
 
 ## Current-state note
 
-Commands receive a `CommandContext` whose `shell` is the source of
-interaction state: `whoami` and prompt rendering read `ctx.shell.user` /
-`ctx.shell.current_directory`. This matches the target contract; keep it. Do
-not reach for session-bound state or redesign the pipeline.
+Commands receive a `CommandContext` whose `execution_context` is the source of
+the subject for authorization: filesystem calls and `FileStreamWriter` pass
+`execution=ctx.execution_context`, and display commands read
+`ctx.execution_context.credentials.effective_user`. This matches the target
+contract; keep it. Do not reach for session-bound state or redesign the
+pipeline.

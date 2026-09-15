@@ -23,7 +23,8 @@ treated as immutable at runtime.
 `SNXScenario` must NOT contain any mutable interaction state belonging to a
 particular session/shell:
 
-* current Linux user (the active identity is selected by `SNXShell`);
+* current Linux user (the active identity is selected by `SNXShell` and turned
+  into execution credentials by the composition root);
 * current working directory of a shell;
 * shell history / environment of a specific interaction;
 * pending input / suspended command state;
@@ -40,8 +41,8 @@ SNXScenario 1 ─── 1 SNXShell ─── N ─── 1 SNXSession
   shell may in turn belong to an `SNXSession`).
 * The same scenario definition may conceptually back different shells/sessions.
 * `SNXUser`/`SNXGroup` instances are owned by the scenario and referenced by
-  filesystem nodes (`SNXNode.owner`, `SNXNode.group`) and by a shell as its
-  current user.
+  filesystem nodes (`SNXNode.owner`, `SNXNode.group`) and by a shell's
+  execution credentials.
 
 ## Invariants
 
@@ -50,6 +51,8 @@ SNXScenario 1 ─── 1 SNXShell ─── N ─── 1 SNXSession
 * Two shells referencing the same (or equivalent) scenario never share
   interaction state — that state lives in each `SNXShell`.
 * A Linux identity is only valid within the scenario that owns it.
+* The scenario provides the *identities*; credentials/contexts built from them
+  (`security/execution`) belong to the composition root and the shell.
 
 ## Dependency direction
 
@@ -82,6 +85,10 @@ SNXScenario 1 ─── 1 SNXShell ─── N ─── 1 SNXSession
 
 The active `SNXUser` is selected in `SNXRuntime.create_session`
 (`core/runtime/runtime.py`) — the first non-`root` user by `identifier` — and
-passed into `SNXShell`. `scenario.username` has been removed. The selected user
-is carried by the shell's interaction state (per this contract), not the
-app-level `SNXSession`.
+turned into an `ExecutionContext` (via `ExecutionContext.for_user` with the
+scenario's group membership) that is passed into `SNXShell`.
+`scenario.username` has been removed. The execution credentials/context are
+carried by the shell's interaction state (per this contract), not the
+app-level `SNXSession`. Objective evaluation reads world state through a
+system-observer execution context (the scenario's root user, falling back to
+the shell's context) built in `core/scenarios/evaluator.py`.

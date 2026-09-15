@@ -13,7 +13,8 @@ interactive shell attached to exactly one scenario.
 
 `SNXShell` owns all mutable **interaction state** for its scenario:
 
-* current Linux user (a scenario-scoped `SNXUser`);
+* current execution context (the scenario-scoped credentials under which this
+  interaction's work runs — an `ExecutionContext` from `security/execution`);
 * current working directory;
 * environment variables;
 * command history;
@@ -29,6 +30,8 @@ interactive shell attached to exactly one scenario.
   interaction context, not a client account.
 * The global session's shell set / dispatch responsibility (that is
   `SNXSession`).
+* The authorization decision — the shell carries an `ExecutionContext` and
+  passes it to commands/VFS, but never decides who may act.
 
 ## Relationships
 
@@ -41,13 +44,15 @@ SNXShell 1 ─── 1 SNXScenario
 * Multiple shells may exist under one `SNXSession`, each against a different
   scenario; they keep independent interaction state (e.g. shell "hello" at
   `/etc` while shell "mission-1" is at `/home/user`).
-* The current Linux user must be a `SNXUser` drawn from the shell's scenario —
-  never a client identity.
+* The current execution context must be built from `SNXUser`/`SNXGroup`
+  drawn from the shell's scenario — never a client identity. The shell may
+  expose the effective identity as a display convenience (`user` property),
+  but commands and the VFS authorize via `execution_context`.
 
 ## Invariants
 
 * Everything describing "where this particular interaction currently is"
-  (cwd, current user, history, env, pending input, progress) belongs to
+  (cwd, execution context, history, env, pending input, progress) belongs to
   `SNXShell`.
 * Everything describing "what the simulated world contains" belongs to
   `SNXScenario`.
@@ -64,11 +69,13 @@ SNXShell 1 ─── 1 SNXScenario
 
 ## Terminology
 
-* **interaction state** — owned here: cwd, current user, history, env,
+* **interaction state** — owned here: cwd, execution context, history, env,
   pending input, progress.
 * **world state** — owned by `SNXScenario`: definition, filesystem,
   identities.
-* **current Linux user** — the scenario-scoped `SNXUser` this shell acts as.
+* **execution context** — the scenario-scoped `ExecutionContext` this shell
+  acts as (whose work is performed); the authorization subject passed to
+  commands and the VFS.
 
 ## Common mistakes / conflations
 
@@ -76,21 +83,24 @@ SNXShell 1 ─── 1 SNXScenario
   `SNXScenario`, it does not re-host the world.
 * Making `SNXShell` act as the global client session (one session can hold
   many shells).
-* Representing the acting Linux user with anything other than a scenario
-  `SNXUser`.
+* Representing the acting context with anything other than a scenario-derived
+  `ExecutionContext` from `security/execution`.
+* Building credentials ad hoc inside the shell; the shell is given its initial
+  `ExecutionContext` by the composition root.
 * Commands or the prompt reading the current user through the session object
-  (`session.user`); the source of truth is shell interaction state.
+  (`session.user`); the source of truth is shell interaction state (
+  `shell.execution_context`).
 
 ## Current-state note
 
 The rewiring has landed. `SNXShell` (`core/shell/runtime.py`) now owns all
-interaction state directly (`user`, `current_directory`, `environment`,
-`history`, `pending_input`/`pending_state`, task progress) and no longer reads
-it through a session reference. `CommandContext.shell` is the source of
-interaction state for commands and prompt rendering. `SNXRuntime` attaches one
-shell per scenario identifier to an app-level `SNXSession`; reusing `session_id`
-with a different scenario keeps both shells alive under the same session. The
-remaining gap is that the API still routes by `session_id` alone (scenario
-selection is documented but not yet implemented), so externally only one shell
-per session is reached today. Keep that; do not rename classes or add
-`SNXScenarioRun`.
+interaction state directly (`execution_context`, `current_directory`,
+`environment`, `history`, `pending_input`/`pending_state`, task progress) and
+no longer reads it through a session reference. `CommandContext.shell` /
+`CommandContext.execution_context` are the source of interaction state for
+commands and prompt rendering. `SNXRuntime` attaches one shell per scenario
+identifier to an app-level `SNXSession`; reusing `session_id` with a different
+scenario keeps both shells alive under the same session. The remaining gap is
+that the API still routes by `session_id` alone (scenario selection is
+documented but not yet implemented), so externally only one shell per session
+is reached today. Keep that; do not rename classes or add `SNXScenarioRun`.

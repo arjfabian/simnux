@@ -21,7 +21,8 @@ SNXSession
   more `SNXShell` instances.
 * `SNXShell` — one interactive shell attached to exactly one `SNXScenario`. It
   owns the mutable interaction state required to talk to that scenario
-  (current Linux user, cwd, history, environment, pending input, progress).
+  (current execution context, cwd, history, environment, pending input,
+  progress).
 * `SNXScenario` — one simulated Linux world: the scenario definition and its
   scenario-scoped entities (hostname, users, groups, filesystem, objectives,
   triggers, configuration).
@@ -46,7 +47,10 @@ Future changes MUST use these terms with these meanings:
 | shell (`SNXShell`) | Per-scenario interaction context owned by a session. |
 | scenario (`SNXScenario`) | Immutable simulated Linux world; scenario-scoped entity container. |
 | simulated Linux identity (`SNXUser`, `SNXGroup`) | Scenario-scoped identity inside a simulated world. NOT a SIMNUX client account. |
-| interaction state | Where "this particular interaction currently is": cwd, current user, history, env, pending input, progress. Owned by `SNXShell`. |
+| execution credentials | The scenario-scoped identity and group set under which a specific piece of work is performed (who an operation runs as): real/effective identity, primary + supplementary groups, reserved privilege information. Owned by `security/`, held by `SNXShell` via the current execution context. |
+| execution context | The security state under which work is performed: current execution credentials (extensible toward a future execution view / filesystem-root restriction). Owned by `SNXShell`; commands and the VFS receive it as the authorization subject. |
+| authorization | The security-layer decision of whether an execution context may perform an abstract requested action (`AccessRight`) on a protected resource (owner/group/permission profile). Owned by `security/`; never by sessions, shells, commands, or the filesystem. |
+| interaction state | Where "this particular interaction currently is": current execution context, cwd, history, env, pending input, progress. Owned by `SNXShell`. |
 | world state | What "the simulated world contains": scenario definition, filesystem, identities. Owned by `SNXScenario`. |
 | session token | Identifies the SIMNUX session. Never identifies a Linux user and never identifies a scenario. |
 | shell dispatch | The act of `SNXSession` selecting the correct `SNXShell` for a request. |
@@ -56,10 +60,11 @@ Future changes MUST use these terms with these meanings:
 
 | Component | Owns | Must NOT own |
 | --- | --- | --- |
-| `SNXSession` | session token/identifier; the set of `SNXShell` instances; shell dispatch. | Linux users/groups, cwd, history, environment, filesystem state, scenario objectives/progress, scenario-specific state. |
-| `SNXShell` | all mutable interaction state for its scenario (see interaction state above). | scenario definitions, scenario world state, client authentication/session identity. |
+| `SNXSession` | session token/identifier; the set of `SNXShell` instances; shell dispatch. | Linux users/groups, execution credentials/context, cwd, history, environment, filesystem state, scenario objectives/progress, scenario-specific state. |
+| `SNXShell` | all mutable interaction state for its scenario (see interaction state above), including the current execution context. | scenario definitions, scenario world state, client authentication/session identity, authorization policy. |
 | `SNXScenario` | scenario definition and scenario-scoped entities (see world state above). | any interaction state belonging to a particular session/shell. |
 | `SNXUser`/`SNXGroup` | a scenario-local Linux identity (`user_id`/`group_id` + `identifier`). | client identity, authentication, session state. |
+| `security/` (identity, execution, authorization) | scenario-local identity primitives; execution credentials and execution context; the authorization policy over abstract protected resources. | filesystem implementation (nodes, paths, ownership storage), commands, session/shell state, client identity. |
 
 ## Dependency direction
 
@@ -70,13 +75,19 @@ Future changes MUST use these terms with these meanings:
   `scenarios/`; `scenarios/` defines filesystem base state and identities;
   `filesystem/` and `scenarios/` reference `security/` identity primitives;
   `commands/` receives context built by the shell.
+* Within `security/`: execution (credentials + context) depends on identity
+  primitives; authorization depends on execution. Execution context/credentials
+  `↓` authorization `↓` VFS: the filesystem constructs abstract authorization
+  requests over its node state and asks authorization whether an execution
+  context may perform the requested action. The filesystem never defines
+  execution identity or privilege semantics.
 * `security/` is a leaf: it MUST NOT import any SIMNUX module.
 
 Do not move concepts between these boundaries merely to simplify imports.
 
 ## Boundaries
 
-* `backend/src/simnux/security/` — scenario-local identity primitives.
+* `backend/src/simnux/security/` — scenario-local identity primitives; execution credentials/context; authorization policy.
 * `backend/src/simnux/core/scenarios/` — immutable scenario definitions loaded from YAML.
 * `backend/src/simnux/core/shell/` — scenario interaction state and behavior.
 * `backend/src/simnux/core/sessions/` — the global SIMNUX client/backend session.
@@ -99,8 +110,9 @@ behavior or session routing.
 
 The session/shell/scenario rewiring has landed. `SNXSession`
 (`core/sessions/runtime.py`) is a shell router (`session_id` + `shells` dict)
-owning no interaction state; `SNXShell` owns all interaction state (user, cwd,
-env, history, pending input/progress); `CommandContext.shell` is the source of
+owning no interaction state; `SNXShell` owns all interaction state (execution
+context, cwd, env, history, pending input/progress);
+`CommandContext.shell`/`CommandContext.execution_context` are the source of
 interaction state for commands and prompt rendering. Recognition of drift that
 remains:
 

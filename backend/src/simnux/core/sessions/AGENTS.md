@@ -51,8 +51,8 @@ SNXSession 1 ─── N SNXShell ─── 1 SNXScenario
   scenario.
 * One session -> zero or more shells; each shell belongs to exactly one
   session and exactly one scenario.
-* `SNXSession` must never expose `user`, `cwd`, `history`, or other
-  interaction state as its own fields/properties.
+* `SNXSession` must never expose `user`, `execution credentials/context`,
+  `cwd`, `history`, or other interaction state as its own fields/properties.
 
 ## Dependency direction
 
@@ -72,8 +72,8 @@ SNXSession 1 ─── N SNXShell ─── 1 SNXScenario
 
 ## Common mistakes / conflations
 
-* Storing `current_directory`, `history`, or `user` on `SNXSession`. These are
-  `SNXShell` interaction state.
+* Storing `current_directory`, `history`, `user`, or an execution
+  context/credentials on `SNXSession`. These are `SNXShell` interaction state.
 * Exposing the session as a Linux identity (`session.username` and similar).
   Simulated Linux identity flows from `SNXScenario` identities.
 * Adding a new "scenario run" abstraction because state currently sits in the
@@ -87,9 +87,10 @@ SNXSession 1 ─── N SNXShell ─── 1 SNXScenario
 The rewiring has landed: `SNXSession` is a pure shell router (`session_id` +
 `shells` dict keyed by shell identifier via `add_shell`/`get_shell`/`remove_shell`/
 `active_shells`) and carries no scenario-bound interaction state. `SNXShell`
-owns all interaction state (user, cwd, env, history, pending input, progress),
-and `CommandContext.shell` is the source of interaction state for commands and
-prompt rendering. `SNXRuntime` (`core/runtime/runtime.py`) still keys its
+owns all interaction state (execution context, cwd, env, history, pending
+input, progress), and `CommandContext.shell`/`CommandContext.execution_context`
+are the source of interaction state for commands and prompt rendering.
+`SNXRuntime` (`core/runtime/runtime.py`) still keys its
 session index by a single `session_id` (the app-level session) and attaches one
 shell per scenario identifier to it; reusing `session_id` with a different
 scenario attaches a second shell so both survive. The API still routes by
