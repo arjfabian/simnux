@@ -49,6 +49,6 @@ class TestRegressionSnapshotUUIDConsistency:
             identifier="exec-test",
         )
         fs.create_file("/home/user/new.txt")
-        fs.write("/home/user/new.txt", content="test", acting_user=shell.user)
+        fs.write("/home/user/new.txt", content="test", execution=shell.execution_context)
         snap = shell.get_snapshot("exec-test")
         assert "/home/user/new.txt" in snap.filesystem

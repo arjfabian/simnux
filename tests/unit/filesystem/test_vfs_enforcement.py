@@ -3,15 +3,17 @@
 Exercises the centralized enforcement gates in ``SNXFileSystem``: ``read``
 (READ), ``write``/``append`` (WRITE), ``touch`` (WRITE on existing file),
 ``list_directory`` (READ on directory), ``validate_directory`` (EXECUTE on
-directory), and ``chmod`` (owner-or-root authorization). Uses real identity
-objects and an injected ``SNXGroupMembership``, matching runtime wiring.
+directory), and ``chmod`` (owner-or-root authorization). Uses real execution
+contexts (``ExecutionContext``) built from scenario-local identities and
+membership, matching runtime wiring.
 """
 
 from simnux.core.commands.errors import CommandError
 from simnux.core.filesystem.models import PermissionPresets
 from simnux.core.filesystem.models import SNXNode
-from simnux.core.filesystem.permissions import Access
 from simnux.core.filesystem.vfs import SNXFileSystem
+from simnux.security.authorization.models import Access
+from simnux.security.execution.models import ExecutionContext
 from simnux.security.groups.membership import SNXGroupMembership
 from simnux.security.groups.models import SNXGroup
 from simnux.security.users.models import SNXUser
@@ -28,6 +30,11 @@ TEAM_GROUP = SNXGroup(1002, "team")
 
 
 def _membership() -> SNXGroupMembership:
+    """USER_OWNER belongs to USER_GROUP, TEAM_USER belongs to TEAM_GROUP.
+
+    TEAM_USER's membership is arbitrary: its identifier ("teammate") differs
+    from the group's ("team"), so it cannot be derived from identifier matching.
+    """
     return SNXGroupMembership(
         _group_ids_by_user={
             USER_OWNER.user_id: frozenset([USER_GROUP.group_id]),
@@ -37,7 +44,16 @@ def _membership() -> SNXGroupMembership:
             USER_OWNER.user_id: USER_GROUP,
             TEAM_USER.user_id: TEAM_GROUP,
         },
+        _groups_by_id={
+            USER_GROUP.group_id: USER_GROUP,
+            TEAM_GROUP.group_id: TEAM_GROUP,
+        },
     )
+
+
+ROOT_EXEC = ExecutionContext.for_user(ROOT_USER)
+USER_EXEC = ExecutionContext.for_user(USER_OWNER, _membership())
+TEAM_EXEC = ExecutionContext.for_user(TEAM_USER, _membership())
 
 
 def _permissions(mode: int):
@@ -154,34 +170,34 @@ def _make_fs() -> SNXFileSystem:
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
         ),
     }
-    return SNXFileSystem(base_layer=base_layer, membership=_membership())
+    return SNXFileSystem(base_layer=base_layer)
 
 
 class TestReadEnforcement:
     def test_owner_reads_own_file(self):
         """A user can read their own file."""
         fs = _make_fs()
-        result = fs.read("/etc/secret", acting_user=ROOT_USER)
+        result = fs.read("/etc/secret", execution=ROOT_EXEC)
         assert_success(result)
         assert result.node.content == "classified"
 
     def test_read_denied_for_non_owner_of_0600(self):
         """``cat``-path reads are gated on READ for the acting user."""
         fs = _make_fs()
-        result = fs.read("/etc/secret", acting_user=USER_OWNER)
+        result = fs.read("/etc/secret", execution=USER_EXEC)
         assert_not_success(result)
         assert result.message == CommandError.PERMISSION_DENIED
 
     def test_read_world_readable_allows_anyone(self):
         """World-readable 0644 files may be read by non-owners."""
         fs = _make_fs()
-        result = fs.read("/etc/hostname", acting_user=USER_OWNER)
+        result = fs.read("/etc/hostname", execution=USER_EXEC)
         assert_success(result)
 
     def test_read_group_member_allowed(self):
         """A member of the node's group reads it via group bits (0660)."""
         fs = _make_fs()
-        result = fs.read("/data/team-note", acting_user=TEAM_USER)
+        result = fs.read("/data/team-note", execution=TEAM_EXEC)
         assert_success(result)
 
 
@@ -189,28 +205,28 @@ class TestWriteEnforcement:
     def test_owner_write_allowed(self):
         """The owner of a file may write it."""
         fs = _make_fs()
-        result = fs.write("/etc/secret", "new-content", acting_user=ROOT_USER)
+        result = fs.write("/etc/secret", "new-content", execution=ROOT_EXEC)
         assert_success(result)
 
     def test_write_denied_for_outsider(self):
         """A non-owner, non-member cannot write a 0600 file."""
         fs = _make_fs()
-        result = fs.write("/etc/secret", "x", acting_user=USER_OWNER)
+        result = fs.write("/etc/secret", "x", execution=USER_EXEC)
         assert_not_success(result)
         assert result.message == CommandError.PERMISSION_DENIED
-        assert fs.read("/etc/secret", acting_user=ROOT_USER).node.content == "classified"
+        assert fs.read("/etc/secret", execution=ROOT_EXEC).node.content == "classified"
 
     def test_append_denied_for_world_readable(self):
         """WRITE gates append; world-read (0644) does not grant write."""
         fs = _make_fs()
-        result = fs.append("/etc/hostname", "\n", acting_user=USER_OWNER)
+        result = fs.append("/etc/hostname", "\n", execution=USER_EXEC)
         assert_not_success(result)
         assert result.message == CommandError.PERMISSION_DENIED
 
     def test_write_denied_does_not_touch_delta(self):
         """A denied write leaves no trace in the delta layer."""
         fs = _make_fs()
-        fs.append("/etc/hostname", "x", acting_user=USER_OWNER)
+        fs.append("/etc/hostname", "x", execution=USER_EXEC)
         assert "/etc/hostname" not in fs.delta_layer
 
 
@@ -218,14 +234,14 @@ class TestTouchEnforcement:
     def test_touch_existing_file_needs_write(self):
         """Touch on an existing file enforces WRITE."""
         fs = _make_fs()
-        result = fs.touch("/etc/hostname", acting_user=USER_OWNER)
+        result = fs.touch("/etc/hostname", execution=USER_EXEC)
         assert_not_success(result)
         assert result.message == CommandError.PERMISSION_DENIED
 
     def test_touch_existing_file_as_owner_succeeds(self):
         """Touch on an existing file the owner can write succeeds (no-op)."""
         fs = _make_fs()
-        result = fs.touch("/etc/hostname", acting_user=ROOT_USER)
+        result = fs.touch("/etc/hostname", execution=ROOT_EXEC)
         assert_success(result)
 
 
@@ -233,27 +249,27 @@ class TestDirectoryEnforcement:
     def test_list_denied_without_read(self):
         """Listing a directory enforces READ; a sealed directory is denied."""
         fs = _make_fs()
-        result = fs.list_directory("/locked", acting_user=TEAM_USER)
+        result = fs.list_directory("/locked", execution=TEAM_EXEC)
         assert_not_success(result)
         assert result.message == CommandError.PERMISSION_DENIED
 
     def test_list_allowed_for_owner(self):
         """The owner may list their own sealed directory."""
         fs = _make_fs()
-        result = fs.list_directory("/locked", acting_user=USER_OWNER)
+        result = fs.list_directory("/locked", execution=USER_EXEC)
         assert_success(result)
 
     def test_validate_directory_needs_execute(self):
         """``cd`` into a directory enforces EXECUTE."""
         fs = _make_fs()
-        result = fs.validate_directory("/locked", acting_user=TEAM_USER)
+        result = fs.validate_directory("/locked", execution=TEAM_EXEC)
         assert_not_success(result)
         assert result.message == CommandError.PERMISSION_DENIED
 
     def test_root_bypasses_directory_permissions(self):
         """Root bypasses READ/EXECUTE gates on directories."""
         fs = _make_fs()
-        result = fs.list_directory("/locked", acting_user=ROOT_USER)
+        result = fs.list_directory("/locked", execution=ROOT_EXEC)
         assert_success(result)
 
 
@@ -261,13 +277,13 @@ class TestRootBypass:
     def test_root_reads_sealed_file(self):
         """Root bypasses the READ gate."""
         fs = _make_fs()
-        result = fs.read("/etc/secret", acting_user=ROOT_USER)
+        result = fs.read("/etc/secret", execution=ROOT_EXEC)
         assert_success(result)
 
     def test_root_writes_world_readable_file(self):
         """Root bypasses the WRITE gate."""
         fs = _make_fs()
-        result = fs.write("/etc/hostname", "overwritten", acting_user=ROOT_USER)
+        result = fs.write("/etc/hostname", "overwritten", execution=ROOT_EXEC)
         assert_success(result)
         assert fs.get_node("/etc/hostname").content == "overwritten"
 
@@ -276,13 +292,13 @@ class TestCheckAccess:
     def test_check_access_reflects_evaluator(self):
         """The public helper surfaces the same decision the gates use."""
         fs = _make_fs()
-        assert fs.check_access("/etc/hostname", Access.WRITE, USER_OWNER).exit_code != 0
-        assert fs.check_access("/etc/hostname", Access.READ, USER_OWNER).exit_code == 0
+        assert fs.check_access("/etc/hostname", Access.WRITE, USER_EXEC).exit_code != 0
+        assert fs.check_access("/etc/hostname", Access.READ, USER_EXEC).exit_code == 0
 
     def test_check_access_missing_path(self):
         """check_access on a missing path reports not found."""
         fs = _make_fs()
-        result = fs.check_access("/nope", Access.READ, USER_OWNER)
+        result = fs.check_access("/nope", Access.READ, USER_EXEC)
         assert_not_success(result)
         assert CommandError.NOT_FOUND in result.message
 
@@ -293,40 +309,40 @@ class TestCreateEnforcement:
     def test_create_file_allowed_in_own_writable_parent(self):
         """A user creates a file in a directory they own with w+x."""
         fs = _make_fs()
-        result = fs.create_file("/home/user/new.txt", acting_user=USER_OWNER)
+        result = fs.create_file("/home/user/new.txt", execution=USER_EXEC)
         assert_success(result)
 
     def test_create_file_denied_in_readonly_parent(self):
         """A 0755 root-owned directory (rx for others) blocks creation."""
         fs = _make_fs()
-        result = fs.create_file("/etc/new.txt", acting_user=USER_OWNER)
+        result = fs.create_file("/etc/new.txt", execution=USER_EXEC)
         assert_not_success(result)
         assert result.message == CommandError.PERMISSION_DENIED
 
     def test_create_file_denied_with_write_but_no_execute(self):
         """A 0300 directory grants write but not search; creation still denied."""
         fs = _make_fs()
-        result = fs.create_file("/nox/new.txt", acting_user=USER_OWNER)
+        result = fs.create_file("/nox/new.txt", execution=USER_EXEC)
         assert_not_success(result)
         assert result.message == CommandError.PERMISSION_DENIED
 
     def test_create_directory_denied_in_readonly_parent(self):
         """mkdir in a non-writable directory is denied."""
         fs = _make_fs()
-        result = fs.create_directory("/etc/newdir", acting_user=USER_OWNER)
+        result = fs.create_directory("/etc/newdir", execution=USER_EXEC)
         assert_not_success(result)
         assert result.message == CommandError.PERMISSION_DENIED
 
     def test_create_directory_allowed_in_writable_parent(self):
         """mkdir in the owner's writable directory succeeds."""
         fs = _make_fs()
-        result = fs.create_directory("/home/user/newdir", acting_user=USER_OWNER)
+        result = fs.create_directory("/home/user/newdir", execution=USER_EXEC)
         assert_success(result)
 
     def test_root_bypasses_create_gate(self):
         """Root creates anywhere regardless of parent permissions."""
         fs = _make_fs()
-        result = fs.create_file("/etc/rooted.txt", acting_user=ROOT_USER)
+        result = fs.create_file("/etc/rooted.txt", execution=ROOT_EXEC)
         assert_success(result)
 
 
@@ -336,7 +352,7 @@ class TestDeleteEnforcement:
     def test_non_owner_cannot_delete_root_file(self):
         """Regression: a non-root user cannot remove a root-owned file."""
         fs = _make_fs()
-        result = fs.delete_file("/etc/hostname", acting_user=USER_OWNER)
+        result = fs.delete_file("/etc/hostname", execution=USER_EXEC)
         assert_not_success(result)
         assert result.message == CommandError.PERMISSION_DENIED
         assert fs.get_node("/etc/hostname").content == "simnux-edge"
@@ -344,57 +360,55 @@ class TestDeleteEnforcement:
     def test_file_write_bits_do_not_grant_deletion(self):
         """Regression: the file's own writable mode never authorizes removal."""
         fs = _make_fs()
-        assert fs.check_access("/etc/owned-writable", Access.WRITE, USER_OWNER).exit_code == 0
-        result = fs.delete_file("/etc/owned-writable", acting_user=USER_OWNER)
+        assert fs.check_access("/etc/owned-writable", Access.WRITE, USER_EXEC).exit_code == 0
+        result = fs.delete_file("/etc/owned-writable", execution=USER_EXEC)
         assert_not_success(result)
         assert result.message == CommandError.PERMISSION_DENIED
 
     def test_delete_denied_with_write_but_no_execute_parent(self):
         """A 0300 parent denies removal even for files the user owns."""
         fs = _make_fs()
-        assert fs.check_access("/nox/bits", Access.WRITE, USER_OWNER).exit_code == 0
-        result = fs.delete_file("/nox/bits", acting_user=USER_OWNER)
+        assert fs.check_access("/nox/bits", Access.WRITE, USER_EXEC).exit_code == 0
+        result = fs.delete_file("/nox/bits", execution=USER_EXEC)
         assert_not_success(result)
         assert result.message == CommandError.PERMISSION_DENIED
 
     def test_owner_removes_own_file(self):
         """The owner removes their file from a directory they can modify."""
         fs = _make_fs()
-        fs.create_file("/home/user/drop.txt", acting_user=USER_OWNER)
-        result = fs.delete_file("/home/user/drop.txt", acting_user=USER_OWNER)
+        fs.create_file("/home/user/drop.txt", execution=USER_EXEC)
+        result = fs.delete_file("/home/user/drop.txt", execution=USER_EXEC)
         assert_success(result)
-        assert (
-            CommandError.NOT_FOUND in fs.read("/home/user/drop.txt", acting_user=USER_OWNER).message
-        )
+        assert CommandError.NOT_FOUND in fs.read("/home/user/drop.txt", execution=USER_EXEC).message
 
     def test_root_can_delete_anywhere(self):
         """Root removes files regardless of parent permissions."""
         fs = _make_fs()
-        result = fs.delete_file("/etc/secret", acting_user=ROOT_USER)
+        result = fs.delete_file("/etc/secret", execution=ROOT_EXEC)
         assert_success(result)
 
     def test_delete_directory_gated_on_parent(self):
         """``delete_directory`` uses the same parent WRITE+EXECUTE gate."""
         fs = _make_fs()
         assert fs.get_node("/etc/rootdir").is_directory
-        denied = fs.delete_directory("/etc/rootdir", acting_user=USER_OWNER)
+        denied = fs.delete_directory("/etc/rootdir", execution=USER_EXEC)
         assert_not_success(denied)
         assert denied.message == CommandError.PERMISSION_DENIED
 
     def test_delete_directory_allowed_with_parent_access(self):
         """rmdir of an own directory inside a modifiable parent succeeds."""
         fs = _make_fs()
-        fs.create_directory("/home/user/scratch", acting_user=USER_OWNER)
-        result = fs.delete_directory("/home/user/scratch", acting_user=USER_OWNER)
+        fs.create_directory("/home/user/scratch", execution=USER_EXEC)
+        result = fs.delete_directory("/home/user/scratch", execution=USER_EXEC)
         assert_success(result)
 
     def test_touch_missing_path_gated_on_parent(self):
         """Creating via ``touch`` enforces the same parent gate as create_file."""
         fs = _make_fs()
-        denied = fs.touch("/etc/new.txt", acting_user=USER_OWNER)
+        denied = fs.touch("/etc/new.txt", execution=USER_EXEC)
         assert_not_success(denied)
         assert denied.message == CommandError.PERMISSION_DENIED
-        allowed = fs.touch("/home/user/new.txt", acting_user=USER_OWNER)
+        allowed = fs.touch("/home/user/new.txt", execution=USER_EXEC)
         assert_success(allowed)
 
 
@@ -404,26 +418,26 @@ class TestMoveCompositeEnforcement:
     def test_move_own_files_allowed(self):
         """A move within an owner-modifiable directory succeeds end to end."""
         fs = _make_fs()
-        fs.create_file("/home/user/a.txt", acting_user=USER_OWNER)
-        fs.write("/home/user/a.txt", "content", acting_user=USER_OWNER)
-        assert_success(fs.touch("/home/user/b.txt", acting_user=USER_OWNER))
-        assert_success(fs.write("/home/user/b.txt", "content", acting_user=USER_OWNER))
-        assert_success(fs.delete_file("/home/user/a.txt", acting_user=USER_OWNER))
-        assert CommandError.NOT_FOUND in fs.read("/home/user/a.txt", acting_user=USER_OWNER).message
+        fs.create_file("/home/user/a.txt", execution=USER_EXEC)
+        fs.write("/home/user/a.txt", "content", execution=USER_EXEC)
+        assert_success(fs.touch("/home/user/b.txt", execution=USER_EXEC))
+        assert_success(fs.write("/home/user/b.txt", "content", execution=USER_EXEC))
+        assert_success(fs.delete_file("/home/user/a.txt", execution=USER_EXEC))
+        assert CommandError.NOT_FOUND in fs.read("/home/user/a.txt", execution=USER_EXEC).message
 
     def test_move_target_creation_gate(self):
         """Target construction inside a non-writable directory is denied."""
         fs = _make_fs()
-        result = fs.touch("/etc/target.txt", acting_user=USER_OWNER)
+        result = fs.touch("/etc/target.txt", execution=USER_EXEC)
         assert_not_success(result)
         assert result.message == CommandError.PERMISSION_DENIED
 
     def test_move_source_deletion_gate_with_cleanup(self):
         """Source removal in an unmodifiable directory is denied; target is rolled back."""
         fs = _make_fs()
-        assert_success(fs.touch("/home/user/target.txt", acting_user=USER_OWNER))
-        assert_success(fs.write("/home/user/target.txt", "simnux-edge", acting_user=USER_OWNER))
-        denied = fs.delete_file("/etc/hostname", acting_user=USER_OWNER)
+        assert_success(fs.touch("/home/user/target.txt", execution=USER_EXEC))
+        assert_success(fs.write("/home/user/target.txt", "simnux-edge", execution=USER_EXEC))
+        denied = fs.delete_file("/etc/hostname", execution=USER_EXEC)
         assert_not_success(denied)
         assert denied.message == CommandError.PERMISSION_DENIED
         assert fs.get_node("/etc/hostname").content == "simnux-edge"
@@ -438,122 +452,122 @@ class TestAuthorizationMatrix:
 
     def _matrix(self):
         fs = _make_fs()
-        fs.create_file("/home/user/owned.txt", acting_user=USER_OWNER)
-        fs.write("/home/user/owned.txt", "data", acting_user=USER_OWNER)
-        fs.create_file("/home/user/notes.txt", acting_user=USER_OWNER)
-        fs.write("/home/user/notes.txt", "chmod target", acting_user=USER_OWNER)
-        fs.create_directory("/home/user/box", acting_user=USER_OWNER)
+        fs.create_file("/home/user/owned.txt", execution=USER_EXEC)
+        fs.write("/home/user/owned.txt", "data", execution=USER_EXEC)
+        fs.create_file("/home/user/notes.txt", execution=USER_EXEC)
+        fs.write("/home/user/notes.txt", "chmod target", execution=USER_EXEC)
+        fs.create_directory("/home/user/box", execution=USER_EXEC)
         cases = [
             # (label, result, allowed)
             (
                 "read world-readable /etc/hostname by user",
-                fs.read("/etc/hostname", acting_user=USER_OWNER),
+                fs.read("/etc/hostname", execution=USER_EXEC),
                 True,
             ),
             (
                 "read sealed /etc/secret by user",
-                fs.read("/etc/secret", acting_user=USER_OWNER),
+                fs.read("/etc/secret", execution=USER_EXEC),
                 False,
             ),
             (
                 "read /etc/secret by root",
-                fs.read("/etc/secret", acting_user=ROOT_USER),
+                fs.read("/etc/secret", execution=ROOT_EXEC),
                 True,
             ),
             (
                 "write own file by user",
-                fs.write("/home/user/owned.txt", "v2", acting_user=USER_OWNER),
+                fs.write("/home/user/owned.txt", "v2", execution=USER_EXEC),
                 True,
             ),
             (
                 "write sealed /etc/secret by user",
-                fs.write("/etc/secret", "v2", acting_user=USER_OWNER),
+                fs.write("/etc/secret", "v2", execution=USER_EXEC),
                 False,
             ),
             (
                 "append world-readable by user",
-                fs.append("/etc/hostname", "\n", acting_user=USER_OWNER),
+                fs.append("/etc/hostname", "\n", execution=USER_EXEC),
                 False,
             ),
             (
                 "touch existing /etc/hostname by user",
-                fs.touch("/etc/hostname", acting_user=USER_OWNER),
+                fs.touch("/etc/hostname", execution=USER_EXEC),
                 False,
             ),
             (
                 "touch existing /etc/hostname by root",
-                fs.touch("/etc/hostname", acting_user=ROOT_USER),
+                fs.touch("/etc/hostname", execution=ROOT_EXEC),
                 True,
             ),
             (
                 "create file in /etc by user",
-                fs.create_file("/etc/n", acting_user=USER_OWNER),
+                fs.create_file("/etc/n", execution=USER_EXEC),
                 False,
             ),
             (
                 "create file in /home/user by user",
-                fs.create_file("/home/user/n.txt", acting_user=USER_OWNER),
+                fs.create_file("/home/user/n.txt", execution=USER_EXEC),
                 True,
             ),
             (
                 "create file in /etc by root",
-                fs.create_file("/etc/n", acting_user=ROOT_USER),
+                fs.create_file("/etc/n", execution=ROOT_EXEC),
                 True,
             ),
             (
                 "mkdir in /etc by user",
-                fs.create_directory("/etc/n", acting_user=USER_OWNER),
+                fs.create_directory("/etc/n", execution=USER_EXEC),
                 False,
             ),
             (
                 "mkdir in /home/user by user",
-                fs.create_directory("/home/user/ndir", acting_user=USER_OWNER),
+                fs.create_directory("/home/user/ndir", execution=USER_EXEC),
                 True,
             ),
             (
                 "delete /etc/hostname by user",
-                fs.delete_file("/etc/hostname", acting_user=USER_OWNER),
+                fs.delete_file("/etc/hostname", execution=USER_EXEC),
                 False,
             ),
             (
                 "delete /etc/hostname by root",
-                fs.delete_file("/etc/hostname", acting_user=ROOT_USER),
+                fs.delete_file("/etc/hostname", execution=ROOT_EXEC),
                 True,
             ),
             (
                 "delete own home file by user",
-                fs.delete_file("/home/user/owned.txt", acting_user=USER_OWNER),
+                fs.delete_file("/home/user/owned.txt", execution=USER_EXEC),
                 True,
             ),
             (
                 "rmdir /etc/rootdir by user",
-                fs.delete_directory("/etc/rootdir", acting_user=USER_OWNER),
+                fs.delete_directory("/etc/rootdir", execution=USER_EXEC),
                 False,
             ),
             (
                 "rmdir own home dir by user",
-                fs.delete_directory("/home/user/box", acting_user=USER_OWNER),
+                fs.delete_directory("/home/user/box", execution=USER_EXEC),
                 True,
             ),
             (
                 "list sealed /locked by user",
-                fs.list_directory("/locked", acting_user=USER_OWNER),
+                fs.list_directory("/locked", execution=USER_EXEC),
                 True,
             ),
             (
                 "list sealed /locked by teammate",
-                fs.list_directory("/locked", acting_user=TEAM_USER),
+                fs.list_directory("/locked", execution=TEAM_EXEC),
                 False,
             ),
             (
                 "cd into sealed /locked by teammate",
-                fs.validate_directory("/locked", acting_user=TEAM_USER),
+                fs.validate_directory("/locked", execution=TEAM_EXEC),
                 False,
             ),
         ]
-        chmod_result = fs.chmod("/home/user/notes.txt", 0o644, acting_user=USER_OWNER)
+        chmod_result = fs.chmod("/home/user/notes.txt", 0o644, execution=USER_EXEC)
         cases.append(("chmod own file by user", chmod_result, True))
-        chmod_denied = fs.chmod("/etc/hostname", 0o644, acting_user=USER_OWNER)
+        chmod_denied = fs.chmod("/etc/hostname", 0o644, execution=USER_EXEC)
         cases.append(("chmod root-owned file by user", chmod_denied, False))
         return cases
 

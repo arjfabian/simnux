@@ -152,10 +152,10 @@ class TestLsLongFormat:
             clock=lambda: _FIXED_NOW,
         )
         fs = shell.filesystem
-        fs.touch("/home/user/empty.txt", acting_user=shell.user)
+        fs.touch("/home/user/empty.txt", execution=shell.execution_context)
         result = await shell.execute("ls -l /home/user")
         assert_success(result)
-        assert "-rw-r--r-- user root  0 May  9 14:22 empty.txt" in stdout_text(result)
+        assert "-rw-r--r-- user user  0 May  9 14:22 empty.txt" in stdout_text(result)
 
     async def test_directory_755(self, shell_with_commands):
         result = await shell_with_commands.execute("ls -l /")
@@ -164,14 +164,14 @@ class TestLsLongFormat:
 
     async def test_file_600(self, shell_with_commands):
         fs = shell_with_commands.filesystem
-        fs.chmod("/home/user/notes.txt", 0o600, acting_user=shell_with_commands.user)
+        fs.chmod("/home/user/notes.txt", 0o600, execution=shell_with_commands.execution_context)
         result = await shell_with_commands.execute("ls -l /home/user")
         assert_success(result)
         assert "-rw------- user user 11 Jan  1  1970 notes.txt" in stdout_text(result)
 
     async def test_file_000(self, shell_with_commands):
         fs = shell_with_commands.filesystem
-        fs.chmod("/home/user/notes.txt", 0o000, acting_user=shell_with_commands.user)
+        fs.chmod("/home/user/notes.txt", 0o000, execution=shell_with_commands.execution_context)
         result = await shell_with_commands.execute("ls -l /home/user")
         assert_success(result)
         assert "---------- user user 11 Jan  1  1970 notes.txt" in stdout_text(result)
@@ -198,12 +198,13 @@ class TestLsLongFormat:
 
     async def test_long_respects_permission_enforcement(self, shell_with_commands):
         """``ls -l`` on a sealed directory is denied via list_directory."""
+        from simnux.security.execution.models import ExecutionContext
         from simnux.security.users.models import SNXUser
 
-        root = SNXUser(0, "root")
+        root = ExecutionContext.for_user(SNXUser(0, "root"))
         fs = shell_with_commands.filesystem
-        fs.create_directory("/sealed", acting_user=root)
-        fs.chmod("/sealed", 0o700, acting_user=root)
+        fs.create_directory("/sealed", execution=root)
+        fs.chmod("/sealed", 0o700, execution=root)
         result = await shell_with_commands.execute("ls -l /sealed")
         assert_error(result)
         assert "permission denied" in stderr_text(result)

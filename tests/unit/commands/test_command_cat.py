@@ -19,7 +19,7 @@ from tests.helpers import stdout_text
 
 
 def _write(shell, path, content):
-    shell.filesystem.touch(path, acting_user=shell.user)
+    shell.filesystem.touch(path, execution=shell.execution_context)
     shell.filesystem.delta_layer[path].content = content
 
 

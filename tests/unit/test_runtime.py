@@ -143,14 +143,14 @@ class TestSNXRuntime:
             session_id="isolation-2",
         )
 
-        result = s1.filesystem.create_file("/home/user/unique.txt", acting_user=s1.user)
+        result = s1.filesystem.create_file("/home/user/unique.txt", execution=s1.execution_context)
 
         assert_success(result)
 
         result = s1.filesystem.write(
             "/home/user/unique.txt",
             content="s1-only",
-            acting_user=s1.user,
+            execution=s1.execution_context,
         )
 
         assert_success(result)

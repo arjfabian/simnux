@@ -14,6 +14,7 @@ import pytest
 from simnux.core.commands.errors import CommandError
 from simnux.core.commands.streams import QueueStreamWriter
 from simnux.core.runtime.models import ExitCode
+from simnux.security.execution.models import ExecutionContext
 from simnux.security.users.models import SNXUser
 from tests.helpers import assert_error
 from tests.helpers import assert_success
@@ -26,6 +27,7 @@ pytestmark = pytest.mark.asyncio
 
 
 ROOT_USER = SNXUser(0, "root")
+ROOT_EXEC = ExecutionContext.for_user(ROOT_USER)
 
 
 class TestMvCommand:
@@ -38,7 +40,7 @@ class TestMvCommand:
 
     async def test_mv_file_to_new_file(self, shell_with_commands):
         """Mv moves a file to a new path — target has content, source is gone."""
-        shell_with_commands.user = ROOT_USER
+        shell_with_commands.execution_context = ExecutionContext.for_user(ROOT_USER)
         result = await shell_with_commands.execute("mv /etc/hostname /home/user/moved_hostname")
         assert_success(result)
 
@@ -52,7 +54,7 @@ class TestMvCommand:
 
     async def test_mv_overwrite_existing(self, shell_with_commands):
         """Mv overwrites the target file then deletes the source."""
-        shell_with_commands.user = ROOT_USER
+        shell_with_commands.execution_context = ExecutionContext.for_user(ROOT_USER)
         result = await shell_with_commands.execute("mv /etc/hostname /home/user/notes.txt")
         assert_success(result)
 
@@ -76,7 +78,7 @@ class TestMvCommand:
 
     async def test_mv_to_directory_appends_basename(self, shell_with_commands):
         """Mv to a directory implicitly appends the source basename."""
-        shell_with_commands.user = ROOT_USER
+        shell_with_commands.execution_context = ExecutionContext.for_user(ROOT_USER)
         result = await shell_with_commands.execute("mv /etc/hostname /home/user")
         assert_success(result)
 
@@ -89,7 +91,7 @@ class TestMvCommand:
 
     async def test_mv_to_directory_with_trailing_slash(self, shell_with_commands):
         """Mv to a directory with trailing slash appends basename."""
-        shell_with_commands.user = ROOT_USER
+        shell_with_commands.execution_context = ExecutionContext.for_user(ROOT_USER)
         result = await shell_with_commands.execute("mv /etc/hostname /home/user/")
         assert_success(result)
 
@@ -104,7 +106,7 @@ class TestMvCommand:
         """Mv to a directory overwrites an existing file at the implied path."""
         await shell_with_commands.execute("touch /home/user/hostname")
 
-        shell_with_commands.user = ROOT_USER
+        shell_with_commands.execution_context = ExecutionContext.for_user(ROOT_USER)
         result = await shell_with_commands.execute("mv /etc/hostname /home/user")
         assert_success(result)
 
@@ -118,7 +120,7 @@ class TestMvCommand:
         """Mv to directory errors when the implied path is itself a directory."""
         await shell_with_commands.execute("mkdir /home/user/hostname")
 
-        shell_with_commands.user = ROOT_USER
+        shell_with_commands.execution_context = ExecutionContext.for_user(ROOT_USER)
         result = await shell_with_commands.execute("mv /etc/hostname /home/user")
         assert_error(result)
         assert CommandError.IS_A_DIRECTORY in stderr_text(result)
@@ -197,8 +199,8 @@ class TestMvAtomicCleanup:
 
         assert result == ExitCode.ERROR
         assert fs.delete_file.call_count == 2
-        fs.delete_file.assert_any_call("/source", acting_user=ROOT_USER)
-        fs.delete_file.assert_any_call("/target", acting_user=ROOT_USER)
+        fs.delete_file.assert_any_call("/source", execution=ROOT_EXEC)
+        fs.delete_file.assert_any_call("/target", execution=ROOT_EXEC)
 
     async def test_mv_cleanup_not_called_on_success(self):
         """When ``delete_file`` succeeds, no extra cleanup call is made."""
@@ -233,7 +235,7 @@ class TestMvAtomicCleanup:
 
         assert result == ExitCode.SUCCESS
         assert fs.delete_file.call_count == 1
-        fs.delete_file.assert_called_once_with("/source", acting_user=ROOT_USER)
+        fs.delete_file.assert_called_once_with("/source", execution=ROOT_EXEC)
 
     async def test_mv_failed_source_delete_preserves_pre_existing_target(self):
         """If ``delete_file`` fails and the target pre-existed, the target is not deleted."""
@@ -273,4 +275,4 @@ class TestMvAtomicCleanup:
         assert result == ExitCode.ERROR
         # delete_file called exactly once — for the source only; no target cleanup
         assert fs.delete_file.call_count == 1
-        fs.delete_file.assert_called_once_with("/source", acting_user=ROOT_USER)
+        fs.delete_file.assert_called_once_with("/source", execution=ROOT_EXEC)

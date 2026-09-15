@@ -17,6 +17,7 @@ from simnux.core.commands.streams import QueueStreamReader
 from simnux.core.filesystem.models import PermissionPresets
 from simnux.core.filesystem.models import SNXNode
 from simnux.core.runtime.models import ExitCode
+from simnux.security.execution.models import ExecutionContext
 from simnux.security.groups.models import SNXGroup
 from simnux.security.pam import SNXPAM
 from simnux.security.pam.models import SNXPasswordCredential
@@ -142,7 +143,7 @@ def root_shell(base_layer, test_logger):
     fs = SNXFileSystem(base_layer=dict(base_layer))
     shell = SNXShell(
         scenario=scenario,
-        user=ROOT_USER,
+        execution_context=ExecutionContext.for_user(ROOT_USER),
         current_directory="/home/user",
         filesystem=fs,
         registry=CommandRegistry(),
@@ -150,7 +151,11 @@ def root_shell(base_layer, test_logger):
         identifier="passwd-root",
     )
     registry = CommandRegistry()
-    context = CommandContext(shell=shell, filesystem=fs)
+    context = CommandContext(
+        shell=shell,
+        filesystem=fs,
+        execution_context=shell.execution_context,
+    )
     loader = CommandLoader(registry=registry, context=context, logger=test_logger)
     loader.load_all()
     shell.registry = registry
@@ -160,14 +165,14 @@ def root_shell(base_layer, test_logger):
 
 def _shadow_user_line(shell) -> str:
     """Return the ``user`` line from the effective /etc/shadow content."""
-    node = shell.filesystem.read("/etc/shadow", acting_user=shell.user).node
+    node = shell.filesystem.read("/etc/shadow", execution=shell.execution_context).node
     assert node is not None
     return next(line for line in node.content.split("\n") if line.startswith("user:"))
 
 
 def _shadow_root_line(shell) -> str:
     """Return the ``root`` line from the effective /etc/shadow content."""
-    node = shell.filesystem.read("/etc/shadow", acting_user=shell.user).node
+    node = shell.filesystem.read("/etc/shadow", execution=shell.execution_context).node
     assert node is not None
     return next(line for line in node.content.split("\n") if line.startswith("root:"))
 
@@ -176,9 +181,10 @@ def _write_lined_input(shell, pw1: str, pw2: str | None) -> str:
     """Write a piped input file and return its path for ``cat``."""
     path = "/home/user/pw-input.txt"
     content = pw1 + "\n" if pw2 is None else f"{pw1}\n{pw2}\n"
-    shell.filesystem.touch(path, acting_user=shell.user)
+    shell.filesystem.touch(path, execution=shell.execution_context)
     assert (
-        shell.filesystem.write(path, content, acting_user=shell.user).exit_code == ExitCode.SUCCESS
+        shell.filesystem.write(path, content, execution=shell.execution_context).exit_code
+        == ExitCode.SUCCESS
     )
     return path
 
@@ -310,10 +316,14 @@ class TestPasswdShadowSemantics:
 
     async def test_passwd_file_unchanged(self, root_shell):
         """/etc/passwd is read-only for passwd; only /etc/shadow changes."""
-        before = root_shell.filesystem.read("/etc/passwd", acting_user=root_shell.user).node.content
+        before = root_shell.filesystem.read(
+            "/etc/passwd", execution=root_shell.execution_context
+        ).node.content
         result = await _run_piped_passwd(root_shell, _NEW_PW, _NEW_PW)
         assert_success(result)
-        after = root_shell.filesystem.read("/etc/passwd", acting_user=root_shell.user).node.content
+        after = root_shell.filesystem.read(
+            "/etc/passwd", execution=root_shell.execution_context
+        ).node.content
         assert after == before
 
     async def test_plaintext_never_stored(self, root_shell):
@@ -322,11 +332,11 @@ class TestPasswdShadowSemantics:
         assert_success(result)
         shadow_node = root_shell.filesystem.read(
             "/etc/shadow",
-            acting_user=root_shell.user,
+            execution=root_shell.execution_context,
         ).node
         passwd_node = root_shell.filesystem.read(
             "/etc/passwd",
-            acting_user=root_shell.user,
+            execution=root_shell.execution_context,
         ).node
         assert _NEW_PW not in shadow_node.content
         assert _NEW_PW not in passwd_node.content
@@ -393,11 +403,11 @@ class TestPasswdBootstrapIntegration:
         """The hello scenario ships a loader-generated account database."""
         passwd_node = runtime_shell.filesystem.read(
             "/etc/passwd",
-            acting_user=runtime_shell.user,
+            execution=runtime_shell.execution_context,
         ).node
         shadow_node = runtime_shell.filesystem.read(
             "/etc/shadow",
-            acting_user=runtime_shell.user,
+            execution=runtime_shell.execution_context,
         ).node
         assert passwd_node is not None
         assert "root:x:0:0:root:/root:/bin/sh" in passwd_node.content
@@ -409,10 +419,10 @@ class TestPasswdBootstrapIntegration:
     async def test_passwd_updates_only_current_user_shadow_field(self, runtime_shell):
         """``passwd`` flips only the acting user's shadow field to a credential."""
         # /etc/shadow is root-owned, so only root may change credentials.
-        runtime_shell.user = ROOT_USER
+        runtime_shell.execution_context = ExecutionContext.for_user(ROOT_USER)
         before_passwd = runtime_shell.filesystem.read(
             "/etc/passwd",
-            acting_user=runtime_shell.user,
+            execution=runtime_shell.execution_context,
         ).node.content
         result = await _run_piped_passwd(runtime_shell, _NEW_PW, _NEW_PW)
         assert_success(result)
@@ -420,7 +430,7 @@ class TestPasswdBootstrapIntegration:
 
         shadow = runtime_shell.filesystem.read(
             "/etc/shadow",
-            acting_user=runtime_shell.user,
+            execution=runtime_shell.execution_context,
         ).node.content
         root_line = next(line for line in shadow.split("\n") if line.startswith("root:"))
         user_line = next(line for line in shadow.split("\n") if line.startswith("user:"))
@@ -430,6 +440,6 @@ class TestPasswdBootstrapIntegration:
 
         after_passwd = runtime_shell.filesystem.read(
             "/etc/passwd",
-            acting_user=runtime_shell.user,
+            execution=runtime_shell.execution_context,
         ).node.content
         assert after_passwd == before_passwd

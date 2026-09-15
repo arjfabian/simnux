@@ -16,6 +16,8 @@ from simnux.core.filesystem.vfs import SNXFileSystem
 from simnux.core.scenarios.models import SNXScenario
 from simnux.core.sessions.runtime import SNXSession
 from simnux.core.shell.runtime import SNXShell
+from simnux.security.execution.models import ExecutionContext
+from simnux.security.groups.membership import SNXGroupMembership
 from simnux.security.groups.models import SNXGroup
 from simnux.security.users.models import SNXUser
 
@@ -67,7 +69,13 @@ def make_shell(
     """Build an SNXShell over *scenario* with a scratch filesystem/registry."""
     return SNXShell(
         scenario=scenario,
-        user=scenario.users["hacker"],
+        execution_context=ExecutionContext.for_user(
+            scenario.users["hacker"],
+            SNXGroupMembership.from_identities(
+                scenario.users,
+                scenario.groups,
+            ),
+        ),
         current_directory=current_directory or scenario.starting_dir,
         filesystem=SNXFileSystem(base_layer=dict(scenario.filesystem)),
         registry=CommandRegistry(),

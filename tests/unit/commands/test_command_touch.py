@@ -48,7 +48,7 @@ class TestTouchCommand:
         filesystem = session.filesystem
         from tests.helpers import create_shell_with_commands
 
-        filesystem.touch("/home/user/locked.txt", acting_user=session.user)
+        filesystem.touch("/home/user/locked.txt", execution=session.execution_context)
         filesystem.delta_layer["/home/user/locked.txt"].content = "data"
 
         shell = create_shell_with_commands(session, filesystem, test_logger)

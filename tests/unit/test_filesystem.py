@@ -15,6 +15,7 @@ from simnux.core.filesystem.models import SNXNode
 from simnux.core.runtime.models import ExitCode
 from simnux.security.groups.models import SNXGroup
 from simnux.security.users.models import SNXUser
+from tests.helpers import _ROOT_EXEC
 from tests.helpers import assert_not_success
 from tests.helpers import assert_success
 
@@ -130,19 +131,19 @@ class TestValidateDirectory:
 
     def test_valid_directory(self, filesystem):
         """Valid existing directory returns success."""
-        result = filesystem.validate_directory("/home/user", acting_user=_ROOT_USER)
+        result = filesystem.validate_directory("/home/user", execution=_ROOT_EXEC)
         assert_success(result)
 
     def test_root_is_directory(self, filesystem):
         """Root (``/``) is always a valid directory."""
-        result = filesystem.validate_directory("/", acting_user=_ROOT_USER)
+        result = filesystem.validate_directory("/", execution=_ROOT_EXEC)
         assert_success(result)
 
     def test_nonexistent_path(self, filesystem):
         """Nonexistent path returns ERROR with "No such file or directory"."""
         result = filesystem.validate_directory(
             "/nonexistent",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
         assert_not_success(result)
         assert result.exit_code == ExitCode.ERROR
@@ -152,7 +153,7 @@ class TestValidateDirectory:
         """A file path returns ERROR with "Not a directory"."""
         result = filesystem.validate_directory(
             "/home/user/notes.txt",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
         assert_not_success(result)
         assert result.exit_code == ExitCode.ERROR
@@ -270,26 +271,26 @@ class TestRead:
 
     def test_read_file(self, filesystem):
         """Reading an existing file returns its content successfully."""
-        result = filesystem.read("/home/user/notes.txt", acting_user=_ROOT_USER)
+        result = filesystem.read("/home/user/notes.txt", execution=_ROOT_EXEC)
         assert_success(result)
         assert result.node is not None
         assert result.node.content == "hello world"
 
     def test_read_nonexistent(self, filesystem):
         """Reading a nonexistent file returns an error with "not found"."""
-        result = filesystem.read("/missing", acting_user=_ROOT_USER)
+        result = filesystem.read("/missing", execution=_ROOT_EXEC)
         assert_not_success(result)
         assert CommandError.NOT_FOUND in result.message
 
     def test_read_directory_returns_error(self, filesystem):
         """Reading a directory path returns an error with "is a directory"."""
-        result = filesystem.read("/home/user", acting_user=_ROOT_USER)
+        result = filesystem.read("/home/user", execution=_ROOT_EXEC)
         assert_not_success(result)
         assert CommandError.IS_A_DIRECTORY in result.message
 
     def test_read_root_returns_error(self, filesystem):
         """Reading root (``/``) returns an error — root is a directory."""
-        result = filesystem.read("/", acting_user=_ROOT_USER)
+        result = filesystem.read("/", execution=_ROOT_EXEC)
         assert_not_success(result)
         assert CommandError.IS_A_DIRECTORY in result.message
 
@@ -306,7 +307,7 @@ class TestWrite:
         result = filesystem.write(
             "/home/user/notes.txt",
             content="new content",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
         assert_success(result)
         node = filesystem.get_node("/home/user/notes.txt")
@@ -318,7 +319,7 @@ class TestWrite:
         result = filesystem.append(
             "/home/user/notes.txt",
             "\nappended",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
         assert_success(result)
         node = filesystem.get_node("/home/user/notes.txt")
@@ -331,7 +332,7 @@ class TestWrite:
         result = filesystem.append(
             "/home/user/newfile.txt",
             "content",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
 
         assert_not_success(result)
@@ -346,7 +347,7 @@ class TestWrite:
         result = filesystem.write(
             "/home/user/new.txt",
             content="new file",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
 
         assert_success(result)
@@ -373,7 +374,7 @@ class TestWrite:
         result = filesystem.write(
             "/home/user",
             content="data",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
 
         assert_not_success(result)
@@ -385,7 +386,7 @@ class TestWrite:
         result = filesystem.write(
             "/missing.txt",
             content="data",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
 
         assert_not_success(result)
@@ -397,7 +398,7 @@ class TestWrite:
         filesystem.write(
             "/etc/hostname",
             content="overwritten",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
 
         assert filesystem.base_layer["/etc/hostname"].content == "simnux-edge"
@@ -420,7 +421,7 @@ class TestTouch:
     def test_touch_existing_file_is_noop(self, filesystem):
         """Touch on an existing file does not alter its content."""
 
-        result = filesystem.touch("/etc/hostname", acting_user=_ROOT_USER)
+        result = filesystem.touch("/etc/hostname", execution=_ROOT_EXEC)
 
         assert_success(result)
         node = filesystem.get_node("/etc/hostname")
@@ -464,7 +465,7 @@ class TestListDirectory:
     """
 
     def _list(self, filesystem, path):
-        result = filesystem.list_directory(path, acting_user=_ROOT_USER)
+        result = filesystem.list_directory(path, execution=_ROOT_EXEC)
         assert_success(result)
         return result.nodes
 
@@ -489,7 +490,7 @@ class TestListDirectory:
 
     def test_list_nonexistent_directory(self, filesystem):
         """Listing a nonexistent directory returns a "not found" error."""
-        result = filesystem.list_directory("/nonexistent", acting_user=_ROOT_USER)
+        result = filesystem.list_directory("/nonexistent", execution=_ROOT_EXEC)
         assert_not_success(result)
         assert CommandError.NOT_FOUND in result.message
 
@@ -510,7 +511,7 @@ class TestListDirectory:
         filesystem.write(
             "/home/user/sub/deep/file.txt",
             content="deep",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
         nodes = self._list(filesystem, "/home/user")
         paths = [n.path for n in nodes]
@@ -532,7 +533,7 @@ class TestListDirectory:
         filesystem.write(
             "/home/user/newfile.txt",
             content="new",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
         nodes = self._list(filesystem, "/home/user")
         paths = [n.path for n in nodes]
@@ -556,7 +557,7 @@ class TestListPaths:
         filesystem.write(
             "/newfile.txt",
             content="new",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
         paths = filesystem.list_paths()
         assert "/newfile.txt" in paths
@@ -576,7 +577,7 @@ class TestOverlayIntegrity:
         filesystem.write(
             "/etc/hostname",
             content="changed",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
 
         assert filesystem.base_layer["/etc/hostname"].content == original
@@ -587,7 +588,7 @@ class TestOverlayIntegrity:
         filesystem.write(
             "/etc/hostname",
             content="delta-value",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
 
         assert filesystem.get_node("/etc/hostname").content == "delta-value"
@@ -605,7 +606,7 @@ class TestOverlayIntegrity:
         filesystem.write(
             "/etc/hostname",
             content="new",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
 
         node = filesystem.get_node("/etc/hostname")
@@ -621,7 +622,7 @@ class TestWriteToDirectoryRejection:
         result = filesystem.write(
             "/home",
             content="data",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
 
         assert_not_success(result)
@@ -659,7 +660,7 @@ class TestRegressionWriteEmptyContent:
         result = filesystem.write(
             "/new_empty.txt",
             content="",
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
 
         assert_success(result)
@@ -671,9 +672,9 @@ class TestRegressionWriteEmptyContent:
 
         filesystem.create_file("/empty.txt")
 
-        filesystem.write("/empty.txt", content="", acting_user=_ROOT_USER)
+        filesystem.write("/empty.txt", content="", execution=_ROOT_EXEC)
 
-        filesystem.append("/empty.txt", "data", acting_user=_ROOT_USER)
+        filesystem.append("/empty.txt", "data", execution=_ROOT_EXEC)
 
         node = filesystem.get_node("/empty.txt")
         assert node.content == "data"
@@ -738,31 +739,31 @@ class TestFileSizeSemantics:
     """``SNXNode.size`` stays correct across the VFS content lifecycle."""
 
     def test_create_and_touch_are_zero(self, filesystem):
-        filesystem.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
-        filesystem.touch("/home/user/b.txt", acting_user=_ROOT_USER)
+        filesystem.create_file("/home/user/a.txt", execution=_ROOT_EXEC)
+        filesystem.touch("/home/user/b.txt", execution=_ROOT_EXEC)
         assert filesystem.get_node("/home/user/a.txt").size == 0
         assert filesystem.get_node("/home/user/b.txt").size == 0
 
     def test_write_sets_exact_utf8_bytes(self, filesystem):
-        filesystem.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
-        filesystem.write("/home/user/a.txt", "héllo", acting_user=_ROOT_USER)
+        filesystem.create_file("/home/user/a.txt", execution=_ROOT_EXEC)
+        filesystem.write("/home/user/a.txt", "héllo", execution=_ROOT_EXEC)
         assert filesystem.get_node("/home/user/a.txt").size == 6
 
     def test_overwrite_reflects_latest_content(self, filesystem):
         """Size never goes stale across repeated overwrites."""
-        filesystem.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
-        filesystem.write("/home/user/a.txt", "x" * 5, acting_user=_ROOT_USER)
+        filesystem.create_file("/home/user/a.txt", execution=_ROOT_EXEC)
+        filesystem.write("/home/user/a.txt", "x" * 5, execution=_ROOT_EXEC)
         assert filesystem.get_node("/home/user/a.txt").size == 5
-        filesystem.write("/home/user/a.txt", "y" * 100, acting_user=_ROOT_USER)
+        filesystem.write("/home/user/a.txt", "y" * 100, execution=_ROOT_EXEC)
         assert filesystem.get_node("/home/user/a.txt").size == 100
-        filesystem.write("/home/user/a.txt", "", acting_user=_ROOT_USER)
+        filesystem.write("/home/user/a.txt", "", execution=_ROOT_EXEC)
         assert filesystem.get_node("/home/user/a.txt").size == 0
 
     def test_append_grows_by_appended_bytes(self, filesystem):
-        filesystem.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
-        filesystem.append("/home/user/a.txt", "ab", acting_user=_ROOT_USER)
-        filesystem.append("/home/user/a.txt", "c", acting_user=_ROOT_USER)
-        filesystem.append("/home/user/a.txt", "d", acting_user=_ROOT_USER)
+        filesystem.create_file("/home/user/a.txt", execution=_ROOT_EXEC)
+        filesystem.append("/home/user/a.txt", "ab", execution=_ROOT_EXEC)
+        filesystem.append("/home/user/a.txt", "c", execution=_ROOT_EXEC)
+        filesystem.append("/home/user/a.txt", "d", execution=_ROOT_EXEC)
         assert filesystem.get_node("/home/user/a.txt").content == "abcd"
         assert filesystem.get_node("/home/user/a.txt").size == 4
 
@@ -793,7 +794,7 @@ class TestNodeMtime:
             base_layer=base_layer,
             clock=lambda: _FIXED_NOW,
         )
-        fs.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
+        fs.create_file("/home/user/a.txt", execution=_ROOT_EXEC)
         assert fs.get_node("/home/user/a.txt").modified_at == _FIXED_NOW
 
     def test_create_directory_stamps_mtime(self, base_layer, create_filesystem):
@@ -801,7 +802,7 @@ class TestNodeMtime:
             base_layer=base_layer,
             clock=lambda: _FIXED_NOW,
         )
-        fs.create_directory("/home/user/d", acting_user=_ROOT_USER)
+        fs.create_directory("/home/user/d", execution=_ROOT_EXEC)
         assert fs.get_node("/home/user/d").modified_at == _FIXED_NOW
 
     def test_write_stamps_mtime(self, base_layer, create_filesystem):
@@ -809,8 +810,8 @@ class TestNodeMtime:
             base_layer=base_layer,
             clock=lambda: _FIXED_NOW,
         )
-        fs.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
-        fs.write("/home/user/a.txt", "hi", acting_user=_ROOT_USER)
+        fs.create_file("/home/user/a.txt", execution=_ROOT_EXEC)
+        fs.write("/home/user/a.txt", "hi", execution=_ROOT_EXEC)
         assert fs.get_node("/home/user/a.txt").modified_at == _FIXED_NOW
 
     def test_append_stamps_mtime(self, base_layer, create_filesystem):
@@ -818,9 +819,9 @@ class TestNodeMtime:
             base_layer=base_layer,
             clock=lambda: _FIXED_NOW,
         )
-        fs.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
-        fs.append("/home/user/a.txt", "x", acting_user=_ROOT_USER)
-        fs.append("/home/user/a.txt", "y", acting_user=_ROOT_USER)
+        fs.create_file("/home/user/a.txt", execution=_ROOT_EXEC)
+        fs.append("/home/user/a.txt", "x", execution=_ROOT_EXEC)
+        fs.append("/home/user/a.txt", "y", execution=_ROOT_EXEC)
         assert fs.get_node("/home/user/a.txt").modified_at == _FIXED_NOW
 
     def test_touch_creates_and_updates_mtime(self, base_layer, create_filesystem):
@@ -829,21 +830,21 @@ class TestNodeMtime:
             base_layer=base_layer,
             clock=lambda: current,
         )
-        fs.touch("/home/user/a.txt", acting_user=_ROOT_USER)
+        fs.touch("/home/user/a.txt", execution=_ROOT_EXEC)
         assert fs.get_node("/home/user/a.txt").modified_at == current
 
         current = _FIXED_NOW + datetime.timedelta(hours=1)
-        fs.touch("/home/user/a.txt", acting_user=_ROOT_USER)
+        fs.touch("/home/user/a.txt", execution=_ROOT_EXEC)
         node = fs.get_node("/home/user/a.txt")
         assert node.modified_at == current
         assert node.content == ""
 
     def test_chmod_preserves_mtime(self, filesystem):
         """chmod mutates only permission bits; mtime is left untouched."""
-        filesystem.create_file("/home/user/a.txt", acting_user=_ROOT_USER)
-        filesystem.write("/home/user/a.txt", "data", acting_user=_ROOT_USER)
+        filesystem.create_file("/home/user/a.txt", execution=_ROOT_EXEC)
+        filesystem.write("/home/user/a.txt", "data", execution=_ROOT_EXEC)
         stamped = filesystem.get_node("/home/user/a.txt").modified_at
-        filesystem.chmod("/home/user/a.txt", 0o600, acting_user=_ROOT_USER)
+        filesystem.chmod("/home/user/a.txt", 0o600, execution=_ROOT_EXEC)
         node = filesystem.get_node("/home/user/a.txt")
         assert node.modified_at == stamped
 

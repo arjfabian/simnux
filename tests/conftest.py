@@ -31,6 +31,8 @@ from simnux.core.filesystem.vfs import SNXFileSystem
 from simnux.core.runtime.runtime import SNXRuntime
 from simnux.core.scenarios.models import SNXScenario
 from simnux.core.shell.runtime import SNXShell
+from simnux.security.execution.models import ExecutionContext
+from simnux.security.groups.membership import SNXGroupMembership
 from simnux.security.groups.models import SNXGroup
 from simnux.security.users.models import SNXUser
 
@@ -39,6 +41,14 @@ ROOT_USER = SNXUser(0, "root")
 ROOT_GROUP = SNXGroup(0, "root")
 USER_OWNER = SNXUser(1001, "user")
 USER_GROUP = SNXGroup(1001, "user")
+ROOT_EXEC = ExecutionContext.for_user(ROOT_USER)
+USER_EXEC = ExecutionContext.for_user(
+    USER_OWNER,
+    SNXGroupMembership.from_identities(
+        {"root": ROOT_USER, "user": USER_OWNER},
+        {"root": ROOT_GROUP, "user": USER_GROUP},
+    ),
+)
 
 
 def pytest_configure(config):
@@ -175,7 +185,13 @@ def create_session(create_scenario, test_logger):
 
         return SNXShell(
             scenario=scenario,
-            user=scenario.users["user"],
+            execution_context=ExecutionContext.for_user(
+                scenario.users["user"],
+                SNXGroupMembership.from_identities(
+                    scenario.users,
+                    scenario.groups,
+                ),
+            ),
             current_directory=kw.get(
                 "cwd",
                 "/home/user",
@@ -610,7 +626,13 @@ def session(base_scenario, filesystem, test_logger):
     """
     return SNXShell(
         scenario=base_scenario,
-        user=base_scenario.users["user"],
+        execution_context=ExecutionContext.for_user(
+            base_scenario.users["user"],
+            SNXGroupMembership.from_identities(
+                base_scenario.users,
+                base_scenario.groups,
+            ),
+        ),
         current_directory=base_scenario.starting_dir,
         filesystem=filesystem,
         registry=CommandRegistry(),
@@ -649,7 +671,11 @@ def command_context(session, filesystem):
     Returns:
         CommandContext: Context for command execution.
     """
-    return CommandContext(shell=session, filesystem=filesystem)
+    return CommandContext(
+        shell=session,
+        filesystem=filesystem,
+        execution_context=session.execution_context,
+    )
 
 
 @pytest.fixture
@@ -697,6 +723,7 @@ def populated_registry(session, filesystem, test_logger):
     context = CommandContext(
         shell=session,
         filesystem=filesystem,
+        execution_context=session.execution_context,
     )
 
     loader = CommandLoader(

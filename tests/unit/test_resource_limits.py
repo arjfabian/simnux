@@ -18,8 +18,10 @@ from simnux.core.filesystem.models import SNXNode
 from simnux.core.filesystem.vfs import SNXFileSystem
 from simnux.core.runtime.models import ExitCode
 from simnux.core.scripting.runner import ScriptRunner
+from simnux.security.execution.models import ExecutionContext
 from simnux.security.groups.models import SNXGroup
 from simnux.security.users.models import SNXUser
+from tests.helpers import _ROOT_EXEC
 
 
 _ROOT_USER = SNXUser(0, "root")
@@ -38,7 +40,7 @@ class TestVfsFileByteLimit:
             base_layer=dict(base_layer),
             max_file_bytes=100,
         )
-        result = fs.write("/home/user/notes.txt", "hello", acting_user=_ROOT_USER)
+        result = fs.write("/home/user/notes.txt", "hello", execution=_ROOT_EXEC)
         assert result.exit_code == ExitCode.SUCCESS
 
     def test_write_exceeds_file_limit(self, base_layer):
@@ -47,7 +49,7 @@ class TestVfsFileByteLimit:
             base_layer=dict(base_layer),
             max_file_bytes=5,
         )
-        result = fs.write("/home/user/notes.txt", "hello world", acting_user=_ROOT_USER)
+        result = fs.write("/home/user/notes.txt", "hello world", execution=_ROOT_EXEC)
         assert result.exit_code == ExitCode.ERROR
         assert result.message == CommandError.DISK_QUOTA_EXCEEDED
 
@@ -59,7 +61,7 @@ class TestVfsFileByteLimit:
         )
         # Existing content is "hello world" (11 bytes) — already over limit,
         # but the check is on the *resulting* content.
-        result = fs.append("/home/user/notes.txt", " extra", acting_user=_ROOT_USER)
+        result = fs.append("/home/user/notes.txt", " extra", execution=_ROOT_EXEC)
         assert result.exit_code == ExitCode.ERROR
         assert result.message == CommandError.DISK_QUOTA_EXCEEDED
 
@@ -69,7 +71,7 @@ class TestVfsFileByteLimit:
             base_layer=dict(base_layer),
             max_file_bytes=0,
         )
-        result = fs.write("/home/user/notes.txt", "x" * 10_000, acting_user=_ROOT_USER)
+        result = fs.write("/home/user/notes.txt", "x" * 10_000, execution=_ROOT_EXEC)
         assert result.exit_code == ExitCode.SUCCESS
 
 
@@ -102,11 +104,11 @@ class TestVfsTotalByteLimit:
             max_total_bytes=10,
         )
         # Write 7 bytes to /a (replacing 3) — total becomes 7, within limit
-        result = fs.write("/a", "bbbbbbb", acting_user=_ROOT_USER)
+        result = fs.write("/a", "bbbbbbb", execution=_ROOT_EXEC)
         assert result.exit_code == ExitCode.SUCCESS
 
         # Write 11 bytes — projected total = 7 - 7 + 11 = 11 > 10
-        result = fs.write("/a", "x" * 11, acting_user=_ROOT_USER)
+        result = fs.write("/a", "x" * 11, execution=_ROOT_EXEC)
         assert result.exit_code == ExitCode.ERROR
         assert result.message == CommandError.DISK_QUOTA_EXCEEDED
 
@@ -143,15 +145,13 @@ class TestVfsTotalByteLimit:
             max_file_bytes=0,
             max_total_bytes=20,
         )
-        fs.write("/a", "12345", acting_user=_ROOT_USER)  # 5 bytes
-        fs.write("/b", "67890", acting_user=_ROOT_USER)  # 5 bytes, total = 10
-        result = fs.write(
-            "/a", "x" * 15, acting_user=_ROOT_USER
-        )  # projected = 10 - 5 + 15 = 20, ok
+        fs.write("/a", "12345", execution=_ROOT_EXEC)  # 5 bytes
+        fs.write("/b", "67890", execution=_ROOT_EXEC)  # 5 bytes, total = 10
+        result = fs.write("/a", "x" * 15, execution=_ROOT_EXEC)  # projected = 10 - 5 + 15 = 20, ok
         assert result.exit_code == ExitCode.SUCCESS
 
         result = fs.write(
-            "/b", "y" * 11, acting_user=_ROOT_USER
+            "/b", "y" * 11, execution=_ROOT_EXEC
         )  # projected = 20 - 5 + 11 = 26, over
         assert result.exit_code == ExitCode.ERROR
 
@@ -179,7 +179,7 @@ class TestVfsTotalByteLimit:
             base_layer=base,
             max_total_bytes=0,
         )
-        result = fs.write("/a", "x" * 100_000, acting_user=_ROOT_USER)
+        result = fs.write("/a", "x" * 100_000, execution=_ROOT_EXEC)
         assert result.exit_code == ExitCode.SUCCESS
 
 
@@ -208,7 +208,7 @@ def _make_runner(limits: LimitsConfig) -> tuple[ScriptRunner, CommandContext]:
     runner = ScriptRunner(registry, limits=limits)
 
     session = MagicMock()
-    session.user = _ROOT_USER
+    session.execution_context = ExecutionContext.for_user(_ROOT_USER)
     session.session_id = "test"
     session.current_directory = "/home/user"
     session.home_directory = "/home/user"
@@ -217,7 +217,11 @@ def _make_runner(limits: LimitsConfig) -> tuple[ScriptRunner, CommandContext]:
     filesystem = MagicMock()
     filesystem.resolve_path.return_value = "/home/user"
 
-    ctx = CommandContext(shell=session, filesystem=filesystem)
+    ctx = CommandContext(
+        shell=session,
+        filesystem=filesystem,
+        execution_context=session.execution_context,
+    )
     return runner, ctx
 
 
@@ -413,7 +417,7 @@ class TestInfiniteWhileLoopWithTestCmd:
         registry.register(TestCmd(context=None))
 
         session = MagicMock()
-        session.user = _ROOT_USER
+        session.execution_context = ExecutionContext.for_user(_ROOT_USER)
         session.session_id = "test"
         session.current_directory = "/home/user"
         session.home_directory = "/home/user"
@@ -422,7 +426,11 @@ class TestInfiniteWhileLoopWithTestCmd:
         filesystem = MagicMock()
         filesystem.resolve_path.return_value = "/home/user"
 
-        ctx = CommandContext(shell=session, filesystem=filesystem)
+        ctx = CommandContext(
+            shell=session,
+            filesystem=filesystem,
+            execution_context=session.execution_context,
+        )
 
         script = "while [ 1 -eq 1 ]\n  echo alive\ndone"
         exit_code, stderr = await _run_script(runner, ctx, script)
@@ -450,13 +458,17 @@ class TestVfsQuotaBreachViaLoopAppend:
         registry.register(_EchoCommand())
 
         session = MagicMock()
-        session.user = _ROOT_USER
+        session.execution_context = ExecutionContext.for_user(_ROOT_USER)
         session.session_id = "test"
         session.current_directory = "/tmp"
         session.home_directory = "/home/user"
         session.environment = {}
 
-        ctx = CommandContext(shell=session, filesystem=fs)
+        ctx = CommandContext(
+            shell=session,
+            filesystem=fs,
+            execution_context=session.execution_context,
+        )
         return runner, ctx, fs
 
     @pytest.mark.asyncio
@@ -745,12 +757,16 @@ class TestFileStreamWriterQuotaError:
         fs = SNXFileSystem(base_layer=base_layer, max_file_bytes=30)
 
         session = MagicMock()
-        session.user = _ROOT_USER
+        session.execution_context = ExecutionContext.for_user(_ROOT_USER)
         session.session_id = "test"
         session.current_directory = "/home/user"
         session.home_directory = "/home/user"
         session.environment = {}
-        ctx = CommandContext(shell=session, filesystem=fs)
+        ctx = CommandContext(
+            shell=session,
+            filesystem=fs,
+            execution_context=session.execution_context,
+        )
 
         stdin = MagicMock()
         stdout = QueueStreamWriter(asyncio.Queue())

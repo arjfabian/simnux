@@ -14,6 +14,7 @@ from simnux.core.scenarios.evaluator import evaluate
 from simnux.core.scenarios.models import SNXScenario
 from simnux.security.groups.models import SNXGroup
 from simnux.security.users.models import SNXUser
+from tests.helpers import _ROOT_EXEC
 
 
 _ROOT_USER = SNXUser(0, "root")
@@ -44,8 +45,8 @@ def _make_scenario(objective: dict) -> SNXScenario:
 class TestFileStateObjective:
     async def test_file_state_existing_file(self, session, filesystem):
         """Existing file with no content constraints passes."""
-        filesystem.touch("/home/user/config.txt", acting_user=_ROOT_USER)
-        filesystem.write("/home/user/config.txt", "hello world", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/config.txt", execution=_ROOT_EXEC)
+        filesystem.write("/home/user/config.txt", "hello world", execution=_ROOT_EXEC)
         scenario = _make_scenario(
             {
                 "type": "file_state",
@@ -53,7 +54,7 @@ class TestFileStateObjective:
             }
         )
         session.scenario = scenario
-        assert _check_file_state(scenario.objective, filesystem, _ROOT_USER)
+        assert _check_file_state(scenario.objective, filesystem, _ROOT_EXEC)
 
     async def test_file_state_nonexistent_file_fails(self, session, filesystem):
         """Missing file fails file_state check."""
@@ -64,12 +65,12 @@ class TestFileStateObjective:
             }
         )
         session.scenario = scenario
-        assert not _check_file_state(scenario.objective, filesystem, _ROOT_USER)
+        assert not _check_file_state(scenario.objective, filesystem, _ROOT_EXEC)
 
     async def test_file_state_contains(self, session, filesystem):
         """``contains`` sub-string constraint is enforced."""
-        filesystem.touch("/home/user/secret.txt", acting_user=_ROOT_USER)
-        filesystem.write("/home/user/secret.txt", "FLAG{hidden}", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/secret.txt", execution=_ROOT_EXEC)
+        filesystem.write("/home/user/secret.txt", "FLAG{hidden}", execution=_ROOT_EXEC)
         scenario = _make_scenario(
             {
                 "type": "file_state",
@@ -78,12 +79,12 @@ class TestFileStateObjective:
             }
         )
         session.scenario = scenario
-        assert _check_file_state(scenario.objective, filesystem, _ROOT_USER)
+        assert _check_file_state(scenario.objective, filesystem, _ROOT_EXEC)
 
     async def test_file_state_contains_fails_when_missing(self, session, filesystem):
         """``contains`` check fails when sub-string is absent."""
-        filesystem.touch("/home/user/secret.txt", acting_user=_ROOT_USER)
-        filesystem.write("/home/user/secret.txt", "nothing here", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/secret.txt", execution=_ROOT_EXEC)
+        filesystem.write("/home/user/secret.txt", "nothing here", execution=_ROOT_EXEC)
         scenario = _make_scenario(
             {
                 "type": "file_state",
@@ -92,12 +93,12 @@ class TestFileStateObjective:
             }
         )
         session.scenario = scenario
-        assert not _check_file_state(scenario.objective, filesystem, _ROOT_USER)
+        assert not _check_file_state(scenario.objective, filesystem, _ROOT_EXEC)
 
     async def test_file_state_exact_match(self, session, filesystem):
         """``exact_match`` exact-content constraint is enforced."""
-        filesystem.touch("/home/user/config.txt", acting_user=_ROOT_USER)
-        filesystem.write("/home/user/config.txt", "foo=bar", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/config.txt", execution=_ROOT_EXEC)
+        filesystem.write("/home/user/config.txt", "foo=bar", execution=_ROOT_EXEC)
         scenario = _make_scenario(
             {
                 "type": "file_state",
@@ -106,12 +107,12 @@ class TestFileStateObjective:
             }
         )
         session.scenario = scenario
-        assert _check_file_state(scenario.objective, filesystem, _ROOT_USER)
+        assert _check_file_state(scenario.objective, filesystem, _ROOT_EXEC)
 
     async def test_file_state_exact_match_fails(self, session, filesystem):
         """``exact_match`` fails when content differs."""
-        filesystem.touch("/home/user/config.txt", acting_user=_ROOT_USER)
-        filesystem.write("/home/user/config.txt", "foo=baz", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/config.txt", execution=_ROOT_EXEC)
+        filesystem.write("/home/user/config.txt", "foo=baz", execution=_ROOT_EXEC)
         scenario = _make_scenario(
             {
                 "type": "file_state",
@@ -120,7 +121,7 @@ class TestFileStateObjective:
             }
         )
         session.scenario = scenario
-        assert not _check_file_state(scenario.objective, filesystem, _ROOT_USER)
+        assert not _check_file_state(scenario.objective, filesystem, _ROOT_EXEC)
 
     async def test_file_state_directory_fails(self, session, filesystem):
         """A directory path fails file_state check."""
@@ -131,7 +132,7 @@ class TestFileStateObjective:
             }
         )
         session.scenario = scenario
-        assert not _check_file_state(scenario.objective, filesystem, _ROOT_USER)
+        assert not _check_file_state(scenario.objective, filesystem, _ROOT_EXEC)
 
     async def test_file_state_exists_false_when_missing(self, session, filesystem):
         """``exists: false`` triggers when the file does not exist."""
@@ -143,11 +144,11 @@ class TestFileStateObjective:
             }
         )
         session.scenario = scenario
-        assert _check_file_state(scenario.objective, filesystem, _ROOT_USER)
+        assert _check_file_state(scenario.objective, filesystem, _ROOT_EXEC)
 
     async def test_file_state_exists_false_when_present(self, session, filesystem):
         """``exists: false`` does NOT trigger when the file exists."""
-        filesystem.touch("/home/user/deleted.txt", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/deleted.txt", execution=_ROOT_EXEC)
         scenario = _make_scenario(
             {
                 "type": "file_state",
@@ -156,11 +157,11 @@ class TestFileStateObjective:
             }
         )
         session.scenario = scenario
-        assert not _check_file_state(scenario.objective, filesystem, _ROOT_USER)
+        assert not _check_file_state(scenario.objective, filesystem, _ROOT_EXEC)
 
     async def test_file_state_exists_true_when_present(self, session, filesystem):
         """``exists: true`` triggers when the file exists."""
-        filesystem.touch("/home/user/flag.txt", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/flag.txt", execution=_ROOT_EXEC)
         scenario = _make_scenario(
             {
                 "type": "file_state",
@@ -169,7 +170,7 @@ class TestFileStateObjective:
             }
         )
         session.scenario = scenario
-        assert _check_file_state(scenario.objective, filesystem, _ROOT_USER)
+        assert _check_file_state(scenario.objective, filesystem, _ROOT_EXEC)
 
     async def test_file_state_exists_true_when_missing(self, session, filesystem):
         """``exists: true`` does NOT trigger when the file is absent."""
@@ -181,18 +182,18 @@ class TestFileStateObjective:
             }
         )
         session.scenario = scenario
-        assert not _check_file_state(scenario.objective, filesystem, _ROOT_USER)
+        assert not _check_file_state(scenario.objective, filesystem, _ROOT_EXEC)
 
 
 class TestCommandOutputObjective:
     async def test_command_output_flag_found(self, session, filesystem, populated_registry):
         """``command_output`` detects flag when matching command is executed."""
         dispatcher = CommandDispatcher(registry=populated_registry)
-        filesystem.touch("/home/user/validate.sh", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/validate.sh", execution=_ROOT_EXEC)
         filesystem.write(
             "/home/user/validate.sh",
             '#!/bin/bash\necho "FLAG{found}"\n',
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
         scenario = _make_scenario(
             {
@@ -213,11 +214,11 @@ class TestCommandOutputObjective:
     async def test_command_output_not_matched(self, session, filesystem, populated_registry):
         """``command_output`` fails when output does not match."""
         dispatcher = CommandDispatcher(registry=populated_registry)
-        filesystem.touch("/home/user/validate.sh", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/validate.sh", execution=_ROOT_EXEC)
         filesystem.write(
             "/home/user/validate.sh",
             '#!/bin/bash\necho "wrong output"\n',
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
         scenario = _make_scenario(
             {
@@ -240,11 +241,11 @@ class TestCommandOutputObjective:
     ):
         """``command_output`` returns NONE when an unrelated command is run."""
         dispatcher = CommandDispatcher(registry=populated_registry)
-        filesystem.touch("/home/user/validate.sh", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/validate.sh", execution=_ROOT_EXEC)
         filesystem.write(
             "/home/user/validate.sh",
             '#!/bin/bash\necho "FLAG{found}"\n',
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
         scenario = _make_scenario(
             {
@@ -267,11 +268,11 @@ class TestCommandOutputObjective:
     ):
         """``command_output`` returns NONE for ``cat validate.sh`` (not the target)."""
         dispatcher = CommandDispatcher(registry=populated_registry)
-        filesystem.touch("/home/user/validate.sh", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/validate.sh", execution=_ROOT_EXEC)
         filesystem.write(
             "/home/user/validate.sh",
             '#!/bin/bash\necho "FLAG{found}"\n',
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
         scenario = _make_scenario(
             {
@@ -294,11 +295,11 @@ class TestCommandOutputObjective:
     ):
         """Without ``executed_command`` the gate is skipped (backward compat)."""
         dispatcher = CommandDispatcher(registry=populated_registry)
-        filesystem.touch("/home/user/validate.sh", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/validate.sh", execution=_ROOT_EXEC)
         filesystem.write(
             "/home/user/validate.sh",
             '#!/bin/bash\necho "FLAG{found}"\n',
-            acting_user=_ROOT_USER,
+            execution=_ROOT_EXEC,
         )
         scenario = _make_scenario(
             {
@@ -384,8 +385,8 @@ class TestEvaluateTopLevel:
 
     async def test_evaluate_win_message_default(self, session, filesystem):
         """Default win_message is used when objective omits it."""
-        filesystem.touch("/home/user/flag.txt", acting_user=_ROOT_USER)
-        filesystem.write("/home/user/flag.txt", "win", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/flag.txt", execution=_ROOT_EXEC)
+        filesystem.write("/home/user/flag.txt", "win", execution=_ROOT_EXEC)
         scenario = _make_scenario(
             {
                 "type": "file_state",
@@ -401,7 +402,7 @@ class TestEvaluateTopLevel:
 class TestTriggersEvaluation:
     async def test_triggers_win_file_state(self, session, filesystem):
         """``triggers`` with a matching file_state condition returns WIN."""
-        filesystem.touch("/home/user/.solved", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/.solved", execution=_ROOT_EXEC)
         scenario = _make_scenario({})
         scenario.triggers = [
             {
@@ -417,7 +418,7 @@ class TestTriggersEvaluation:
 
     async def test_triggers_fail_file_state(self, session, filesystem):
         """A failing condition with ``fail_scenario`` action returns FAIL."""
-        filesystem.touch("/home/user/.bomb", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/.bomb", execution=_ROOT_EXEC)
         scenario = _make_scenario({})
         scenario.triggers = [
             {
@@ -433,7 +434,7 @@ class TestTriggersEvaluation:
 
     async def test_triggers_first_match_wins(self, session, filesystem):
         """When multiple triggers match, the first one wins."""
-        filesystem.touch("/home/user/flag.txt", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/flag.txt", execution=_ROOT_EXEC)
         scenario = _make_scenario({})
         scenario.triggers = [
             {
@@ -470,10 +471,8 @@ class TestTriggersEvaluation:
     async def test_triggers_command_output_gated(self, session, filesystem, populated_registry):
         """``triggers`` with command_output condition gates on executed_command."""
         dispatcher = CommandDispatcher(registry=populated_registry)
-        filesystem.touch("/home/user/check.sh", acting_user=_ROOT_USER)
-        filesystem.write(
-            "/home/user/check.sh", '#!/bin/bash\necho "PASS"\n', acting_user=_ROOT_USER
-        )
+        filesystem.touch("/home/user/check.sh", execution=_ROOT_EXEC)
+        filesystem.write("/home/user/check.sh", '#!/bin/bash\necho "PASS"\n', execution=_ROOT_EXEC)
         scenario = _make_scenario({})
         scenario.triggers = [
             {
@@ -498,8 +497,8 @@ class TestTriggersEvaluation:
 
     async def test_triggers_legacy_objective_backward_compat(self, session, filesystem):
         """Legacy ``objective`` dict still triggers WIN via backward compat."""
-        filesystem.touch("/home/user/flag.txt", acting_user=_ROOT_USER)
-        filesystem.write("/home/user/flag.txt", "secret", acting_user=_ROOT_USER)
+        filesystem.touch("/home/user/flag.txt", execution=_ROOT_EXEC)
+        filesystem.write("/home/user/flag.txt", "secret", execution=_ROOT_EXEC)
         scenario = _make_scenario(
             {
                 "type": "file_state",
@@ -533,7 +532,7 @@ class TestTriggersEvaluation:
 
     async def test_triggers_exists_false_no_fire_when_present(self, session, filesystem):
         """``exists: false`` trigger does NOT fire when file still exists."""
-        filesystem.touch("/var/log/.hidden_key", acting_user=_ROOT_USER)
+        filesystem.touch("/var/log/.hidden_key", execution=_ROOT_EXEC)
         scenario = _make_scenario({})
         scenario.triggers = [
             {

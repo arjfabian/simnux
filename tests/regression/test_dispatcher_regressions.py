@@ -20,6 +20,7 @@ from simnux.core.filesystem.vfs import SNXFileSystem
 from simnux.core.runtime.models import ExitCode
 from simnux.core.scenarios.models import SNXScenario
 from simnux.core.shell.runtime import SNXShell
+from simnux.security.execution.models import ExecutionContext
 from simnux.security.groups.models import SNXGroup
 from simnux.security.users.models import SNXUser
 
@@ -56,14 +57,18 @@ def ctx():
     filesystem = SNXFileSystem(base_layer={})
     shell = SNXShell(
         scenario=scenario,
-        user=scenario.users["user"],
+        execution_context=ExecutionContext.for_user(scenario.users["user"]),
         current_directory="/",
         filesystem=filesystem,
         registry=CommandRegistry(),
         logger=logging.getLogger("test_dispatcher"),
         identifier="test",
     )
-    return CommandContext(shell=shell, filesystem=filesystem)
+    return CommandContext(
+        shell=shell,
+        filesystem=filesystem,
+        execution_context=shell.execution_context,
+    )
 
 
 class TestRegressionDispatcherAssumptions:

@@ -14,6 +14,7 @@ from simnux.core.commands.standard.condition import Command as TestCmd
 from simnux.core.commands.streams import QueueStreamWriter
 from simnux.core.runtime.models import ExitCode
 from simnux.core.scripting.runner import ScriptRunner
+from simnux.security.execution.models import ExecutionContext
 from simnux.security.users.models import SNXUser
 
 
@@ -62,7 +63,7 @@ def _make_runner(
     registry.register(TestCmd(context=None))
 
     session = MagicMock()
-    session.user = _ROOT_USER
+    session.execution_context = ExecutionContext.for_user(_ROOT_USER)
     session.session_id = "test"
     session.current_directory = "/home/user"
     session.home_directory = "/home/user"
@@ -71,7 +72,11 @@ def _make_runner(
     filesystem = MagicMock()
     filesystem.resolve_path.return_value = "/home/user"
 
-    ctx = CommandContext(shell=session, filesystem=filesystem)
+    ctx = CommandContext(
+        shell=session,
+        filesystem=filesystem,
+        execution_context=session.execution_context,
+    )
     return runner, ctx
 
 

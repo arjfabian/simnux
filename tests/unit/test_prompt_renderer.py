@@ -14,6 +14,8 @@ from simnux.core.filesystem.vfs import SNXFileSystem
 from simnux.core.scenarios.models import SNXScenario
 from simnux.core.shell.prompt import PromptRenderer
 from simnux.core.shell.runtime import SNXShell
+from simnux.security.execution.models import ExecutionContext
+from simnux.security.groups.membership import SNXGroupMembership
 from simnux.security.groups.models import SNXGroup
 from simnux.security.users.models import SNXUser
 
@@ -58,7 +60,13 @@ def _make_session(
     )
     return SNXShell(
         scenario=scenario,
-        user=scenario.users[username],
+        execution_context=ExecutionContext.for_user(
+            scenario.users[username],
+            SNXGroupMembership.from_identities(
+                scenario.users,
+                scenario.groups,
+            ),
+        ),
         current_directory=current_directory or starting_dir,
         filesystem=SNXFileSystem(base_layer={}),
         registry=CommandRegistry(),

@@ -7,6 +7,7 @@ verification through ``ls``/``cat``.
 
 import pytest
 
+from simnux.security.execution.models import ExecutionContext
 from simnux.security.users.models import SNXUser
 from tests.helpers import assert_error
 from tests.helpers import assert_invalid_args
@@ -24,7 +25,7 @@ class TestChmodCommand:
         """``chmod 644`` grants owner rw, group/other r."""
         shell_with_commands.filesystem.touch(
             "/home/user/file.txt",
-            acting_user=shell_with_commands.user,
+            execution=shell_with_commands.execution_context,
         )
         result = await shell_with_commands.execute("chmod 644 /home/user/file.txt")
         assert_success(result)
@@ -40,7 +41,7 @@ class TestChmodCommand:
         """``chmod 600`` seals a file to owner-only."""
         shell_with_commands.filesystem.touch(
             "/home/user/secret.txt",
-            acting_user=shell_with_commands.user,
+            execution=shell_with_commands.execution_context,
         )
         shell_with_commands.filesystem.delta_layer["/home/user/secret.txt"].content = "data"
         result = await shell_with_commands.execute("chmod 600 /home/user/secret.txt")
@@ -55,7 +56,7 @@ class TestChmodCommand:
         """``chmod 755`` grants execute on owner/group/other."""
         shell_with_commands.filesystem.touch(
             "/home/user/script.sh",
-            acting_user=shell_with_commands.user,
+            execution=shell_with_commands.execution_context,
         )
         shell_with_commands.filesystem.delta_layer[
             "/home/user/script.sh"
@@ -71,7 +72,7 @@ class TestChmodCommand:
         """``chmod 000`` removes every permission bit."""
         shell_with_commands.filesystem.touch(
             "/home/user/flat.txt",
-            acting_user=shell_with_commands.user,
+            execution=shell_with_commands.execution_context,
         )
         result = await shell_with_commands.execute("chmod 000 /home/user/flat.txt")
         assert_success(result)
@@ -84,7 +85,7 @@ class TestChmodCommand:
         """chmod mutates only permissions; owner/group/content are untouched."""
         shell_with_commands.filesystem.touch(
             "/home/user/keep.txt",
-            acting_user=shell_with_commands.user,
+            execution=shell_with_commands.execution_context,
         )
         shell_with_commands.filesystem.delta_layer["/home/user/keep.txt"].content = "kept"
         before = shell_with_commands.filesystem.get_node("/home/user/keep.txt")
@@ -126,7 +127,7 @@ class TestChmodCommand:
 class TestChmodRootOverrides:
     async def test_root_can_chmod_any_file(self, runtime_shell):
         """Root may change permissions on any file regardless of ownership."""
-        runtime_shell.user = SNXUser(0, "root")
+        runtime_shell.execution_context = ExecutionContext.for_user(SNXUser(0, "root"))
         result = await runtime_shell.execute("chmod 600 /etc/hostname")
         assert_success(result)
         node = runtime_shell.filesystem.get_node("/etc/hostname")

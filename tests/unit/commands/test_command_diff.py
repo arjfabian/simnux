@@ -36,7 +36,7 @@ class TestDiffCommand:
     """File comparison via the ``diff`` command."""
 
     async def _write(self, shell, path, content):
-        shell.filesystem.touch(path, acting_user=shell.user)
+        shell.filesystem.touch(path, execution=shell.execution_context)
         shell.filesystem.delta_layer[path].content = content
 
     # -- basic diff ---------------------------------------------------------
@@ -65,10 +65,10 @@ class TestDiffCommand:
     async def test_diff_empty_files(self, shell_with_commands):
         """``diff`` on two empty files returns exit code 0."""
         shell_with_commands.filesystem.touch(
-            "/home/user/empty1", acting_user=shell_with_commands.user
+            "/home/user/empty1", execution=shell_with_commands.execution_context
         )
         shell_with_commands.filesystem.touch(
-            "/home/user/empty2", acting_user=shell_with_commands.user
+            "/home/user/empty2", execution=shell_with_commands.execution_context
         )
         result = await shell_with_commands.execute("diff /home/user/empty1 /home/user/empty2")
         assert_success(result)

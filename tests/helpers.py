@@ -15,6 +15,8 @@ from simnux.core.filesystem.vfs import SNXFileSystem
 from simnux.core.runtime.models import ExitCode
 from simnux.core.scenarios.models import SNXScenario
 from simnux.core.shell.runtime import SNXShell
+from simnux.security.execution.models import ExecutionContext
+from simnux.security.groups.membership import SNXGroupMembership
 from simnux.security.groups.models import SNXGroup
 from simnux.security.users.models import SNXUser
 
@@ -23,6 +25,15 @@ _ROOT_USER = SNXUser(0, "root")
 _ROOT_GROUP = SNXGroup(0, "root")
 _USER_OWNER = SNXUser(1001, "user")
 _USER_GROUP = SNXGroup(1001, "user")
+
+_TEST_USERS = {"root": _ROOT_USER, "user": _USER_OWNER}
+_TEST_GROUPS = {"root": _ROOT_GROUP, "user": _USER_GROUP}
+
+_ROOT_EXEC = ExecutionContext.for_user(_ROOT_USER)
+_USER_EXEC = ExecutionContext.for_user(
+    _USER_OWNER,
+    SNXGroupMembership.from_identities(_TEST_USERS, _TEST_GROUPS),
+)
 
 
 def _scratch_scenario() -> SNXScenario:
@@ -75,7 +86,7 @@ def make_shell(
     registry: CommandRegistry | None = None,
     *,
     scenario: SNXScenario | None = None,
-    user: SNXUser | None = None,
+    execution_context: ExecutionContext | None = None,
     current_directory: str | None = None,
     identifier: str | None = None,
 ) -> SNXShell:
@@ -86,12 +97,19 @@ def make_shell(
     """
     scenario_ref = scenario or _scratch_scenario()
 
-    if user is None:
+    if execution_context is None:
         user = scenario_ref.users.get("user") or next(iter(scenario_ref.users.values()))
+        execution_context = ExecutionContext.for_user(
+            user,
+            SNXGroupMembership.from_identities(
+                scenario_ref.users,
+                scenario_ref.groups,
+            ),
+        )
 
     return SNXShell(
         scenario=scenario_ref,
-        user=user,
+        execution_context=execution_context,
         current_directory=current_directory or scenario_ref.starting_dir,
         filesystem=filesystem,
         registry=registry or CommandRegistry(),
@@ -111,7 +129,11 @@ def create_shell_with_commands(
     for direct ``shell.execute(...)`` calls.
     """
     registry = CommandRegistry()
-    context = CommandContext(shell=shell, filesystem=filesystem)
+    context = CommandContext(
+        shell=shell,
+        filesystem=filesystem,
+        execution_context=shell.execution_context,
+    )
     loader = CommandLoader(registry=registry, context=context, logger=logger)
     loader.load_all()
 
@@ -192,13 +214,14 @@ def drain_queue(queue: asyncio.Queue) -> list[str]:
 
 
 def make_mock_context(filesystem=None, shell_user=_ROOT_USER, **attrs):
-    """Build a ``CommandContext`` mock whose ``shell.user`` is accessible.
+    """Build a ``CommandContext`` mock whose execution context is accessible.
 
-    Commands now receive their acting identity from ``ctx.shell.user``, so
-    unit tests that drive commands with a plain ``MagicMock(spec=CommandContext)``
-    must attach a shell child mock exposing ``user``. Root is the default
-    acting identity (bypasses permission checks), matching the neutral
-    mechanics-verification intent of mock-based command unit tests.
+    Commands now receive their acting subject from
+    ``ctx.execution_context``, so unit tests that drive commands with a plain
+    ``MagicMock(spec=CommandContext)`` must attach an execution context built
+    from the chosen identity. Root is the default acting identity (bypasses
+    permission checks), matching the neutral mechanics-verification intent of
+    mock-based command unit tests.
     """
     from unittest.mock import MagicMock
 
@@ -208,8 +231,8 @@ def make_mock_context(filesystem=None, shell_user=_ROOT_USER, **attrs):
     ctx = MagicMock(spec=CommandContext)
     if filesystem is not None:
         ctx.filesystem = filesystem
+    ctx.execution_context = ExecutionContext.for_user(shell_user)
     shell = MagicMock(spec=SNXShell)
-    shell.user = shell_user
     ctx.shell = shell
     for key, value in attrs.items():
         setattr(ctx, key, value)

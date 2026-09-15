@@ -20,10 +20,15 @@ pytestmark = pytest.mark.asyncio
 def sealed(session, test_logger, fs_rich):
     """A shell whose world is 0644 root files plus a sealed root-owned file."""
     from simnux.core.filesystem.vfs import SNXFileSystem
+    from simnux.security.execution.models import ExecutionContext
     from tests.helpers import create_shell_with_commands
 
     fs = SNXFileSystem(base_layer=dict(fs_rich))
-    fs.chmod("/etc/passwd", 0o600, acting_user=session.scenario.users["root"])
+    fs.chmod(
+        "/etc/passwd",
+        0o600,
+        execution=ExecutionContext.for_user(session.scenario.users["root"]),
+    )
     shell = create_shell_with_commands(session, fs, test_logger)
     shell.filesystem = fs
     return shell
@@ -80,7 +85,7 @@ class TestScriptExecutionGates:
         fs = SNXFileSystem(base_layer=dict(fs_with_home))
         shell = create_shell_with_commands(session, fs, test_logger)
         shell.filesystem = fs
-        fs.touch("/home/user/plain.sh", acting_user=shell.user)
+        fs.touch("/home/user/plain.sh", execution=shell.execution_context)
         fs.delta_layer["/home/user/plain.sh"].content = "#!/bin/sh\necho executed\n"
 
         direct = await shell.execute("./plain.sh")
@@ -98,9 +103,9 @@ class TestScriptExecutionGates:
         fs = SNXFileSystem(base_layer=dict(fs_with_home))
         shell = create_shell_with_commands(session, fs, test_logger)
         shell.filesystem = fs
-        fs.touch("/home/user/run.sh", acting_user=shell.user)
+        fs.touch("/home/user/run.sh", execution=shell.execution_context)
         fs.delta_layer["/home/user/run.sh"].content = "#!/bin/sh\necho ran\n"
-        fs.chmod("/home/user/run.sh", 0o755, acting_user=shell.user)
+        fs.chmod("/home/user/run.sh", 0o755, execution=shell.execution_context)
 
         result = await shell.execute("./run.sh")
         assert_success(result)
