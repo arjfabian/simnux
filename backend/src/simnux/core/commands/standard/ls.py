@@ -81,7 +81,7 @@ class Command(SNXCommand):
 
         list_result = ctx.filesystem.list_directory(
             target,
-            acting_user=ctx.shell.user,
+            execution=ctx.execution_context,
         )
         if list_result.exit_code != ExitCode.SUCCESS:
             await stderr.write(f"ls: cannot access '{raw_target}': {list_result.message}")

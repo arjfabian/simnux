@@ -27,7 +27,7 @@ class Command(SNXCommand):
 
         result = ctx.filesystem.create_directory(
             target,
-            acting_user=ctx.shell.user,
+            execution=ctx.execution_context,
         )
 
         if result.exit_code != ExitCode.SUCCESS:

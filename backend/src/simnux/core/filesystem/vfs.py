@@ -1,7 +1,7 @@
 """Virtual layered filesystem: immutable base_layer + per-session delta_layer overlay.
 
 Permission enforcement: every permission-sensitive VFS mutation/access gates
-on the acting scenario-local user through ``PermissionEvaluator`` — read
+on the current execution context through ``AuthorizationPolicy`` — read
 (``read``), write (``write``/``append``/``touch`` of an existing file),
 execute (``validate_directory``/``check_access``), directory read
 (``list_directory``), owner-or-root (``chmod``), and parent-directory
@@ -9,10 +9,15 @@ execute (``validate_directory``/``check_access``), directory read
 ``create_directory`` / ``touch`` of a missing path / ``delete`` /
 ``delete_file`` / ``delete_directory``).
 
+The filesystem constructs filesystem-specific ``AccessRequest`` descriptors
+from node state and delegates the allow/deny decision to
+``security.authorization``; it does not define execution identity, privilege,
+or class-selection semantics itself.
+
 Creation and deletion follow Unix directory-entry semantics: they authorize
 on the *containing directory* (write+execute there), never on the target
 file's own permission bits. Root (``user_id == 0``) bypasses every gate per
-the documented root policy.
+the documented root policy owned by the authorization layer.
 
 Intentional simplifications / gaps: ``exists``/``is_directory``/
 ``list_paths``/``get_node``/``resolve_path`` are informational and
@@ -36,17 +41,21 @@ from simnux.core.filesystem.models import PermissionPresets
 from simnux.core.filesystem.models import SNXNode
 from simnux.core.filesystem.models import SNXPermissions
 from simnux.core.filesystem.models import permissions_from_mode
-from simnux.core.filesystem.permissions import Access
-from simnux.core.filesystem.permissions import PermissionEvaluator
 from simnux.core.runtime.config import VfsLimits
 from simnux.core.runtime.models import ExitCode
-from simnux.security.groups.membership import SNXGroupMembership
+from simnux.security.authorization.models import Access
+from simnux.security.authorization.models import AccessRequest
+from simnux.security.authorization.models import ProtectedResource
+from simnux.security.authorization.policy import AuthorizationPolicy
+from simnux.security.execution.models import ExecutionContext
 from simnux.security.groups.models import SNXGroup
 from simnux.security.users.models import SNXUser
 
 
 _ROOT_USER = SNXUser(0, "root")
 _ROOT_GROUP = SNXGroup(0, "root")
+
+_ROOT_EXECUTION = ExecutionContext.root()
 
 
 class SNXFileSystem:
@@ -60,7 +69,7 @@ class SNXFileSystem:
         vfs_limits: VfsLimits | None = None,
         max_file_bytes: int = 0,
         max_total_bytes: int = 0,
-        membership: SNXGroupMembership | None = None,
+        authorization: AuthorizationPolicy | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.base_layer = base_layer
@@ -73,8 +82,7 @@ class SNXFileSystem:
             self.max_file_bytes = max_file_bytes
             self.max_total_bytes = max_total_bytes
 
-        self._membership = membership or SNXGroupMembership()
-        self.permissions = PermissionEvaluator(self._membership)
+        self._policy = authorization or AuthorizationPolicy()
 
         self._clock = clock or datetime.now
 
@@ -91,6 +99,23 @@ class SNXFileSystem:
 
     # ── Permission helpers ─────────────────────────────────────────────
 
+    def _resource(self, node: SNXNode) -> ProtectedResource:
+        """Build the neutral authorization resource descriptor for *node*."""
+        return ProtectedResource(
+            owner=node.owner,
+            group=node.group,
+            permissions=node.permissions,
+        )
+
+    def _authorized(self, execution: ExecutionContext, node: SNXNode, access: Access) -> bool:
+        return self._policy.authorize(
+            AccessRequest(
+                subject=execution,
+                resource=self._resource(node),
+                right=access,
+            )
+        )
+
     def _denied(self) -> FSResult:
         """FSResult for a permission denial."""
         return FSResult(
@@ -98,25 +123,32 @@ class SNXFileSystem:
             message=CommandError.PERMISSION_DENIED,
         )
 
-    def _owner_group(self, user: SNXUser) -> SNXGroup:
-        """Primary group for a newly created node, falling back to root."""
-        primary = self._membership.primary_group(user)
-        return primary if primary is not None else _ROOT_GROUP
+    def _creation_group(self, execution: ExecutionContext) -> SNXGroup:
+        """Group stamped on newly created nodes.
+
+        Uses the execution's primary group when present; otherwise falls back
+        to the root group. The fallback is a bootstrap default for
+        system-level / no-membership contexts (e.g. ``ExecutionContext.root()``
+        creating system nodes); it never makes the acting execution a root
+        GROUP member or grants it root privilege — authorization membership
+        comes solely from ``execution.credentials.groups``.
+        """
+        return execution.credentials.primary_group or _ROOT_GROUP
 
     def _deny_without_parent_access(
-        self, parent: SNXNode | None, acting_user: SNXUser
+        self, parent: SNXNode | None, execution: ExecutionContext
     ) -> FSResult | None:
-        """Return a denied FSResult when *acting_user* may not change *parent* entries.
+        """Return a denied FSResult when *execution* may not change *parent* entries.
 
         Unix create/delete semantics authorize on the containing directory:
-        the acting user needs BOTH write and execute there. Returns ``None``
-        when the mutation is permitted. A missing parent (orphan node) is
-        never modifiable, so its absence also denies.
+        the acting execution needs BOTH write and execute there. Returns
+        ``None`` when the mutation is permitted. A missing parent (orphan
+        node) is never modifiable, so its absence also denies.
         """
         if parent is None:
             return self._denied()
-        can_write = self.permissions.check(acting_user, parent, Access.WRITE)
-        can_search = self.permissions.check(acting_user, parent, Access.EXECUTE)
+        can_write = self._authorized(execution, parent, Access.WRITE)
+        can_search = self._authorized(execution, parent, Access.EXECUTE)
         if can_write and can_search:
             return None
         return self._denied()
@@ -191,8 +223,8 @@ class SNXFileSystem:
 
         return normalized if normalized.startswith("/") else "/"
 
-    def validate_directory(self, path: str, acting_user: SNXUser) -> FSResult:
-        """Check path exists, is a directory, and may be entered by *acting_user*.
+    def validate_directory(self, path: str, execution: ExecutionContext) -> FSResult:
+        """Check path exists, is a directory, and may be entered by *execution*.
 
         Directory traversal is gated on ``EXECUTE`` (Unix-like): the target
         directory only; ancestor-path traversal is a documented v0.5.0 gap.
@@ -212,13 +244,13 @@ class SNXFileSystem:
                 message=CommandError.NOT_A_DIRECTORY,
             )
 
-        if not self.permissions.check(acting_user, node, Access.EXECUTE):
+        if not self._authorized(execution, node, Access.EXECUTE):
             return self._denied()
 
         return FSResult(exit_code=ExitCode.SUCCESS)
 
-    def check_access(self, path: str, access: Access, acting_user: SNXUser) -> FSResult:
-        """Check whether *acting_user* may perform *access* on *path*.
+    def check_access(self, path: str, access: Access, execution: ExecutionContext) -> FSResult:
+        """Check whether *execution* may perform *access* on *path*.
 
         Public entry point for execute/other access needs (e.g. script
         execution). Preserves the read-style diagnostics for missing paths
@@ -239,7 +271,7 @@ class SNXFileSystem:
                 message=CommandError.IS_A_DIRECTORY,
             )
 
-        if not self.permissions.check(acting_user, node, access):
+        if not self._authorized(execution, node, access):
             return self._denied()
 
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)
@@ -268,8 +300,8 @@ class SNXFileSystem:
         node = self.get_node(path)
         return bool(node and node.is_directory)
 
-    def create_file(self, path: str, acting_user: SNXUser = _ROOT_USER) -> FSResult:
-        """Create an empty regular file owned by *acting_user*.
+    def create_file(self, path: str, execution: ExecutionContext = _ROOT_EXECUTION) -> FSResult:
+        """Create an empty regular file owned by *execution*'s effective identity.
 
         Creating an entry requires ``WRITE + EXECUTE`` on the containing
         directory (Unix directory-entry semantics).
@@ -302,7 +334,7 @@ class SNXFileSystem:
                 message=CommandError.NOT_A_DIRECTORY,
             )
 
-        denied = self._deny_without_parent_access(parent, acting_user)
+        denied = self._deny_without_parent_access(parent, execution)
         if denied is not None:
             return denied
 
@@ -310,8 +342,8 @@ class SNXFileSystem:
             path=path,
             content="",
             is_directory=False,
-            owner=acting_user,
-            group=self._owner_group(acting_user),
+            owner=execution.credentials.effective_user,
+            group=self._creation_group(execution),
             permissions=PermissionPresets.FILE_DEFAULT,
             modified_at=self.now(),
         )
@@ -321,8 +353,10 @@ class SNXFileSystem:
 
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
-    def create_directory(self, path: str, acting_user: SNXUser = _ROOT_USER) -> FSResult:
-        """Create an empty directory owned by *acting_user*.
+    def create_directory(
+        self, path: str, execution: ExecutionContext = _ROOT_EXECUTION
+    ) -> FSResult:
+        """Create an empty directory owned by *execution*'s effective identity.
 
         Creating an entry requires ``WRITE + EXECUTE`` on the containing
         directory (Unix directory-entry semantics).
@@ -350,7 +384,7 @@ class SNXFileSystem:
                 message=CommandError.NOT_A_DIRECTORY,
             )
 
-        denied = self._deny_without_parent_access(parent, acting_user)
+        denied = self._deny_without_parent_access(parent, execution)
         if denied is not None:
             return denied
 
@@ -358,8 +392,8 @@ class SNXFileSystem:
             path=path,
             content="",
             is_directory=True,
-            owner=acting_user,
-            group=self._owner_group(acting_user),
+            owner=execution.credentials.effective_user,
+            group=self._creation_group(execution),
             permissions=PermissionPresets.DIRECTORY_DEFAULT,
             modified_at=self.now(),
         )
@@ -369,7 +403,7 @@ class SNXFileSystem:
 
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
-    def read(self, path: str, acting_user: SNXUser) -> FSResult:
+    def read(self, path: str, execution: ExecutionContext) -> FSResult:
         path = self.normalize_path(path)
         node = self.get_node(path)
 
@@ -385,12 +419,12 @@ class SNXFileSystem:
                 message=CommandError.IS_A_DIRECTORY,
             )
 
-        if not self.permissions.check(acting_user, node, Access.READ):
+        if not self._authorized(execution, node, Access.READ):
             return self._denied()
 
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
-    def write(self, path: str, content: str, acting_user: SNXUser) -> FSResult:
+    def write(self, path: str, content: str, execution: ExecutionContext) -> FSResult:
         path = self.normalize_path(path)
         existing = self.get_node(path)
 
@@ -410,7 +444,7 @@ class SNXFileSystem:
                 message=CommandError.IS_A_DIRECTORY,
             )
 
-        if not self.permissions.check(acting_user, existing, Access.WRITE):
+        if not self._authorized(execution, existing, Access.WRITE):
             return self._denied()
 
         err = self._check_write_limit(path, content)
@@ -436,7 +470,7 @@ class SNXFileSystem:
 
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
-    def append(self, path: str, content: str, acting_user: SNXUser) -> FSResult:
+    def append(self, path: str, content: str, execution: ExecutionContext) -> FSResult:
         path = self.normalize_path(path)
         existing = self.get_node(path)
 
@@ -456,7 +490,7 @@ class SNXFileSystem:
                 message=CommandError.IS_A_DIRECTORY,
             )
 
-        if not self.permissions.check(acting_user, existing, Access.WRITE):
+        if not self._authorized(execution, existing, Access.WRITE):
             return self._denied()
 
         new_content = (existing.content or "") + content
@@ -483,7 +517,7 @@ class SNXFileSystem:
 
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
-    def delete_file(self, path: str, acting_user: SNXUser = _ROOT_USER) -> FSResult:
+    def delete_file(self, path: str, execution: ExecutionContext = _ROOT_EXECUTION) -> FSResult:
         """Remove a regular file from its containing directory.
 
         Removing an entry requires ``WRITE + EXECUTE`` on the parent
@@ -505,7 +539,7 @@ class SNXFileSystem:
             )
 
         parent = self._parent_node(path)
-        denied = self._deny_without_parent_access(parent, acting_user)
+        denied = self._deny_without_parent_access(parent, execution)
         if denied is not None:
             return denied
 
@@ -519,7 +553,9 @@ class SNXFileSystem:
 
         return FSResult(exit_code=ExitCode.SUCCESS)
 
-    def delete_directory(self, path: str, acting_user: SNXUser = _ROOT_USER) -> FSResult:
+    def delete_directory(
+        self, path: str, execution: ExecutionContext = _ROOT_EXECUTION
+    ) -> FSResult:
         """Remove an empty directory from its containing directory.
 
         Removing an entry requires ``WRITE + EXECUTE`` on the parent
@@ -549,7 +585,7 @@ class SNXFileSystem:
             )
 
         parent = self._parent_node(path)
-        denied = self._deny_without_parent_access(parent, acting_user)
+        denied = self._deny_without_parent_access(parent, execution)
         if denied is not None:
             return denied
 
@@ -563,15 +599,15 @@ class SNXFileSystem:
 
         return FSResult(exit_code=ExitCode.SUCCESS)
 
-    def touch(self, path: str, acting_user: SNXUser) -> FSResult:
+    def touch(self, path: str, execution: ExecutionContext) -> FSResult:
         """Idempotent file creation with mtime update.
 
-        Creating a missing file assigns ownership to *acting_user* with
-        ``FILE_DEFAULT`` permissions and requires ``WRITE + EXECUTE`` on the
-        containing directory. On an existing regular file the modifying
-        write permission is required and its mtime is bumped to the current
-        simulated time (content, owner, group, and permissions preserved).
-        Only mtime is modeled — atime/ctime are not.
+        Creating a missing file assigns ownership to *execution*'s effective
+        identity with ``FILE_DEFAULT`` permissions and requires ``WRITE +
+        EXECUTE`` on the containing directory. On an existing regular file the
+        modifying write permission is required and its mtime is bumped to the
+        current simulated time (content, owner, group, and permissions
+        preserved). Only mtime is modeled — atime/ctime are not.
 
         On directories this is a permission-gated no-op, as before.
         """
@@ -586,14 +622,14 @@ class SNXFileSystem:
                     message=CommandError.NOT_FOUND,
                 )
 
-            denied = self._deny_without_parent_access(parent, acting_user)
+            denied = self._deny_without_parent_access(parent, execution)
             if denied is not None:
                 return denied
 
             node = SNXNode(
                 path=path,
-                owner=acting_user,
-                group=self._owner_group(acting_user),
+                owner=execution.credentials.effective_user,
+                group=self._creation_group(execution),
                 content="",
                 is_directory=False,
                 permissions=PermissionPresets.FILE_DEFAULT,
@@ -604,7 +640,7 @@ class SNXFileSystem:
         if node.is_directory:
             return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
-        if not self.permissions.check(acting_user, node, Access.WRITE):
+        if not self._authorized(execution, node, Access.WRITE):
             return self._denied()
 
         node = SNXNode(
@@ -621,7 +657,7 @@ class SNXFileSystem:
         return FSResult(exit_code=ExitCode.SUCCESS, node=node)
 
     def delete(
-        self, path: str, delete_dir: bool = False, acting_user: SNXUser = _ROOT_USER
+        self, path: str, delete_dir: bool = False, execution: ExecutionContext = _ROOT_EXECUTION
     ) -> FSResult:
         """Mark node as deleted in delta_layer (tombstone). By default, dirs cannot be deleted.
 
@@ -653,7 +689,7 @@ class SNXFileSystem:
                 )
 
         parent = self._parent_node(path)
-        denied = self._deny_without_parent_access(parent, acting_user)
+        denied = self._deny_without_parent_access(parent, execution)
         if denied is not None:
             return denied
 
@@ -670,8 +706,8 @@ class SNXFileSystem:
     def list_paths(self) -> list[str]:
         return sorted(self._all_nodes().keys())
 
-    def list_directory(self, path: str, acting_user: SNXUser) -> FSResult:
-        """Read the immediate children of *path* for *acting_user*.
+    def list_directory(self, path: str, execution: ExecutionContext) -> FSResult:
+        """Read the immediate children of *path* for *execution*.
 
         Listing a directory is gated on ``READ``; on success the children are
         returned in ``FSResult.nodes``. Target-directory only; ancestor
@@ -692,7 +728,7 @@ class SNXFileSystem:
                 message=CommandError.NOT_A_DIRECTORY,
             )
 
-        if not self.permissions.check(acting_user, node, Access.READ):
+        if not self._authorized(execution, node, Access.READ):
             return self._denied()
 
         return FSResult(
@@ -725,13 +761,13 @@ class SNXFileSystem:
 
         return sorted(results.values(), key=lambda n: n.path)
 
-    def chmod(self, path: str, mode: int, acting_user: SNXUser) -> FSResult:
+    def chmod(self, path: str, mode: int, execution: ExecutionContext) -> FSResult:
         """Change the permission bits of an existing node.
 
         Only *mode* is mutated: path, owner, group, content, directory state,
         deleted state, and mtime are preserved (Unix updates ctime here, which
-        is not modeled). The node owner (or root) may chmod; any other user is
-        denied. Files are never created here.
+        is not modeled). The node owner (or root) may chmod; any other
+        execution is denied. Files are never created here.
         """
         path = self.normalize_path(path)
         node = self.get_node(path)
@@ -742,7 +778,10 @@ class SNXFileSystem:
                 message=CommandError.NOT_FOUND,
             )
 
-        if acting_user.user_id != node.owner.user_id and acting_user.user_id != 0:
+        resource = self._resource(node)
+        if not (
+            self._policy.is_owner(execution, resource) or self._policy.is_privileged(execution)
+        ):
             return self._denied()
 
         permissions: SNXPermissions = permissions_from_mode(mode)

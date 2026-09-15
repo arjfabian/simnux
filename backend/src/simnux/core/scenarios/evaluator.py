@@ -14,11 +14,11 @@ from simnux.core.commands.models import CommandContext
 from simnux.core.commands.streams import QueueStreamWriter
 from simnux.core.filesystem.vfs import SNXFileSystem
 from simnux.core.runtime.models import TerminalAction
+from simnux.security.execution.models import ExecutionContext
 
 
 if TYPE_CHECKING:
     from simnux.core.shell.runtime import SNXShell
-    from simnux.security.users.models import SNXUser
 
 
 # ── Trigger action mapping ──────────────────────────────────────────────
@@ -152,8 +152,16 @@ async def _evaluate_condition(
     ctype = condition.get("type", "")
 
     if ctype == "file_state":
-        acting_user = shell.scenario.users.get("root") or shell.user
-        return _check_file_state(condition, filesystem, acting_user)
+        # Objective evaluation reads world state as a system observer so it
+        # sees files regardless of the current shell user's permissions: the
+        # scenario's root identity, falling back to the shell's own context
+        # when the scenario defines no root user.
+        root_user = shell.scenario.users.get("root")
+        if root_user is not None:
+            observer = ExecutionContext.for_user(root_user)
+        else:
+            observer = shell.execution_context
+        return _check_file_state(condition, filesystem, observer)
     elif ctype == "command_output":
         return await _check_command_output(
             condition, shell, filesystem, dispatcher, executed_command=executed_command
@@ -167,7 +175,7 @@ async def _evaluate_condition(
 def _check_file_state(
     condition: dict,
     filesystem: SNXFileSystem,
-    acting_user: SNXUser,
+    execution: ExecutionContext,
 ) -> bool:
     """Check whether a VFS file matches expected existence and content state.
 
@@ -195,7 +203,7 @@ def _check_file_state(
     contains = condition.get("contains")
     exact = condition.get("exact_match")
 
-    result = filesystem.read(path, acting_user=acting_user)
+    result = filesystem.read(path, execution=execution)
     if result.exit_code != 0:
         return False
 
@@ -237,7 +245,12 @@ async def _check_command_output(
         or condition.get("contains")
     )
 
-    ctx = CommandContext(shell=shell, filesystem=filesystem, dispatcher=dispatcher)
+    ctx = CommandContext(
+        shell=shell,
+        filesystem=filesystem,
+        execution_context=shell.execution_context,
+        dispatcher=dispatcher,
+    )
 
     stdout_queue: asyncio.Queue[str | None] = asyncio.Queue()
     stderr_queue: asyncio.Queue[str | None] = asyncio.Queue()

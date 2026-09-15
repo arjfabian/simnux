@@ -48,7 +48,7 @@ class Command(SNXCommand):
 
         target = self.resolve_path(raw_target, ctx)
 
-        result = ctx.filesystem.chmod(target, mode, acting_user=ctx.shell.user)
+        result = ctx.filesystem.chmod(target, mode, execution=ctx.execution_context)
 
         if result.exit_code != ExitCode.SUCCESS:
             await stderr.write(f"chmod: {raw_target}: {result.message}")

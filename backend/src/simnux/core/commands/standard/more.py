@@ -66,7 +66,7 @@ class Command(SNXCommand):
 
         path = positional[0]
         abs_path = self.resolve_path(path, ctx)
-        read_result = ctx.filesystem.read(abs_path, acting_user=ctx.shell.user)
+        read_result = ctx.filesystem.read(abs_path, execution=ctx.execution_context)
 
         if read_result.exit_code != ExitCode.SUCCESS:
             await stderr.write(f"more: {path}: {read_result.message}")

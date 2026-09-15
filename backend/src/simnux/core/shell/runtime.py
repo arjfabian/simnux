@@ -20,6 +20,7 @@ from simnux.core.runtime.models import ExitCode
 from simnux.core.runtime.observability import ShellSnapshot
 from simnux.core.scenarios.models import SNXScenario
 from simnux.core.scripting.history import CommandHistory
+from simnux.security.execution.models import ExecutionContext
 from simnux.security.users.models import SNXUser
 
 from .parser import ShellParser
@@ -31,16 +32,17 @@ class SNXShell:
     Stateful shell runtime bound to a single scenario.
 
     Each shell owns exactly one scenario reference and its own interaction
-    state (current user, cwd, history, environment, pending input). The
-    shell is the source of truth commands read scenario-interaction state
-    from; it does not reference the application-level session.
+    state (current execution context, cwd, history, environment, pending
+    input). The shell is the source of truth commands read
+    scenario-interaction state from; it does not reference the
+    application-level session.
     """
 
     def __init__(
         self,
         *,
         scenario: SNXScenario,
-        user: SNXUser,
+        execution_context: ExecutionContext,
         current_directory: str,
         filesystem: SNXFileSystem,
         registry: CommandRegistry,
@@ -56,9 +58,8 @@ class SNXShell:
         # Interaction state owned by this shell.
         self.identifier = identifier or scenario.name
         self.scenario = scenario
-        self.user = user
+        self.execution_context = execution_context
         self.current_directory = current_directory
-
         self.tasks_total = tasks_total
         self.tasks_completed = tasks_completed
         self.metadata: dict = metadata if metadata is not None else {}
@@ -88,6 +89,13 @@ class SNXShell:
         self._lock = asyncio.Lock()
 
     # ── Scenario-derived passthroughs ────────────────────────────────────
+
+    @property
+    def user(self) -> SNXUser:
+        """The effective identity of the current execution context (display
+        convenience). Authorization must go through ``execution_context``.
+        """
+        return self.execution_context.credentials.effective_user
 
     @property
     def motd(self) -> str:
@@ -172,6 +180,7 @@ class SNXShell:
         return CommandContext(
             shell=self,
             filesystem=self.filesystem,
+            execution_context=self.execution_context,
             dispatcher=self.dispatcher,
             viewport_height=viewport_height,
         )

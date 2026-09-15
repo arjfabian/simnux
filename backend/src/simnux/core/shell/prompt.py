@@ -20,6 +20,7 @@ class PromptRenderer:
     def render(shell: SNXShell) -> str:
         """Build CLI prompt from current shell interaction state."""
 
+        identity = shell.execution_context.credentials.effective_user
         path = shell.current_directory
         home_prefix = shell.home_directory.rstrip("/") + "/"
 
@@ -32,6 +33,6 @@ class PromptRenderer:
         elif path.startswith(home_prefix):
             path = path.replace(shell.home_directory, "~", 1)
 
-        tail = "#" if shell.user.identifier == "root" else "$"
+        tail = "#" if identity.identifier == "root" else "$"
 
-        return f"{shell.user.identifier}@{shell.hostname}:{path}{tail} "
+        return f"{identity.identifier}@{shell.hostname}:{path}{tail} "

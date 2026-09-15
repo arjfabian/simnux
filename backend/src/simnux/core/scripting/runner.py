@@ -13,10 +13,10 @@ from simnux.core.commands.models import CommandContext
 from simnux.core.commands.streams import AsyncStreamReader
 from simnux.core.commands.streams import AsyncStreamWriter
 from simnux.core.commands.streams import FileStreamWriter
-from simnux.core.filesystem.permissions import Access
 from simnux.core.runtime.config import LimitsConfig
 from simnux.core.runtime.models import CommandResult
 from simnux.core.runtime.models import ExitCode
+from simnux.security.authorization.models import Access
 
 
 if TYPE_CHECKING:
@@ -73,7 +73,7 @@ class ScriptRunner:
         access_result = ctx.filesystem.check_access(
             abs_path,
             Access.EXECUTE,
-            ctx.shell.user,
+            ctx.execution_context,
         )
         if access_result.exit_code != ExitCode.SUCCESS:
             return None, f"{cmd_name}: {access_result.message}"
@@ -254,7 +254,7 @@ class ScriptRunner:
                     ctx.filesystem,
                     resolved,
                     append=seg.stdout_append,
-                    acting_user=ctx.shell.user,
+                    execution=ctx.execution_context,
                 )
 
             try:
@@ -782,7 +782,7 @@ class ScriptRunner:
                     ctx.filesystem,
                     resolved,
                     append=seg.stdout_append,
-                    acting_user=ctx.shell.user,
+                    execution=ctx.execution_context,
                 )
 
             exit_code = await command.execute(ctx, stdin, cmd_stdout, stderr)
@@ -874,7 +874,7 @@ class ScriptRunner:
                     ctx.filesystem,
                     resolved,
                     append=seg.stdout_append,
-                    acting_user=ctx.shell.user,
+                    execution=ctx.execution_context,
                 )
 
             try:
@@ -935,7 +935,7 @@ class ScriptRunner:
                         ctx.filesystem,
                         resolved,
                         append=append,
-                        acting_user=ctx.shell.user,
+                        execution=ctx.execution_context,
                     )
                 else:
                     out_queue = asyncio.Queue()

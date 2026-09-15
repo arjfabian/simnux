@@ -36,7 +36,7 @@ class Command(SNXCommand):
             target_path=target,
             home_directory=ctx.shell.home_directory,
         )
-        result = ctx.filesystem.read(abs_path, acting_user=ctx.shell.user)
+        result = ctx.filesystem.read(abs_path, execution=ctx.execution_context)
         if result.exit_code != ExitCode.SUCCESS:
             await stderr.write(f"sh: {target}: {result.message}\n")
             return result.exit_code

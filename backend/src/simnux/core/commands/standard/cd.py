@@ -35,7 +35,7 @@ class Command(SNXCommand):
 
         result = ctx.filesystem.validate_directory(
             resolved_path,
-            acting_user=ctx.shell.user,
+            execution=ctx.execution_context,
         )
 
         if result.exit_code != ExitCode.SUCCESS:

@@ -44,7 +44,7 @@ class Command(SNXCommand):
 
         read_result = ctx.filesystem.read(
             source_path,
-            acting_user=ctx.shell.user,
+            execution=ctx.execution_context,
         )
         if read_result.exit_code != ExitCode.SUCCESS:
             await stderr.write(f"cp: {raw_source}: {read_result.message}")
@@ -70,7 +70,7 @@ class Command(SNXCommand):
 
         touch_result = ctx.filesystem.touch(
             target_path,
-            acting_user=ctx.shell.user,
+            execution=ctx.execution_context,
         )
         if touch_result.exit_code != ExitCode.SUCCESS:
             await stderr.write(f"cp: {target_display}: {touch_result.message}")
@@ -79,7 +79,7 @@ class Command(SNXCommand):
         write_result = ctx.filesystem.write(
             target_path,
             source_node.content or "",
-            acting_user=ctx.shell.user,
+            execution=ctx.execution_context,
         )
         if write_result.exit_code != ExitCode.SUCCESS:
             await stderr.write(f"cp: {target_display}: {write_result.message}")

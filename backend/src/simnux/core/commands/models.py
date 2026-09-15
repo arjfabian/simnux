@@ -13,6 +13,7 @@ import re
 from typing import TYPE_CHECKING
 
 from simnux.core.filesystem.vfs import SNXFileSystem
+from simnux.security.execution.models import ExecutionContext
 
 
 if TYPE_CHECKING:
@@ -24,12 +25,15 @@ if TYPE_CHECKING:
 class CommandContext:
     """Per-shell injection container for command execution.
 
-    Contains references to the owning shell's interaction state and the
-    filesystem; commands share the same context object for their lifetime.
+    Contains references to the owning shell's interaction state, the current
+    execution context (the authorization subject commands and the filesystem
+    act as), and the filesystem; commands share the same context object for
+    their lifetime.
     """
 
     shell: SNXShell
     filesystem: SNXFileSystem
+    execution_context: ExecutionContext
     dispatcher: CommandDispatcher | None = None
 
     # Terminal height in text lines, reported per-request by the

@@ -52,7 +52,7 @@ class Command(SNXCommand):
             if arg == "-":
                 return await _stdin_lines(), None
             path = self.resolve_path(arg, ctx)
-            result = ctx.filesystem.read(path, acting_user=ctx.shell.user)
+            result = ctx.filesystem.read(path, execution=ctx.execution_context)
             if result.exit_code != ExitCode.SUCCESS:
                 return None, f"diff: {arg}: {result.message}"
             content = result.node.content or ""

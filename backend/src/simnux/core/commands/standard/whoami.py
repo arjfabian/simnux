@@ -22,5 +22,5 @@ class Command(SNXCommand):
             await stderr.write(f"whoami: {CommandError.TOO_MANY_ARGUMENTS}")
             return ExitCode.INVALID_ARGUMENT
 
-        await stdout.write(f"{ctx.shell.user.identifier}\n")
+        await stdout.write(f"{ctx.execution_context.credentials.effective_user.identifier}\n")
         return ExitCode.SUCCESS

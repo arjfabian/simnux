@@ -76,7 +76,7 @@ class Command(SNXCommand):
                         count += 1
             else:
                 abs_path = self.resolve_path(file_arg, ctx)
-                result = ctx.filesystem.read(abs_path, acting_user=ctx.shell.user)
+                result = ctx.filesystem.read(abs_path, execution=ctx.execution_context)
 
                 if result.exit_code != ExitCode.SUCCESS:
                     await stderr.write(f"head: {file_arg}: {result.message}")

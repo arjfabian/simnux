@@ -98,7 +98,7 @@ class CommandDispatcher:
                 ctx.filesystem,
                 resolved,
                 append=stdout_append,
-                acting_user=ctx.shell.user,
+                execution=ctx.execution_context,
             )
         else:
             out_writer = stdout or QueueStreamWriter(out_queue)
@@ -198,7 +198,7 @@ class CommandDispatcher:
                         ctx.filesystem,
                         resolved,
                         append=append,
-                        acting_user=ctx.shell.user,
+                        execution=ctx.execution_context,
                     )
                 else:
                     out_queue = asyncio.Queue()

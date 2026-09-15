@@ -7,13 +7,12 @@ import logging
 
 from simnux.core.filesystem.vfs import SNXFileSystem
 from simnux.core.runtime.models import ExitCode
-from simnux.security.users.models import SNXUser
+from simnux.security.execution.models import ExecutionContext
 
 
 logger = logging.getLogger("simnux.core.commands.streams")
 
-
-_ROOT_USER = SNXUser(0, "root")
+_ROOT_EXECUTION = ExecutionContext.root()
 
 
 class AsyncStreamReader(ABC):
@@ -117,8 +116,8 @@ class FileStreamWriter(AsyncStreamWriter):
     On ``close()``, all buffered data is joined and written to the VFS at
     ``path``. If the file does not yet exist it is created (``touch``).
     ``append=False`` → ``write()`` (truncate); ``append=True`` → ``append()``.
-    All VFS mutations are performed as *acting_user* so permission
-    enforcement applies to file redirection.
+    All VFS mutations are performed as *execution* so permission enforcement
+    applies to file redirection.
 
     After ``close()``, ``last_error`` contains the error message from the
     VFS if the write/append was rejected (e.g. ``DISK_QUOTA_EXCEEDED`` or
@@ -131,12 +130,12 @@ class FileStreamWriter(AsyncStreamWriter):
         path: str,
         append: bool = False,
         *,
-        acting_user: SNXUser = _ROOT_USER,
+        execution: ExecutionContext = _ROOT_EXECUTION,
     ) -> None:
         self._filesystem = filesystem
         self._path = path
         self._append = append
-        self._acting_user = acting_user
+        self._execution = execution
         self._lines: list[str] = []
         self._closed = False
         self.last_error: str | None = None
@@ -153,7 +152,7 @@ class FileStreamWriter(AsyncStreamWriter):
         content = "".join(self._lines)
         try:
             if not self._filesystem.exists(self._path):
-                touch_result = self._filesystem.touch(self._path, acting_user=self._acting_user)
+                touch_result = self._filesystem.touch(self._path, execution=self._execution)
                 if touch_result.exit_code != ExitCode.SUCCESS:
                     self.last_error = str(touch_result.message)
                     return
@@ -161,13 +160,13 @@ class FileStreamWriter(AsyncStreamWriter):
                 result = self._filesystem.append(
                     self._path,
                     content,
-                    acting_user=self._acting_user,
+                    execution=self._execution,
                 )
             else:
                 result = self._filesystem.write(
                     self._path,
                     content,
-                    acting_user=self._acting_user,
+                    execution=self._execution,
                 )
             if result.message:
                 self.last_error = str(result.message)

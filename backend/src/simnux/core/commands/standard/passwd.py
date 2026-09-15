@@ -130,10 +130,11 @@ class Command(SNXCommand):
         stderr: AsyncStreamWriter,
     ) -> ExitCode:
         pam = SNXPAM()
-        user = ctx.shell.user.identifier
+        identity = ctx.execution_context.credentials.effective_user
+        user = identity.identifier
 
         # Locate the account entry in /etc/passwd.
-        passwd_result = ctx.filesystem.read(_PASSWD_PATH, acting_user=ctx.shell.user)
+        passwd_result = ctx.filesystem.read(_PASSWD_PATH, execution=ctx.execution_context)
         if passwd_result.message:
             await stderr.write(f"passwd: {passwd_result.message}\n")
             return ExitCode.ERROR
@@ -145,7 +146,7 @@ class Command(SNXCommand):
             return ExitCode.ERROR
 
         # Locate the corresponding entry in /etc/shadow.
-        shadow_result = ctx.filesystem.read(_SHADOW_PATH, acting_user=ctx.shell.user)
+        shadow_result = ctx.filesystem.read(_SHADOW_PATH, execution=ctx.execution_context)
         if shadow_result.message:
             await stderr.write(f"passwd: {shadow_result.message}\n")
             return ExitCode.ERROR
@@ -175,7 +176,7 @@ class Command(SNXCommand):
         write_result = ctx.filesystem.write(
             _SHADOW_PATH,
             "\n".join(shadow_lines),
-            acting_user=ctx.shell.user,
+            execution=ctx.execution_context,
         )
         if write_result.message:
             await stderr.write(f"passwd: {write_result.message}\n")

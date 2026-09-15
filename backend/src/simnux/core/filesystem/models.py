@@ -8,42 +8,10 @@ from datetime import datetime
 from enum import Enum
 
 from simnux.core.runtime.models import ExitCode
+from simnux.security.authorization.models import PermissionFlags
+from simnux.security.authorization.models import SNXPermissions
 from simnux.security.groups.models import SNXGroup
 from simnux.security.users.models import SNXUser
-
-
-@dataclass
-class PermissionFlags:
-    """Unix r/w/x flags enforced by the VFS permission evaluator."""
-
-    read: bool = False
-    write: bool = False
-    execute: bool = False
-
-    @classmethod
-    def rw(cls) -> PermissionFlags:
-        return cls(read=True, write=True)
-
-    @classmethod
-    def r(cls) -> PermissionFlags:
-        return cls(read=True)
-
-    @classmethod
-    def rwx(cls) -> PermissionFlags:
-        return cls(read=True, write=True, execute=True)
-
-    @classmethod
-    def rx(cls) -> PermissionFlags:
-        return cls(read=True, execute=True)
-
-
-@dataclass
-class SNXPermissions:
-    """Three-tier (user/group/other) permission set per node."""
-
-    user: PermissionFlags = field(default_factory=PermissionFlags)
-    group: PermissionFlags = field(default_factory=PermissionFlags)
-    other: PermissionFlags = field(default_factory=PermissionFlags)
 
 
 class PermissionPresets:

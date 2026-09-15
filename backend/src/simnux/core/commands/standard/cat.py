@@ -36,7 +36,7 @@ class Command(SNXCommand):
                     await stdout.write(line)
             else:
                 abs_path = self.resolve_path(arg, ctx)
-                result = ctx.filesystem.read(abs_path, acting_user=ctx.shell.user)
+                result = ctx.filesystem.read(abs_path, execution=ctx.execution_context)
 
                 if result.exit_code != ExitCode.SUCCESS:
                     await stderr.write(f"cat: {arg}: {result.message}")
