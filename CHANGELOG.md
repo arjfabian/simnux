@@ -6,6 +6,56 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.5.3] - 2026-09-15
+
+### Added
+
+* Introduced `ExecutionCredentials` and `ExecutionContext` as the security state under which simulated work executes.
+* Added `AuthorizationPolicy` as the single authority for authorization decisions.
+* Added abstract authorization request models (`ProtectedResource`, `AccessRequest`, `Access`, and permission flags), keeping authorization independent from the virtual filesystem.
+* Added scenario-local arbitrary group membership resolution, including primary and supplementary groups.
+* Added explicit execution-context propagation from runtime and shell state through `CommandContext`, commands, scripts, streams, and the VFS.
+* Added coverage for supplementary-group authorization and identities without group membership.
+
+### Changed
+
+* Refactored the virtual filesystem to authorize operations through `AuthorizationPolicy` using `ExecutionContext` instead of raw `SNXUser` identities.
+* Moved execution identity from `SNXShell.user` to `SNXShell.execution_context`; the `user` property remains only as a display/compatibility convenience.
+* Removed group-membership state from the VFS. Membership is now constructed at the composition root and incorporated into execution credentials.
+* File and directory creation now derives ownership from the effective execution identity and primary group.
+* `chmod` authorization now delegates owner/privilege decisions to the authorization layer.
+* Preserved the existing root policy: the scenario-local identity with `user_id == 0` is privileged.
+* Preserved Unix-like owner/group/other permission semantics while making group authorization depend on primary and supplementary execution groups.
+* Scenario objective evaluation now uses an explicit system-observer execution context so world-state evaluation is not constrained by the interactive shell user's permissions.
+* Clarified the separation between scenario identities, execution state, shell interaction state, and application session state in the architecture contracts.
+
+### Architecture
+
+* Established the security dependency direction:
+
+  `identity → execution → authorization`
+
+  with filesystem and command layers consuming security abstractions rather than defining authorization semantics.
+* Kept `ExecutionContext` independent of the filesystem, session, shell, and runtime, allowing future execution-state transformations such as privilege changes or restricted execution views without coupling security to VFS implementation details.
+* Kept `SNXNode` ownership represented by scenario-local `SNXUser`/`SNXGroup` objects; execution credentials are not embedded in filesystem nodes.
+* Defined `primary_group=None` as the absence of a designated primary group, never as implicit root membership or privilege.
+* Reserved the `privileges` field in execution credentials for future privilege modeling without introducing a second privilege mechanism in the current release.
+
+### Tests
+
+* Full test suite: **1003 passed**.
+* Added regression coverage ensuring missing group membership does not imply membership in the root group or root privilege.
+* Added and preserved coverage for owner, group, supplementary-group, chmod, root, creation-ownership, and execution-context propagation behavior.
+* Ruff format/check: clean.
+* Mypy baseline remains unchanged at 33 pre-existing errors outside the refactored areas.
+
+### Deferred
+
+* Scenario YAML/loader does not yet provide a declarative representation for supplementary or cross-identifier group membership.
+* Existing mypy errors remain outside the scope of this release.
+
+---
+
 ## [0.5.2] - 2026-09-10
 
 ### Added
