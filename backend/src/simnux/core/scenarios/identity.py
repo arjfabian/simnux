@@ -167,14 +167,85 @@ class IdentityManager:
 
     This iteration intentionally implements only these operations. User
     deletion, group deletion, ``usermod``, ``chown``, password management,
-    and uid/gid allocation policy are explicit follow-ups — do not add them
-    here.
+    and uid/gid reuse policy (after deletion) are explicit follow-ups — do
+    not add them here.
     """
 
-    def __init__(self, state: IdentityState) -> None:
+    DEFAULT_UID_START = 1000
+
+    def __init__(
+        self,
+        state: IdentityState,
+        *,
+        user_id_start: int = DEFAULT_UID_START,
+    ) -> None:
+        """Create a manager over *state*.
+
+        *user_id_start* is the lower bound for automatic user-id allocation
+        (the policy is "first free id at or above this bound"), kept explicit
+        and minimal — never a reuse policy.
+        """
         self._state = state
+        self._uid_start = user_id_start
 
     # ── Seeding / creation ──────────────────────────────────────────────
+
+    def create_user(
+        self,
+        identifier: str,
+        *,
+        user_id: int | None = None,
+        primary_group: SNXGroup | None = None,
+        groups: Iterable[SNXGroup] = (),
+    ) -> SNXUser:
+        """Create and register a scenario-local user.
+
+        This is the single domain operation that the future ``useradd``
+        command and system bootstrap both call; it never delegates to the
+        command layer and never touches the filesystem, ``/etc`` projections,
+        or ``home`` directories — those remain separate concerns.
+
+        * ``identifier`` — the user's name. Must not already be registered.
+        * ``user_id`` — explicit numeric id, or ``None`` to auto-allocate the
+          first free id at or above ``user_id_start``.
+        * ``primary_group`` — an already-registered group the user joins as
+          its primary group. When ``None``, the ``useradd`` default is
+          applied: a private group with the same identifier and ``gid ==
+          uid`` is created (explicitly, never inferred from name matching)
+          and becomes the primary group.
+        * ``groups`` — additional already-registered groups the user joins.
+
+        Returns the created immutable :class:`SNXUser` (stored in
+        :class:`IdentityState`; never mutated afterwards).
+
+        Raises ``ValueError`` when the identifier or uid is already
+        registered, when an explicit primary/supplementary group is not
+        registered, or when the private group id (``gid == uid``) collides
+        with an already-registered group.
+        """
+        if self._state.user_by_identifier(identifier) is not None:
+            raise ValueError(f"user identifier {identifier!r} is already registered")
+        if user_id is None:
+            user_id = self._allocate_user_id()
+        elif self._state.user_by_id(user_id) is not None:
+            raise ValueError(f"user id {user_id} is already registered")
+
+        if primary_group is None:
+            # useradd default: a private group named like the user with the
+            # same numeric id as the user. Registration raises on collision
+            # with an existing group id/identifier (explicit failure).
+            private_group = SNXGroup(group_id=user_id, identifier=identifier)
+            self._state.register_group(private_group)
+            primary_group = private_group
+        elif self._state.group_by_id(primary_group.group_id) is None:
+            raise ValueError(f"unknown group id {primary_group.group_id}")
+
+        user = SNXUser(user_id=user_id, identifier=identifier)
+        self._state.register_user(user)
+        for group in groups:
+            self._state.add_membership(user.user_id, group.group_id)
+        self.set_primary_group(user, primary_group)
+        return user
 
     def seed_group(self, group: SNXGroup) -> None:
         """Begin tracking a scenario-local *group*."""
@@ -260,3 +331,14 @@ class IdentityManager:
             primary_groups=primary_groups,
             groups_by_id=groups_by_id,
         )
+
+    def _allocate_user_id(self) -> int:
+        """The first free user id at or above the configured start.
+
+        Minimal and explicit: ids are never reused while registered; reuse
+        after deletion is out of scope.
+        """
+        user_id = self._uid_start
+        while self._state.user_by_id(user_id) is not None:
+            user_id += 1
+        return user_id

@@ -220,6 +220,97 @@ class TestIdentityManagerOperations:
         assert manager.membership_view().primary_group(_ALICE) is None
 
 
+class TestCreateUser:
+    """The semantic user-creation operation (future useradd / bootstrap)."""
+
+    def test_create_user_with_explicit_id_and_primary_group(self):
+        manager = _root_manager()
+        manager.seed_group(_STAFF)
+        manager.seed_group(_OPS)
+
+        bob = manager.create_user(
+            "bob",
+            user_id=2000,
+            primary_group=_STAFF,
+            groups=[_OPS],
+        )
+
+        assert bob == SNXUser(2000, "bob")
+        assert manager.user_by_identifier("bob") == bob
+        assert manager.user_by_id(2000) == bob
+
+        membership = manager.membership_view()
+        assert membership.is_member(2000, 2001) is True
+        assert membership.is_member(2000, 2002) is True
+        assert membership.primary_group(bob) is _STAFF
+        # No private "bob" group was created.
+        assert manager.group_by_identifier("bob") is None
+
+    def test_create_user_creates_private_primary_group_by_default(self):
+        manager = _root_manager()
+
+        alice = manager.create_user("alice", user_id=1001)
+
+        assert alice == SNXUser(1001, "alice")
+        private_group = manager.group_by_identifier("alice")
+        assert private_group == SNXGroup(1001, "alice")
+        assert private_group is not None
+
+        membership = manager.membership_view()
+        assert membership.primary_group(alice) == private_group
+        assert membership.is_member(1001, 1001) is True
+
+    def test_duplicate_identifier_rejected(self):
+        manager = _root_manager()
+        with pytest.raises(ValueError, match="already registered"):
+            manager.create_user("root", user_id=1005)
+
+    def test_explicit_duplicate_user_id_rejected(self):
+        manager = _root_manager()
+        with pytest.raises(ValueError, match="already registered"):
+            manager.create_user("bob", user_id=0)
+
+    def test_unknown_explicit_primary_group_rejected(self):
+        manager = _root_manager()
+        with pytest.raises(ValueError, match="unknown group"):
+            manager.create_user(
+                "bob",
+                user_id=1001,
+                primary_group=SNXGroup(3001, "research"),
+            )
+
+    def test_private_group_gid_collision_is_explicit_failure(self):
+        manager = _root_manager()
+        manager.seed_group(SNXGroup(1001, "staff"))
+        with pytest.raises(ValueError, match="already registered"):
+            manager.create_user("bob", user_id=1001)
+
+    def test_auto_id_allocation_starts_at_configured_minimum(self):
+        manager = _root_manager()
+        assert manager.create_user("a", user_id=1000).user_id == 1000
+        assert manager.create_user("b").user_id == 1001
+        assert manager.create_user("c", user_id=1050).user_id == 1050
+        # First free id at or above the start, skipping all taken ids.
+        assert manager.create_user("d").user_id == 1002
+
+    def test_auto_id_allocation_skips_seeded_ids(self):
+        manager = _root_manager()
+        manager.seed_group(_STAFF)
+        manager.seed_user(SNXUser(1000, "existing"), primary_group=_STAFF)
+        assert manager.create_user("next").user_id == 1001
+
+    def test_created_user_feeds_the_full_chain(self):
+        manager = _root_manager()
+        user = manager.create_user("alice")  # private group alice/alice gid=uid
+
+        context = ExecutionContext.for_user(user, manager.membership_view())
+        creds = context.credentials
+
+        assert creds.effective_user == user
+        assert creds.primary_group == SNXGroup(user.user_id, "alice")
+        assert _ROOT_GROUP not in creds.groups
+
+
 class TestLoaderSeedsIdentityState:
     """ScenarioLoader seeds the authoritative identity state."""
 
