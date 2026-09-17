@@ -44,6 +44,29 @@ class SNXGroupMembership:
     _groups_by_id: dict[int, SNXGroup] = field(default_factory=dict)
 
     @classmethod
+    def from_membership_maps(
+        cls,
+        *,
+        group_ids_by_user: Mapping[int, frozenset[int]],
+        primary_groups: Mapping[int, SNXGroup],
+        groups_by_id: Mapping[int, SNXGroup],
+    ) -> SNXGroupMembership:
+        """Build a membership view from explicit state maps.
+
+        Unlike :meth:`from_identities`, membership here is fully explicit and
+        does not depend on user/group identifiers matching. Membership is keyed
+        by numeric user id; primary groups map user id to the user's primary
+        ``SNXGroup``; ``groups_by_id`` is the scenario group registry the view
+        resolves memberships through. Every group id referenced by
+        ``group_ids_by_user`` must be resolvable through ``groups_by_id``.
+        """
+        return cls(
+            _group_ids_by_user=dict(group_ids_by_user),
+            _primary_groups=dict(primary_groups),
+            _groups_by_id=dict(groups_by_id),
+        )
+
+    @classmethod
     def from_identities(
         cls,
         users: Mapping[str, SNXUser],

@@ -14,6 +14,8 @@ from simnux.core.filesystem.models import SNXNode
 from simnux.security.groups.models import SNXGroup
 from simnux.security.users.models import SNXUser
 
+from .identity import IdentityManager
+from .identity import IdentityState
 from .models import SNXScenario
 
 
@@ -134,9 +136,19 @@ class ScenarioLoader:
 
         raw = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
 
-        # Initialize groups and users.
-        groups = {"root": SNXGroup(0, "root")}
-        users = {"root": SNXUser(0, "root")}
+        # Seed the authoritative identity state through IdentityManager
+        # semantics: root and, per declared YAML user, one same-named group
+        # with the user's membership in that group made explicit (never
+        # inferred from identifier equality). The `users`/`groups` dicts below
+        # are projections derived from the seeded state for filesystem-ownership
+        # bootstrap and the /etc account-file renderers — they are NOT the
+        # long-term identity authority.
+        identity_state = IdentityState()
+        manager = IdentityManager(identity_state)
+
+        root_group = SNXGroup(0, "root")
+        manager.seed_group(root_group)
+        manager.seed_user(SNXUser(0, "root"), primary_group=root_group)
 
         for user_data in raw.get("users", []):
             user = SNXUser(
@@ -149,8 +161,11 @@ class ScenarioLoader:
                 identifier=user.identifier,
             )
 
-            users[user.identifier] = user
-            groups[group.identifier] = group
+            manager.seed_group(group)
+            manager.seed_user(user, primary_group=group)
+
+        groups = {group.identifier: group for group in manager.groups()}
+        users = {user.identifier: user for user in manager.users()}
 
         # Initialize filesystem.
         filesystem: dict[str, SNXNode] = {}
@@ -216,7 +231,9 @@ class ScenarioLoader:
             )
 
         # Bootstrap the initial account database: /etc/passwd, /etc/shadow,
-        # and /etc/group are ordinary scenario files owned by root:root.
+        # and /etc/group are ordinary scenario files owned by root:root and
+        # rendered from the identity state's projection dicts. They are
+        # projections — copies of identity state, not a second authority.
         account_files = (
             ("/etc/passwd", cls._build_passwd_file(users, groups)),
             ("/etc/shadow", cls._build_shadow_file(users)),
@@ -247,6 +264,7 @@ class ScenarioLoader:
             hostname=raw.get("hostname", "simnux"),
             users=users,
             groups=groups,
+            identity_state=identity_state,
             starting_dir=starting_dir,
             filesystem=filesystem,
             objective=objective,

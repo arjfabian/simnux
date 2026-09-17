@@ -15,11 +15,11 @@ from simnux.core.filesystem.vfs import SNXFileSystem
 from simnux.core.runtime.config import LimitsConfig
 from simnux.core.runtime.config import RuntimeConfig
 from simnux.core.runtime.observability import RuntimeSnapshot
+from simnux.core.scenarios.identity import IdentityManager
 from simnux.core.scenarios.loader import ScenarioLoader
 from simnux.core.sessions.runtime import SNXSession
 from simnux.core.shell.runtime import SNXShell
 from simnux.security.execution.models import ExecutionContext
-from simnux.security.groups.membership import SNXGroupMembership
 
 
 class SNXRuntime:
@@ -63,15 +63,19 @@ class SNXRuntime:
 
         scenario = ScenarioLoader.load(scenario_name)
 
-        initial_user = next(
-            (user for user in scenario.users.values() if user.identifier != "root"),
-            scenario.users["root"],
-        )
+        # The identity manager owns the authoritative identity state; the
+        # initial execution membership comes from that state's current view
+        # (never from the scenario's declarative users/groups projections).
+        manager = IdentityManager(scenario.identity_state)
 
-        membership = SNXGroupMembership.from_identities(
-            scenario.users,
-            scenario.groups,
+        initial_user = next(
+            (user for user in manager.users() if user.identifier != "root"),
+            manager.user_by_identifier("root"),
         )
+        if initial_user is None:
+            raise KeyError("scenario defines no root user")
+
+        membership = manager.membership_view()
         execution_context = ExecutionContext.for_user(initial_user, membership)
 
         filesystem = SNXFileSystem(
