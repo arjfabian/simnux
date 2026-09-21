@@ -1,0 +1,3 @@
+window.SIMNUX_CONFIG = {
+    BACKEND_URL: "${SIMNUX_BACKEND_URL}",
+};

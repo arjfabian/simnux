@@ -15,7 +15,22 @@ import sys
 
 ROOT = Path(__file__).parent
 BACKEND = ROOT / "backend"
+FRONTEND = ROOT / "frontend"
 PYTHON = BACKEND / ".venv" / "bin" / "python"
+
+
+def ensure_frontend_config() -> None:
+    """Generate frontend/config.js from its template when missing or stale."""
+
+    config_js = FRONTEND / "config.js"
+    template = FRONTEND / "config.js.template"
+    if config_js.is_file() and (
+        not template.is_file() or config_js.stat().st_mtime >= template.stat().st_mtime
+    ):
+        return
+
+    print("Generating frontend/config.js ...")
+    subprocess.run(["sh", str(FRONTEND / "build.sh")], check=True)
 
 
 class DevEnvironment:
@@ -68,6 +83,8 @@ class DevEnvironment:
                 "simnux",
             ]
         )
+
+        ensure_frontend_config()
 
         self.start(
             [
