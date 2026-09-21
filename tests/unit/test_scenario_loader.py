@@ -5,6 +5,7 @@ bootstrap, contract defaults, and the listing API.
 """
 
 from pathlib import Path
+import sys
 
 import pytest
 
@@ -325,3 +326,40 @@ class TestAccountDatabaseBootstrap:
         assert scenario.filesystem["/etc/passwd"].content == ("root:x:0:0:root:/root:/bin/sh\n")
         assert scenario.filesystem["/etc/shadow"].content == ("root:!:20000:0:99999:7:::\n")
         assert scenario.filesystem["/etc/group"].content == "root:x:0:root\n"
+
+
+class TestScenariosDirResolution:
+    """Scenario-root discovery order: env override, source tree, sys.prefix."""
+
+    def test_environment_override_wins(self, monkeypatch, tmp_path):
+        """``SIMNUX_SCENARIOS_DIR`` is authoritative even when other candidates exist."""
+        env_dir = tmp_path / "env-scenarios"
+        env_dir.mkdir()
+        monkeypatch.setattr(ScenarioLoader, "_scenarios_dir", None)
+        monkeypatch.setenv("SIMNUX_SCENARIOS_DIR", str(env_dir))
+        assert ScenarioLoader._get_scenarios_dir() == env_dir
+
+    def test_legacy_source_tree_preferred_when_present(self, monkeypatch):
+        """The source-tree layout is used while a checkout is on ``sys.path``."""
+        monkeypatch.setattr(ScenarioLoader, "_scenarios_dir", None)
+        monkeypatch.delenv("SIMNUX_SCENARIOS_DIR", raising=False)
+        legacy = ScenarioLoader._legacy_scenarios_dir()
+        assert legacy.is_dir()
+        monkeypatch.setattr(sys, "prefix", "/nonexistent-simnux-prefix")
+        assert ScenarioLoader._get_scenarios_dir() == legacy
+
+    def test_sys_prefix_candidate_used_when_legacy_absent(self, monkeypatch, tmp_path):
+        """Wheel installs fall back to ``sys.prefix/scenarios`` when no checkout exists."""
+        scenarios = tmp_path / "scenarios"
+        scenarios.mkdir()
+        monkeypatch.setattr(ScenarioLoader, "_scenarios_dir", None)
+        monkeypatch.delenv("SIMNUX_SCENARIOS_DIR", raising=False)
+        monkeypatch.setattr(sys, "prefix", str(tmp_path))
+        legacy = ScenarioLoader._legacy_scenarios_dir()
+        real_is_dir = Path.is_dir
+
+        def without_legacy(self):
+            return False if self == legacy else real_is_dir(self)
+
+        monkeypatch.setattr(Path, "is_dir", without_legacy)
+        assert ScenarioLoader._get_scenarios_dir() == scenarios

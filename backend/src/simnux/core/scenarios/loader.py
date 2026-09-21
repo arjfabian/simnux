@@ -5,7 +5,9 @@ Transforms declarative YAML scenarios into in-memory filesystem and
 runtime-ready structures.
 """
 
+import os
 from pathlib import Path
+import sys
 
 import yaml
 
@@ -40,11 +42,36 @@ class ScenarioLoader:
     _scenarios_dir: Path | None = None
 
     @classmethod
+    def _legacy_scenarios_dir(cls) -> Path:
+        """Return the source-tree ``backend/scenarios`` path via ``__file__``."""
+        return Path(__file__).resolve().parent.parent.parent.parent.parent / "scenarios"
+
+    @classmethod
     def _get_scenarios_dir(cls) -> Path:
-        if cls._scenarios_dir is None:
-            cls._scenarios_dir = (
-                Path(__file__).resolve().parent.parent.parent.parent.parent / "scenarios"
-            )
+        """Resolve the directory that holds ``<name>/scenario.yaml``.
+
+        Candidates are considered in order; ``SIMNUX_SCENARIOS_DIR`` is
+        authoritative when set, then the source-tree checkout layout, then
+        the ``sys.prefix`` install target used by wheel ``data-files``. The
+        source-tree candidate remains the fallback so error reporting and
+        ``list_available()`` behavior do not regress.
+        """
+        if cls._scenarios_dir is not None:
+            return cls._scenarios_dir
+
+        configured = os.getenv("SIMNUX_SCENARIOS_DIR")
+        if configured:
+            cls._scenarios_dir = Path(configured)
+            return cls._scenarios_dir
+
+        source_tree = cls._legacy_scenarios_dir()
+
+        for candidate in (source_tree, Path(sys.prefix) / "scenarios"):
+            if candidate.is_dir():
+                cls._scenarios_dir = candidate
+                return candidate
+
+        cls._scenarios_dir = source_tree
         return cls._scenarios_dir
 
     @classmethod

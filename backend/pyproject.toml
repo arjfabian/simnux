@@ -39,6 +39,10 @@ version = { attr = "simnux.__version__" }
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.data-files]
+"scenarios/hello" = ["scenarios/hello/scenario.yaml"]
+"scenarios/mission-1" = ["scenarios/mission-1/scenario.yaml"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
