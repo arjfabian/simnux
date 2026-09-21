@@ -14,7 +14,7 @@ def main() -> None:
     uvicorn.run(
         "simnux.boot.app_factory:create_app",
         host="0.0.0.0",
-        port=8000,
+        port=int(os.getenv("PORT", "8000")),
         factory=True,
         reload=_is_dev_reload_enabled(),
     )
