@@ -51,6 +51,7 @@ async def start(
                 return ShellResponse(
                     session_id=session_id,
                     scenario_name=shell.scenario.name,
+                    scenario_identifier=shell.identifier,
                     stdout=[],
                     stderr=[],
                     prompt=shell.render_prompt(),
@@ -81,6 +82,7 @@ async def start(
     return ShellResponse(
         session_id=session_id,
         scenario_name=shell.scenario.name,
+        scenario_identifier=shell.identifier,
         stdout=[shell.motd],
         stderr=[],
         prompt=shell.render_prompt(),

@@ -632,7 +632,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // ── Scenario deep-link (e.g. /shadow_key) ──
         if (storedId) {
           data = await startFetch({ session_id: storedId });
-          if (data && data.scenario_name !== scenarioFromUrl) {
+          if (data && data.scenario_identifier !== scenarioFromUrl) {
             await destroySession(storedId);
             data = null;
           }

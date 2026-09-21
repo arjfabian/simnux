@@ -1,9 +1,10 @@
 """Integration tests for SIMNUX FastAPI HTTP API routes.
 
-Covers all endpoints: ``/`` (root status), ``/start`` (session creation),
-``/execute_command`` (command execution), and ``/api/sessions/{id}``
-(snapshot retrieval). Validates response schemas, HTTP
-status codes, session isolation, and state persistence across commands.
+Covers all endpoints: ``/`` (root status), ``/start`` (session creation and
+resume), ``/execute_command`` (command execution), and
+``DELETE /sessions/{session_id}`` (session destruction). Validates response
+schemas, HTTP status codes, session isolation, and state persistence across
+commands.
 
 All tests use the ``api_client`` fixture (httpx.AsyncClient) and are
 marked with ``pytest.mark.asyncio``.
@@ -122,6 +123,7 @@ class TestStartEndpoint:
 
         assert "session_id" in data
         assert data["scenario_name"] == "Hello SIMNUX"
+        assert data["scenario_identifier"] == "hello"
         assert len(data["stdout"]) == 1
         assert "Welcome" in data["stdout"][0]
         assert data["prompt"] != ""
@@ -149,6 +151,7 @@ class TestStartEndpoint:
 
         assert data["session_id"] == session_id
         assert data["stdout"] == []
+        assert data["scenario_identifier"] == "hello"
 
     async def test_start_invalid_session_returns_404(self, api_client):
         """Invalid session IDs return HTTP 404 instead of creating a new session."""
@@ -288,49 +291,6 @@ class TestExecuteCommandEndpoint:
         assert "/home/user" in api_stdout_text(json_of(resp))
 
 
-class TestSessionEndpoint:
-    """``GET /api/sessions/{session_id}`` — session snapshot retrieval."""
-
-    async def test_get_session_not_found(self, api_client):
-        """Requesting a nonexistent session returns HTTP 404."""
-        resp = await api_client.get("/api/sessions/nonexistent")
-
-        assert resp.status_code == 404
-
-    async def test_get_session_returns_snapshot(self, api_client):
-        """An existing session returns its snapshot with filesystem and commands."""
-        sid = await create_session(api_client)
-
-        resp = await api_client.get(f"/api/sessions/{sid}")
-
-        assert_ok_response(resp)
-
-        data = json_of(resp)
-
-        assert data["session_id"] == sid
-        assert "filesystem" in data
-        assert "loaded_commands" in data
-        assert "current_path" in data
-        assert data["current_path"] == "/home/user"
-
-    async def test_sessions_are_isolated(self, api_client):
-        """Files created in one session do not appear in another session's snapshot."""
-        sid1 = await create_session(api_client)
-        sid2 = await create_session(api_client)
-
-        await execute(
-            api_client,
-            sid1,
-            "touch /tmp/isolated-file",
-        )
-
-        snapshot = await api_client.get(f"/api/sessions/{sid2}")
-
-        data = snapshot.json()
-
-        assert "/tmp/isolated-file" not in data["filesystem"]
-
-
 class TestDestroySessionEndpoint:
     """``DELETE /sessions/{session_id}`` — session destruction."""
 
@@ -391,6 +351,7 @@ class TestResponseContract:
         assert_shell_response(data)
 
         assert data["session_id"]
+        assert data["scenario_identifier"] == "hello"
 
 
 class TestValidationErrors:

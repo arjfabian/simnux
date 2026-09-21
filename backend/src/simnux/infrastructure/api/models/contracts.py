@@ -32,6 +32,11 @@ class ShellResponse(BaseModel):
     session_id: str
     scenario_name: str | None = None
 
+    # Stable scenario identifier (directory slug, e.g. "hello"), distinct from
+    # scenario_name (the human-readable display name, e.g. "Hello SIMNUX").
+    # Lets the frontend compare resume results against URL-derived slugs.
+    scenario_identifier: str | None = None
+
     stdout: list[str] = []
     stderr: list[str] = []
 

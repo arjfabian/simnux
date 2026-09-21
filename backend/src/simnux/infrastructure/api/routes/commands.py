@@ -114,6 +114,7 @@ async def execute(
     return ShellResponse(
         session_id=payload.session_id,
         scenario_name=shell.scenario.name,
+        scenario_identifier=shell.identifier,
         stdout=result.stdout,
         stderr=result.stderr,
         prompt="" if shell.awaiting_input else shell.render_prompt(),
