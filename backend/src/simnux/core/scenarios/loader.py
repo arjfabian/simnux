@@ -16,6 +16,9 @@ from simnux.core.filesystem.models import SNXNode
 from simnux.security.groups.models import SNXGroup
 from simnux.security.users.models import SNXUser
 
+from .account_files import render_group
+from .account_files import render_passwd
+from .account_files import render_shadow
 from .identity import IdentityManager
 from .identity import IdentityState
 from .models import SNXScenario
@@ -96,63 +99,6 @@ class ScenarioLoader:
                 return user, groups[identifier]
 
         return users["root"], groups["root"]
-
-    @staticmethod
-    def _build_passwd_file(
-        users: dict[str, SNXUser],
-        groups: dict[str, SNXGroup],
-    ) -> str:
-        """Build ``/etc/passwd`` from the scenario users.
-
-        The password field is always ``x`` (credentials live in
-        ``/etc/shadow``). Each declared user maps to the scenario-local home
-        directory, primary group id, and a deterministic default shell.
-        """
-        entries = ["root:x:0:0:root:/root:/bin/sh"]
-
-        for user in users.values():
-            if user.identifier == "root":
-                continue
-
-            group = groups.get(user.identifier)
-            gid = group.group_id if group is not None else user.user_id
-
-            entries.append(
-                f"{user.identifier}:x:{user.user_id}:{gid}:{user.identifier}:"
-                f"/home/{user.identifier}:/bin/sh"
-            )
-
-        return "\n".join(entries) + "\n"
-
-    @staticmethod
-    def _build_shadow_file(users: dict[str, SNXUser]) -> str:
-        """Build ``/etc/shadow`` with locked (``!``) password fields.
-
-        No password is configured during bootstrap, so every account's
-        password field uses the standard ``!`` "no password / locked"
-        marker. No SNXPAM encoding is performed here.
-        """
-        entries = ["root:!:20000:0:99999:7:::"]
-
-        for user in users.values():
-            if user.identifier == "root":
-                continue
-
-            entries.append(f"{user.identifier}:!:20000:0:99999:7:::")
-
-        return "\n".join(entries) + "\n"
-
-    @staticmethod
-    def _build_group_file(users: dict[str, SNXUser]) -> str:
-        entries = ["root:x:0:root"]
-
-        for user in users.values():
-            if user.identifier == "root":
-                continue
-
-            entries.append(f"{user.identifier}:x:{user.user_id}:{user.identifier}")
-
-        return "\n".join(entries) + "\n"
 
     @classmethod
     def load(cls, scenario_name: str) -> SNXScenario:
@@ -259,12 +205,14 @@ class ScenarioLoader:
 
         # Bootstrap the initial account database: /etc/passwd, /etc/shadow,
         # and /etc/group are ordinary scenario files owned by root:root and
-        # rendered from the identity state's projection dicts. They are
-        # projections — copies of identity state, not a second authority.
+        # rendered from the authoritative identity state's current users and
+        # groups. They are projections — derived representations of identity
+        # state, not a second authority. The renderers are pure functions
+        # shared with runtime synchronization (SNXShell.refresh_account_files).
         account_files = (
-            ("/etc/passwd", cls._build_passwd_file(users, groups)),
-            ("/etc/shadow", cls._build_shadow_file(users)),
-            ("/etc/group", cls._build_group_file(users)),
+            ("/etc/passwd", render_passwd(manager.users(), manager.groups())),
+            ("/etc/shadow", render_shadow(manager.users())),
+            ("/etc/group", render_group(manager.users())),
         )
 
         for path, content in account_files:

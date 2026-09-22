@@ -18,6 +18,10 @@ from simnux.core.runtime.config import LimitsConfig
 from simnux.core.runtime.models import CommandResult
 from simnux.core.runtime.models import ExitCode
 from simnux.core.runtime.observability import ShellSnapshot
+from simnux.core.scenarios.account_files import render_group
+from simnux.core.scenarios.account_files import render_passwd
+from simnux.core.scenarios.account_files import render_shadow
+from simnux.core.scenarios.identity import IdentityManager
 from simnux.core.scenarios.models import SNXScenario
 from simnux.core.scripting.history import CommandHistory
 from simnux.security.execution.models import ExecutionContext
@@ -25,6 +29,11 @@ from simnux.security.users.models import SNXUser
 
 from .parser import ShellParser
 from .prompt import PromptRenderer
+
+
+_PASSWD_PATH = "/etc/passwd"
+_GROUP_PATH = "/etc/group"
+_SHADOW_PATH = "/etc/shadow"
 
 
 class SNXShell:
@@ -109,6 +118,36 @@ class SNXShell:
     @property
     def hostname(self) -> str:
         return self.scenario.hostname
+
+    def refresh_account_files(self) -> None:
+        """Re-render the ``/etc`` account-file projections into this shell's filesystem.
+
+        Identity mutations flow through ``IdentityManager``; this method
+        applies the derived ``/etc/passwd``, ``/etc/group``, and
+        ``/etc/shadow`` content under the system (root) execution context via
+        the shell's VFS. Existing ``/etc/shadow`` credential/aging fields are
+        preserved for users that still exist; newly created users receive a
+        locked (``!``) entry. Unsuccessful writes are logged but do not
+        raise: the identity state remains authoritative.
+        """
+        manager = IdentityManager(self.scenario.identity_state)
+
+        shadow_result = self.filesystem.read(
+            _SHADOW_PATH,
+            execution=ExecutionContext.root(),
+        )
+        existing_shadow = shadow_result.node.content if shadow_result.node is not None else ""
+
+        account_files = (
+            (_PASSWD_PATH, render_passwd(manager.users(), manager.groups())),
+            (_GROUP_PATH, render_group(manager.users())),
+            (_SHADOW_PATH, render_shadow(manager.users(), existing_shadow)),
+        )
+
+        for path, content in account_files:
+            result = self.filesystem.write(path, content, execution=ExecutionContext.root())
+            if result.message:
+                self.logger.warning(f"refresh_account_files: {path}: {result.message}")
 
     # ── Interaction-state helpers ────────────────────────────────────────
 

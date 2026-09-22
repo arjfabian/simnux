@@ -155,38 +155,68 @@ class IdentityState:
         self.add_membership(user_id, group_id)
         self._primary_groups[user_id] = group_id
 
+    def remove_user(self, user_id: int) -> None:
+        """Unregister *user_id* and drop its memberships and primary-group
+        designation. Raises ``ValueError`` when the user is unknown."""
+        if user_id not in self._users_by_id:
+            raise ValueError(f"unknown user id {user_id}")
+        user = self._users_by_id[user_id]
+        del self._users_by_id[user_id]
+        del self._users_by_identifier[user.identifier]
+        self._membership.pop(user_id, None)
+        self._primary_groups.pop(user_id, None)
+
+    def remove_group(self, group_id: int) -> None:
+        """Unregister *group_id* and remove it from every membership and any
+        primary-group designation. Raises ``ValueError`` when the group is
+        unknown."""
+        if group_id not in self._groups_by_id:
+            raise ValueError(f"unknown group id {group_id}")
+        group = self._groups_by_id[group_id]
+        del self._groups_by_id[group_id]
+        del self._groups_by_identifier[group.identifier]
+        self._membership = {
+            user_id: memberships - {group_id} for user_id, memberships in self._membership.items()
+        }
+        self._primary_groups = {
+            user_id: gid for user_id, gid in self._primary_groups.items() if gid != group_id
+        }
+
 
 class IdentityManager:
     """Semantic operation boundary over an :class:`IdentityState`.
 
     Provides the operations bootstrap and (future) identity-management
-    commands both use: seeding/creating users and groups, establishing
-    explicit membership and primary-group relationships, resolving users and
-    groups by id or identifier, and producing the current
+    commands both use: seeding/creating users and groups, deleting users,
+    establishing explicit membership and primary-group relationships,
+    resolving users and groups by id or identifier, and producing the current
     ``SNXGroupMembership`` view for ``security/execution``.
 
-    This iteration intentionally implements only these operations. User
-    deletion, group deletion, ``usermod``, ``chown``, password management,
-    and uid/gid reuse policy (after deletion) are explicit follow-ups — do
-    not add them here.
+    Deletion and creation are implemented for users (:meth:`delete_user`,
+    :meth:`create_user`) and groups (:meth:`delete_group`, :meth:`create_group`).
+    ``usermod``, ``chown``, password management, and id reuse policies remain
+    explicit follow-ups — do not add them here.
     """
 
     DEFAULT_UID_START = 1000
+    DEFAULT_GID_START = 1000
 
     def __init__(
         self,
         state: IdentityState,
         *,
         user_id_start: int = DEFAULT_UID_START,
+        gid_start: int = DEFAULT_GID_START,
     ) -> None:
         """Create a manager over *state*.
 
-        *user_id_start* is the lower bound for automatic user-id allocation
-        (the policy is "first free id at or above this bound"), kept explicit
-        and minimal — never a reuse policy.
+        *user_id_start* / *gid_start* are the lower bounds for automatic
+        user-id / group-id allocation (the policy is "first free id at or
+        above this bound"), kept explicit and minimal — never a reuse policy.
         """
         self._state = state
         self._uid_start = user_id_start
+        self._gid_start = gid_start
 
     # ── Seeding / creation ──────────────────────────────────────────────
 
@@ -276,6 +306,120 @@ class IdentityManager:
         """Establish explicit membership of *user* in *group*."""
         self._state.add_membership(user.user_id, group.group_id)
 
+    def delete_user(self, identifier: str) -> SNXUser:
+        """Delete the scenario-local user named *identifier* from the state.
+
+        The single domain operation that the future ``userdel`` command and
+        system teardown both call; it never touches the filesystem, ``/etc``
+        projections, or ``home`` directories — those remain separate concerns.
+
+        Removes the user together with its explicit memberships and
+        primary-group designation. When the user's primary group is the
+        private same-named group created by :meth:`create_user` (``gid ==
+        uid`` with the user's identifier) and no other registered user is a
+        member of it, that group is removed too, keeping the state consistent
+        with the loader's one-same-named-group-per-user convention. Shared or
+        explicit primary/supplementary groups are never removed.
+
+        The system root user (``user_id == 0``) cannot be deleted: every
+        scenario is seeded with it and the account projection renderers
+        assume it exists.
+
+        Returns the removed immutable :class:`SNXUser`.
+
+        Raises ``ValueError`` when the identifier is not registered or names
+        the root user. Id/identifier reuse after deletion is out of scope.
+        """
+        user = self._state.user_by_identifier(identifier)
+        if user is None:
+            raise ValueError(f"user identifier {identifier!r} is not registered")
+        if user.user_id == 0:
+            raise ValueError("the system root user cannot be deleted")
+
+        primary = self._state.primary_group(user.user_id)
+
+        self._state.remove_user(user.user_id)
+
+        if (
+            primary is not None
+            and primary.group_id == user.user_id
+            and primary.identifier == user.identifier
+            and not any(
+                primary.group_id in self._state.member_group_ids(member.user_id)
+                for member in self._state.all_users()
+            )
+        ):
+            self._state.remove_group(primary.group_id)
+
+        return user
+
+    def create_group(
+        self,
+        identifier: str,
+        *,
+        group_id: int | None = None,
+    ) -> SNXGroup:
+        """Create and register a scenario-local group.
+
+        The single domain operation that the future ``groupadd`` command and
+        system bootstrap both call; it never delegates to the command layer
+        and never touches the filesystem or the ``/etc`` projections.
+
+        * ``identifier`` — the group's name. Must not already be registered.
+        * ``group_id`` — explicit numeric id, or ``None`` to auto-allocate
+          the first free id at or above ``gid_start``.
+
+        Returns the created immutable :class:`SNXGroup` (stored in
+        :class:`IdentityState`; never mutated afterwards).
+
+        Raises ``ValueError`` when the identifier is already registered or
+        when an explicit group id collides with a registered group.
+        """
+        if self._state.group_by_identifier(identifier) is not None:
+            raise ValueError(f"group identifier {identifier!r} is already registered")
+        if group_id is None:
+            group_id = self._allocate_group_id()
+        elif self._state.group_by_id(group_id) is not None:
+            raise ValueError(f"group id {group_id} is already registered")
+
+        group = SNXGroup(group_id=group_id, identifier=identifier)
+        self._state.register_group(group)
+        return group
+
+    def delete_group(self, identifier: str) -> SNXGroup:
+        """Delete the scenario-local group named *identifier* from the state.
+
+        The single domain operation that the future ``groupdel`` command and
+        system teardown both call; it never touches the filesystem or the
+        ``/etc`` projections.
+
+        Refuses deletion when the group is the primary group of any
+        registered user — the relationship is resolved from the state's
+        explicit primary-group designations, never inferred from identifier
+        equality between the group and a user. Otherwise the group is removed
+        together with every membership referencing it (secondary references
+        are scrubbed, never inferred).
+
+        Returns the removed immutable :class:`SNXGroup`.
+
+        Raises ``ValueError`` when the identifier is not registered or when
+        the group is the primary group of a registered user.
+        """
+        group = self._state.group_by_identifier(identifier)
+        if group is None:
+            raise ValueError(f"group identifier {identifier!r} is not registered")
+
+        for user in self._state.all_users():
+            primary = self._state.primary_group(user.user_id)
+            if primary is not None and primary.group_id == group.group_id:
+                raise ValueError(
+                    f"group identifier {identifier!r} is the primary group of "
+                    f"user {user.identifier!r} and cannot be deleted"
+                )
+
+        self._state.remove_group(group.group_id)
+        return group
+
     def set_primary_group(self, user: SNXUser, group: SNXGroup) -> None:
         """Establish *group* as *user*'s primary group (implies membership)."""
         self._state.set_primary_group(user.user_id, group.group_id)
@@ -342,3 +486,14 @@ class IdentityManager:
         while self._state.user_by_id(user_id) is not None:
             user_id += 1
         return user_id
+
+    def _allocate_group_id(self) -> int:
+        """The first free group id at or above the configured start.
+
+        Minimal and explicit: ids are never reused while registered; reuse
+        after deletion is out of scope.
+        """
+        group_id = self._gid_start
+        while self._state.group_by_id(group_id) is not None:
+            group_id += 1
+        return group_id

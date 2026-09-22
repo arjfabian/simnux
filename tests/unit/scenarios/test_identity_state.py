@@ -311,6 +311,198 @@ class TestCreateUser:
         assert _ROOT_GROUP not in creds.groups
 
 
+class TestDeleteUser:
+    """The semantic user-deletion operation (future userdel)."""
+
+    def test_delete_removes_user_memberships_and_primary_group(self):
+        manager = _root_manager()
+        manager.seed_group(_STAFF)
+        manager.seed_group(_OPS)
+        alice = manager.create_user(
+            "alice",
+            user_id=1001,
+            primary_group=_STAFF,
+            groups=[_OPS],
+        )
+
+        removed = manager.delete_user("alice")
+
+        assert removed == alice
+        assert manager.user_by_identifier("alice") is None
+        assert manager.user_by_id(1001) is None
+        assert manager.membership_view().group_ids_of(alice) == frozenset()
+        # Shared/explicit groups always survive.
+        assert manager.group_by_identifier("staff") is _STAFF
+        assert manager.group_by_identifier("ops") is _OPS
+
+    def test_delete_removes_private_group_by_default(self):
+        manager = _root_manager()
+        manager.create_user("alice", user_id=1001)
+
+        manager.delete_user("alice")
+
+        assert manager.user_by_identifier("alice") is None
+        assert manager.group_by_identifier("alice") is None
+        assert manager.group_by_id(1001) is None
+
+    def test_delete_preserves_private_group_with_other_members(self):
+        manager = _root_manager()
+        manager.create_user("alice", user_id=1001)
+        private = manager.group_by_identifier("alice")
+        bob = manager.create_user("bob", user_id=1002, groups=[private])
+
+        manager.delete_user("alice")
+
+        assert manager.group_by_identifier("alice") is private
+        assert manager.membership_view().is_member(bob.user_id, private.group_id)
+
+    def test_delete_unknown_user_raises(self):
+        manager = _root_manager()
+        with pytest.raises(ValueError, match="not registered"):
+            manager.delete_user("ghost")
+
+    def test_delete_root_refused(self):
+        manager = _root_manager()
+        with pytest.raises(ValueError, match="root"):
+            manager.delete_user("root")
+        assert manager.user_by_identifier("root") is _ROOT_USER
+        assert manager.group_by_identifier("root") is _ROOT_GROUP
+
+    def test_delete_frees_uid_for_recreation(self):
+        manager = _root_manager()
+        manager.create_user("alice", user_id=1000)
+        manager.delete_user("alice")
+
+        recreated = manager.create_user("alice")
+        assert recreated.user_id == 1000
+        assert manager.group_by_identifier("alice") == SNXGroup(1000, "alice")
+
+
+class TestCreateGroup:
+    """The semantic group-creation operation (future groupadd)."""
+
+    def test_create_auto_allocates_first_free_gid(self):
+        manager = _root_manager()
+        group = manager.create_group("staff")
+
+        assert group == SNXGroup(1000, "staff")
+        assert manager.group_by_identifier("staff") is group
+        assert manager.group_by_id(1000) is group
+
+    def test_create_with_explicit_gid(self):
+        manager = _root_manager()
+        group = manager.create_group("staff", group_id=2001)
+
+        assert group == _STAFF
+        assert manager.group_by_identifier("staff") == _STAFF
+        assert manager.group_by_id(2001) == _STAFF
+
+    def test_create_does_not_share_uid_namespace(self):
+        # Gid allocation is separate from uid allocation; a used uid does not
+        # occupy the group-id namespace.
+        manager = _root_manager()
+        manager.create_user("alice", user_id=1001)
+
+        assert manager.create_group("staff").group_id == 1000
+
+    def test_create_skips_registered_gids(self):
+        manager = _root_manager()
+        manager.seed_group(SNXGroup(1000, "seat"))
+        manager.seed_group(SNXGroup(1002, "other"))
+
+        group = manager.create_group("staff")
+        assert group.group_id == 1001
+
+    def test_create_duplicate_identifier_rejected(self):
+        manager = _root_manager()
+        manager.create_group("staff", group_id=2001)
+
+        with pytest.raises(ValueError, match="already registered"):
+            manager.create_group("staff")
+        with pytest.raises(ValueError, match="already registered"):
+            manager.create_group("staff", group_id=2005)
+
+    def test_create_explicit_gid_collision_rejected(self):
+        manager = _root_manager()
+        manager.create_group("staff", group_id=2001)
+
+        with pytest.raises(ValueError, match="already registered"):
+            manager.create_group("ops", group_id=2001)
+
+    def test_created_group_can_be_primary(self):
+        manager = _root_manager()
+        group = manager.create_group("staff")
+
+        alice = manager.create_user("alice", user_id=1001, primary_group=group)
+        assert manager.membership_view().primary_group(alice) is group
+        assert manager.membership_view().is_member(alice.user_id, group.group_id)
+
+
+class TestDeleteGroup:
+    """The semantic group-deletion operation (future groupdel)."""
+
+    def test_delete_removes_group(self):
+        manager = _root_manager()
+        group = manager.create_group("staff", group_id=2001)
+
+        removed = manager.delete_group("staff")
+
+        assert removed == group
+        assert manager.group_by_identifier("staff") is None
+        assert manager.group_by_id(2001) is None
+
+    def test_delete_scrubs_memberships_not_primary(self):
+        manager = _root_manager()
+        group = manager.create_group("staff", group_id=2001)
+        manager.seed_group(_OPS)
+        alice = manager.create_user(
+            "alice",
+            user_id=1001,
+            primary_group=_OPS,
+            groups=[group],
+        )
+
+        manager.delete_group("staff")
+
+        assert manager.group_by_id(2001) is None
+        assert manager.membership_view().is_member(1001, 2001) is False
+        # The unrelated primary group survives; nothing is inferred.
+        assert manager.membership_view().primary_group(alice) is _OPS
+        assert manager.group_by_identifier("ops") is _OPS
+
+    def test_delete_unknown_group_raises(self):
+        manager = _root_manager()
+        with pytest.raises(ValueError, match="not registered"):
+            manager.delete_group("ghost")
+
+    def test_delete_primary_group_refused(self):
+        manager = _root_manager()
+        group = manager.create_group("staff", group_id=2001)
+        alice = manager.create_user("alice", user_id=1001, primary_group=group)
+
+        with pytest.raises(ValueError, match="primary group"):
+            manager.delete_group("staff")
+
+        assert manager.group_by_identifier("staff") is group
+        assert manager.membership_view().primary_group(alice) is group
+
+    def test_delete_not_inferred_from_identifier_equality(self):
+        # Record-keeping is by explicit primary designation, never by
+        # identifier equality: a group named like a user is deletable unless
+        # it is that user's actual primary group.
+        manager = _root_manager()
+        staff = manager.create_group("staff", group_id=2001)
+        alice = manager.create_user("alice", user_id=1001, primary_group=staff)
+        decoy = manager.create_group("alice", group_id=2003)
+
+        removed = manager.delete_group("alice")
+
+        assert removed is decoy
+        assert manager.group_by_id(2003) is None
+        assert manager.membership_view().primary_group(alice) is staff
+        assert manager.group_by_identifier("staff") is staff
+
+
 class TestLoaderSeedsIdentityState:
     """ScenarioLoader seeds the authoritative identity state."""
 
