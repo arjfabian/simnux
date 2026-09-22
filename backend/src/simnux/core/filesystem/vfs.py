@@ -4,7 +4,8 @@ Permission enforcement: every permission-sensitive VFS mutation/access gates
 on the current execution context through ``AuthorizationPolicy`` — read
 (``read``), write (``write``/``append``/``touch`` of an existing file),
 execute (``validate_directory``/``check_access``), directory read
-(``list_directory``), owner-or-root (``chmod``), and parent-directory
+(``list_directory``), owner-or-root (``chmod``), root-only owner change plus
+owner-or-root group change (``chown``), and parent-directory
 ``WRITE + EXECUTE`` for entry creation/removal (``create_file`` /
 ``create_directory`` / ``touch`` of a missing path / ``delete`` /
 ``delete_file`` / ``delete_directory``).
@@ -799,5 +800,73 @@ class SNXFileSystem:
 
         self.delta_layer[path] = new_node
         self._log(f"chmod: {path} {mode:o}")
+
+        return FSResult(exit_code=ExitCode.SUCCESS, node=new_node)
+
+    def chown(
+        self,
+        path: str,
+        execution: ExecutionContext,
+        *,
+        owner: SNXUser | None = None,
+        group: SNXGroup | None = None,
+    ) -> FSResult:
+        """Change the owner and/or group of an existing node.
+
+        Only *owner* and/or *group* are mutated: path, content, permissions,
+        directory state, deleted state, and mtime are preserved (Unix updates
+        ctime here, which is not modeled). Files are never created here, so a
+        missing path is not an error to recover from.
+
+        Authorization follows Unix ``chown`` semantics and is delegated to the
+        ``AuthorizationPolicy``:
+        * changing the *owner* requires a privileged execution (root);
+        * changing only the *group* requires the node owner (``is_owner``) —
+        or a privileged execution — and, for non-privileged executions,
+        membership in the target group per the execution context's own
+        credentials (the same snapshot ``authorization`` reads for class
+        selection); the target group is never created here.
+
+        At least one of *owner*/*group* is required.
+        """
+        if owner is None and group is None:
+            raise ValueError("chown requires an owner, a group, or both")
+
+        path = self.normalize_path(path)
+        node = self.get_node(path)
+
+        if node is None:
+            return FSResult(
+                exit_code=ExitCode.ERROR,
+                message=CommandError.NO_SUCH_FILE_OR_DIR,
+            )
+
+        resource = self._resource(node)
+        privileged = self._policy.is_privileged(execution)
+
+        if owner is not None and not privileged:
+            return self._denied()
+
+        if group is not None and not privileged:
+            if not self._policy.is_owner(execution, resource):
+                return self._denied()
+            if not any(
+                member.group_id == group.group_id for member in execution.credentials.groups
+            ):
+                return self._denied()
+
+        new_node = SNXNode(
+            path=node.path,
+            owner=owner if owner is not None else node.owner,
+            group=group if group is not None else node.group,
+            content=node.content,
+            is_directory=node.is_directory,
+            deleted=node.deleted,
+            permissions=node.permissions,
+            modified_at=node.modified_at,
+        )
+
+        self.delta_layer[path] = new_node
+        self._log(f"chown: {path}")
 
         return FSResult(exit_code=ExitCode.SUCCESS, node=new_node)
