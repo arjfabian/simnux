@@ -19,7 +19,7 @@ def configure_middleware(app: FastAPI) -> None:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-    # Enable proxy header inspection for accurate client IP resolution on Fly.io
+    # Enable proxy header inspection for accurate client IP resolution behind a reverse proxy
     app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
     app.add_middleware(SlowAPIMiddleware)
 
