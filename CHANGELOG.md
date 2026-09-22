@@ -6,6 +6,90 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.5.4] - 2026-09-22
+
+### Added
+
+#### Identity commands
+
+* Added `useradd` for creating scenario-local users.
+* Added `userdel` for deleting scenario-local users.
+* Added `usermod` for modifying user primary and supplementary group membership.
+* Added `groupadd` for creating scenario-local groups.
+* Added `groupdel` for deleting scenario-local groups.
+* Added `chown` for changing filesystem resource ownership and group ownership.
+
+#### Identity infrastructure
+
+* Added the scenario-local `IdentityState` as the authoritative source of users,
+  groups, memberships, and primary-group relationships.
+* Added `IdentityManager` as the semantic operation boundary for identity
+  mutations.
+* Added automatic UID/GID allocation for newly created users and groups.
+* Added private primary-group creation for users created without an explicit
+  primary group.
+* Added explicit membership tracking and primary-group relationships.
+* Added identity deletion semantics, including cleanup of private primary groups
+  where applicable.
+* Added protection against deleting root and against deleting groups that are
+  primary groups of registered users.
+
+#### Account-file projections
+
+* Added generation and refresh of `/etc/passwd`, `/etc/group`, and `/etc/shadow`
+  projections from scenario identity state.
+* Preserved existing `/etc/shadow` credentials and account-aging data while
+  synchronizing scenario-local accounts.
+* New shadow entries are created in a locked state.
+
+#### Filesystem ownership
+
+* Added VFS ownership mutation through the authorization layer.
+* Added authorization checks for ownership and group changes based on the
+  current `ExecutionContext`.
+* Preserved existing filesystem node metadata when changing ownership.
+
+### Changed
+
+* The scenario loader's inline `/etc/passwd` and `/etc/shadow` bootstrap
+  renderers were extracted into shared, pure renderers under
+  `core/scenarios/account_files.py`; `/etc/group` rendering was added.
+* The loader now seeds the `/etc/passwd`, `/etc/group`, and `/etc/shadow`
+  projections from scenario identity state.
+* `SNXShell.refresh_account_files()` re-renders the account-file projections
+  after successful identity mutations.
+* Command implementations resolve scenario-local users and groups through the
+  owning `SNXScenario`.
+* Identity and ownership operations use the command's `ExecutionContext` as the
+  authorization subject.
+* Account files are treated as projections of scenario identity state rather
+  than authoritative identity storage.
+
+### Deferred
+
+* Account-file projections follow the bootstrap convention of one same-named
+  primary group per user, so `usermod` primary/supplementary membership changes
+  are not yet reflected in `/etc/passwd`/`/etc/group`; identity state remains
+  authoritative.
+* `usermod -G` replacement of the supplementary group list is unsupported: the
+  identity model exposes append membership but not supplementary-membership
+  removal.
+* Identity membership changes affect fresh `ExecutionContext` snapshots; an
+  already-running shell keeps its existing credentials.
+* `usermod` currently has no privilege gate, consistent with the other identity
+  commands.
+
+### Tests
+
+* Added focused command coverage for `useradd`, `userdel`, `usermod`,
+  `groupadd`, `groupdel`, and `chown`.
+* Added coverage for identity lifecycle, membership, primary-group, ownership,
+  authorization, and account-file synchronization behavior.
+* Full test suite: **1120 passed**.
+* Ruff format/check: clean.
+
+---
+
 ## [0.5.3] - 2026-09-15
 
 ### Added
@@ -59,19 +143,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [0.5.2] - 2026-09-10
 
 ### Added
-- Added filesystem modification timestamps (`mtime`) to `SNXNode`.
-- Added injectable filesystem clock support for deterministic time-dependent behavior.
-- Implemented functional `touch`, including mtime updates for existing files.
-- Added modification date/time display to `ls -l`.
+* Added filesystem modification timestamps (`mtime`) to `SNXNode`.
+* Added injectable filesystem clock support for deterministic time-dependent behavior.
+* Implemented functional `touch`, including mtime updates for existing files.
+* Added modification date/time display to `ls -l`.
 
 ### Changed
-- `cal` now uses the filesystem clock for today's date, enabling deterministic execution.
-- Filesystem mutations that modify file contents or create nodes now update their mtime.
-- Documented that SIMNUX models `mtime` only; access time and change time are not currently modeled.
-- Nodes without mtime metadata are rendered as `Jan  1  1970` by `ls -l`.
+* `cal` now uses the filesystem clock for today's date, enabling deterministic execution.
+* Filesystem mutations that modify file contents or create nodes now update their mtime.
+* Documented that SIMNUX models `mtime` only; access time and change time are not currently modeled.
+* Nodes without mtime metadata are rendered as `Jan  1  1970` by `ls -l`.
 
 ### Tests
-- Added deterministic timestamp coverage for filesystem mutations, `touch`, `ls -l`, and `cal`.
+* Added deterministic timestamp coverage for filesystem mutations, `touch`, `ls -l`, and `cal`.
 
 ---
 
